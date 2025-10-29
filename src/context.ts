@@ -288,10 +288,11 @@ export class CDPContext {
    */
   async createPage(url?: string): Promise<Page> {
     const endpoint = url
-      ? `${this.cdpUrl}/json/new?${encodeURIComponent(url)}`
+      // Chrome expects the literal URL after '?', so use encodeURI to keep protocol delimiters while escaping spaces; fragments must still be escaped.
+      ? `${this.cdpUrl}/json/new?${encodeURI(url).replace(/#/g, '%23')}`
       : `${this.cdpUrl}/json/new`;
 
-    const response = await fetch(endpoint);
+    const response = await fetch(endpoint, { method: 'PUT' });
     if (!response.ok) {
       throw new Error(`Failed to create page: ${response.statusText}`);
     }
