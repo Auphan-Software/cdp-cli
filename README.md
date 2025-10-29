@@ -6,6 +6,9 @@ Command-line interface for Chrome DevTools Protocol (CDP), optimized for LLM age
 
 `cdp-cli` provides CLI access to all Chrome DevTools Protocol features, making it easy to automate browser interactions, debug web applications, and inspect network traffic - all from the command line with grep/tail-friendly output.
 
+> **Distribution note**  
+> This scoped build (`@auphansoftware/cdp-cli`) is published for Auphan Software internal use, remains under the MIT license, and bundles the upstream work originally authored by [@myers](https://github.com/myers) at [github.com/myers/cdp-cli](https://github.com/myers/cdp-cli).
+
 ## Installation
 
 ```bash
@@ -14,8 +17,11 @@ cd chrome-devtools-cli
 npm install
 npm run build
 
-# Global installation (coming soon)
-npm install -g chrome-devtools-cli
+# Global installation
+npm install -g @auphansoftware/cdp-cli
+
+# Verify the CLI is available, regardless of platform shims (.cmd/.ps1)
+cdp-cli --help
 ```
 
 ## Prerequisites
