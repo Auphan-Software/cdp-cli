@@ -247,7 +247,7 @@ cli.command(
 
 // Input commands
 cli.command(
-  'click <selector> <page>',
+  'click [selector] <page>',
   'Click an element',
   (yargs) => {
     return yargs
@@ -264,14 +264,64 @@ cli.command(
         description: 'Perform double click',
         alias: 'd',
         default: false
+      })
+      .option('text', {
+        type: 'string',
+        description: 'Match element by visible text instead of CSS selector'
+      })
+      .option('match', {
+        type: 'string',
+        description: 'Text matching strategy (exact, contains, regex)',
+        choices: ['exact', 'contains', 'regex'] as const,
+        default: 'exact'
+      })
+      .option('case-sensitive', {
+        type: 'boolean',
+        description: 'Treat text match as case-sensitive',
+        default: false
+      })
+      .option('nth', {
+        type: 'number',
+        description: 'Select the Nth match when multiple elements match',
+        coerce: (value: unknown) => {
+          if (value === undefined || value === null || value === '') {
+            return undefined;
+          }
+          const num = Number(value);
+          if (!Number.isInteger(num) || num < 1) {
+            throw new Error('--nth must be a positive integer');
+          }
+          return num;
+        }
+      })
+      .check((argv) => {
+        const hasSelector = typeof argv.selector === 'string' && argv.selector.length > 0;
+        const hasText = typeof argv.text === 'string' && argv.text.length > 0;
+        if (!hasSelector && !hasText) {
+          throw new Error('Provide either a CSS selector or --text');
+        }
+        if (hasSelector && hasText) {
+          throw new Error('CSS selector and --text are mutually exclusive');
+        }
+        return true;
       });
   },
   async (argv) => {
     const context = new CDPContext(argv['cdp-url'] as string);
-    await input.click(context, argv.selector as string, {
-      page: argv.page as string,
-      double: argv.double as boolean
-    });
+    await input.click(
+      context,
+      {
+        selector: argv.selector as string | undefined,
+        text: argv.text as string | undefined,
+        match: argv.match as 'exact' | 'contains' | 'regex',
+        caseSensitive: argv.caseSensitive as boolean,
+        nth: argv.nth as number | undefined
+      },
+      {
+        page: argv.page as string,
+        double: argv.double as boolean
+      }
+    );
   }
 );
 

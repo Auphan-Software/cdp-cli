@@ -6,7 +6,7 @@ Command-line interface for Chrome DevTools Protocol (CDP), optimized for LLM age
 
 `cdp-cli` provides CLI access to all Chrome DevTools Protocol features, making it easy to automate browser interactions, debug web applications, and inspect network traffic - all from the command line with grep/tail-friendly output.
 
-> **Distribution note**  
+> **Distribution note**
 > This scoped build (`@auphansoftware/cdp-cli`) is published for Auphan Software internal use, remains under the MIT license, and bundles the upstream work originally authored by [@myers](https://github.com/myers) at [github.com/myers/cdp-cli](https://github.com/myers/cdp-cli).
 
 ## Installation
@@ -178,10 +178,20 @@ cdp-cli list-network "example" --duration 5 --type fetch
 
 ### Input Automation
 
-**click** - Click an element by CSS selector
+**click** - Click an element by CSS selector or visible text
+Supports `--text`, `--match exact|contains|regex`, `--case-sensitive`, and `--nth` for multi-match disambiguation. When multiple elements match, the CLI reports each candidate (including bounding boxes) so an LLM can choose the right target with `--nth`.
 ```bash
+# CSS selector (default behaviour)
 cdp-cli click "button#submit" "example"
 cdp-cli click "a.link" "example" --double
+
+# Visible text (exact match, case-insensitive by default)
+cdp-cli click --text "Submit" "example"          # single match
+cdp-cli click --text "Submit" --nth 2 "example"  # choose the 2nd match
+
+# Alternative text matching strategies
+cdp-cli click --text "enter" --match contains "example"
+cdp-cli click --text "^\d+$" --match regex --case-sensitive "example"
 ```
 
 **fill** - Fill an input element
