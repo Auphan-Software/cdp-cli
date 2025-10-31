@@ -179,11 +179,12 @@ cdp-cli list-network "example" --duration 5 --type fetch
 ### Input Automation
 
 **click** - Click an element by CSS selector or visible text
-Supports `--text`, `--match exact|contains|regex`, `--case-sensitive`, and `--nth` for multi-match disambiguation. When multiple elements match, the CLI reports each candidate (including bounding boxes) so an LLM can choose the right target with `--nth`.
+Supports `--text`, `--match exact|contains|regex`, `--case-sensitive`, and `--nth` for multi-match disambiguation. Use `--longpress <seconds>` to hold the primary button before release (not compatible with `--double`). When multiple elements match, the CLI reports each candidate (including bounding boxes) so an LLM can choose the right target with `--nth`.
 ```bash
 # CSS selector (default behaviour)
 cdp-cli click "button#submit" "example"
 cdp-cli click "a.link" "example" --double
+cdp-cli click "li.menu-item" "example" --longpress 0.75
 
 # Visible text (exact match, case-insensitive by default)
 cdp-cli click --text "Submit" "example"          # single match

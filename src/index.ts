@@ -265,6 +265,20 @@ cli.command(
         alias: 'd',
         default: false
       })
+      .option('longpress', {
+        type: 'number',
+        description: 'Hold mouse button for N seconds before release',
+        coerce: (value: unknown) => {
+          if (value === undefined || value === null || value === '') {
+            return undefined;
+          }
+          const num = Number(value);
+          if (!Number.isFinite(num) || num < 0) {
+            throw new Error('--longpress must be a non-negative number');
+          }
+          return num;
+        }
+      })
       .option('text', {
         type: 'string',
         description: 'Match element by visible text instead of CSS selector'
@@ -303,6 +317,13 @@ cli.command(
         if (hasSelector && hasText) {
           throw new Error('CSS selector and --text are mutually exclusive');
         }
+        if (
+          argv.double === true &&
+          typeof argv.longpress === 'number' &&
+          argv.longpress > 0
+        ) {
+          throw new Error('--double cannot be combined with --longpress');
+        }
         return true;
       });
   },
@@ -319,7 +340,8 @@ cli.command(
       },
       {
         page: argv.page as string,
-        double: argv.double as boolean
+        double: argv.double as boolean,
+        longpress: argv.longpress as number | undefined
       }
     );
   }
