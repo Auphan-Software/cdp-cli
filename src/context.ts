@@ -80,15 +80,31 @@ export class CDPContext {
    */
   async findPage(idOrTitle: string): Promise<Page> {
     const pages = await this.getPages();
-    const page = pages.find(p =>
-      p.id === idOrTitle || p.title.includes(idOrTitle)
+
+    // Prefer exact ID match, which guarantees uniqueness.
+    const byId = pages.find((page) => page.id === idOrTitle);
+    if (byId) {
+      return byId;
+    }
+
+    const titleMatches = pages.filter((page) =>
+      page.title.includes(idOrTitle)
     );
 
-    if (!page) {
+    if (titleMatches.length === 0) {
       throw new Error(`Page not found: ${idOrTitle}`);
     }
 
-    return page;
+    if (titleMatches.length > 1) {
+      const summary = titleMatches
+        .map((page) => `"${page.title}" (${page.id})`)
+        .join(', ');
+      throw new Error(
+        `Multiple pages matched "${idOrTitle}". Use an exact page ID or refine the title. Matches: ${summary}`
+      );
+    }
+
+    return titleMatches[0];
   }
 
   /**
