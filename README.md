@@ -26,7 +26,9 @@ cdp-cli --help
 
 ## Prerequisites
 
-Chrome must be running with remote debugging enabled:
+- Node.js 18 or newer
+  - The CLI bundles a `fetch` polyfill for older 18.x builds.
+- Google Chrome started with remote debugging enabled:
 
 ```bash
 # macOS

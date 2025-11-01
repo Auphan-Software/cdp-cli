@@ -4,6 +4,7 @@
  */
 
 import { WebSocket } from 'ws';
+import { fetch as undiciFetch } from 'undici';
 
 export interface Page {
   id: string;
@@ -66,7 +67,7 @@ export class CDPContext {
    * Get list of all open pages
    */
   async getPages(): Promise<Page[]> {
-    const response = await fetch(`${this.cdpUrl}/json`);
+    const response = await (globalThis.fetch ?? undiciFetch)(`${this.cdpUrl}/json`);
     if (!response.ok) {
       throw new Error(`Failed to fetch pages: ${response.statusText}`);
     }
