@@ -2,8 +2,8 @@
  * Debugging commands: console, snapshot, eval, screenshot
  */
 
-import { CDPContext, Page } from '../context.js';
-import { outputLines, outputLine, outputError, outputSuccess, outputRaw } from '../output.js';
+import { CDPContext, ConsoleMessage } from '../context.js';
+import { outputLine, outputError, outputSuccess, outputRaw } from '../output.js';
 import { writeFileSync } from 'fs';
 
 /**
@@ -11,40 +11,57 @@ import { writeFileSync } from 'fs';
  */
 export async function listConsole(
   context: CDPContext,
-  options: { type?: string; page: string; duration: number }
+  options: { type?: string; page: string; duration?: number }
 ): Promise<void> {
   let ws;
+  const duration = options.duration ?? 0;
   try {
     // Get page to monitor
     const page = await context.findPage(options.page);
 
     // Connect and enable Runtime domain
     ws = await context.connect(page);
-    context.setupConsoleCollection(ws);
+    context.setupConsoleCollection(ws, (message: ConsoleMessage) => {
+      if (options.type && message.type !== options.type) {
+        return;
+      }
+
+      outputLine({
+        type: message.type,
+        timestamp: message.timestamp,
+        text: message.text,
+        source: message.source,
+        ...(message.line !== undefined && { line: message.line }),
+        ...(message.url && { url: message.url })
+      });
+    });
     await context.sendCommand(ws, 'Runtime.enable');
 
-    // Collect for specified duration (in milliseconds)
-    await new Promise(resolve => setTimeout(resolve, options.duration * 1000));
+    if (duration > 0) {
+      await new Promise(resolve => setTimeout(resolve, duration * 1000));
+    } else {
+      await new Promise<void>((resolve) => {
+        function cleanup(): void {
+          process.off('SIGINT', onSigint);
+          process.off('SIGTERM', onSigterm);
+        }
 
-    // Get collected messages
-    let messages = context.getConsoleMessages();
+        function onSigint(): void {
+          process.exitCode = 130;
+          cleanup();
+          resolve();
+        }
 
-    // Filter by type if specified
-    if (options.type) {
-      messages = messages.filter(m => m.type === options.type);
+        function onSigterm(): void {
+          process.exitCode = 143;
+          cleanup();
+          resolve();
+        }
+
+        process.on('SIGINT', onSigint);
+        process.on('SIGTERM', onSigterm);
+      });
     }
-
-    // Output as NDJSON
-    const output = messages.map(msg => ({
-      type: msg.type,
-      timestamp: msg.timestamp,
-      text: msg.text,
-      source: msg.source,
-      ...(msg.line && { line: msg.line }),
-      ...(msg.url && { url: msg.url })
-    }));
-
-    outputLines(output);
   } catch (error) {
     outputError(
       (error as Error).message,
