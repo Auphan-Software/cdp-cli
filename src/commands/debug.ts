@@ -5,6 +5,7 @@
 import { CDPContext, ConsoleMessage } from '../context.js';
 import { outputLine, outputError, outputSuccess, outputRaw } from '../output.js';
 import { writeFileSync } from 'fs';
+import { extname } from 'node:path';
 
 /**
  * List console messages
@@ -196,8 +197,36 @@ export async function screenshot(
 
     ws = await context.connect(page);
 
-    const format = options.format || 'jpeg';
     const validFormats = ['jpeg', 'png', 'webp'];
+    const detectedFormat = (() => {
+      const explicitFormat = options.format?.toLowerCase();
+      if (explicitFormat) {
+        return explicitFormat;
+      }
+
+      if (!options.output) {
+        return undefined;
+      }
+
+      const extension = extname(options.output).toLowerCase();
+      if (!extension) {
+        return undefined;
+      }
+
+      const normalizedExtension = extension.slice(1);
+      if (normalizedExtension === 'jpg') {
+        return 'jpeg';
+      }
+
+      if (validFormats.includes(normalizedExtension)) {
+        return normalizedExtension;
+      }
+
+      return undefined;
+    })();
+
+    const format = detectedFormat ?? 'jpeg';
+
     if (!validFormats.includes(format)) {
       throw new Error(`Invalid format: ${format}. Must be one of: ${validFormats.join(', ')}`);
     }
