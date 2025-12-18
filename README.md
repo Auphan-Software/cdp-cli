@@ -78,12 +78,12 @@ $ cdp-cli list-pages
 {"id":"A1B2C3","title":"GitHub","url":"https://github.com","type":"page"}
 {"id":"D4E5F6","title":"Google","url":"https://google.com","type":"page"}
 
-$ cdp-cli list-console "example"
-{"type":"log","timestamp":1698234567890,"text":"Page loaded","source":"console-api"}
-{"type":"error","timestamp":1698234568123,"text":"TypeError: Cannot read...","source":"exception","line":42,"url":"https://example.com/app.js"}
+$ cdp-cli logs console "example" --last 2
+{"id":41,"type":"log","timestamp":1698234567890,"text":"Page loaded","source":"console-api"}
+{"id":42,"type":"error","timestamp":1698234568123,"text":"TypeError: Cannot read...","source":"exception"}
 
-$ cdp-cli list-network "example" | grep '"type":"fetch"'
-{"url":"https://api.example.com/data","method":"GET","status":200,"type":"fetch","size":4567}
+$ cdp-cli logs network "example" --filter xhr
+{"id":"123.1","method":"POST","url":"https://api.example.com/data","type":"XHR","timestamp":65897097}
 ```
 
 ## Commands
@@ -193,15 +193,22 @@ cdp-cli list-console "example" --type error
 
 **snapshot** - Get page content snapshot
 ```bash
-# Text content (default)
+# Actionable elements for click/fill (default)
 cdp-cli snapshot "example"
 
-# DOM tree (JSON)
-cdp-cli snapshot "example" --format dom
-
-# Accessibility tree (JSON) - great for LLM element identification! (Use grep)
-cdp-cli snapshot "example" --format ax
+# Plain text content
+cdp-cli snapshot "example" --format text
 ```
+
+The default `ax` format returns one line per actionable element:
+```
+[button] "Submit" → #form > button
+[select] value="1" options=["Yes","No"] → select[name="confirm"]
+[input:text] name=email placeholder="Enter email" → #email
+[link] "Sign up" → #nav > a:nth-of-type(2)
+```
+
+Each line shows: `[role] "label" state → selector`
 
 **eval** - Evaluate JavaScript expression
 ```bash
@@ -291,12 +298,14 @@ cdp-cli list-pages | grep "example"
 # 2. Always resize window when debugging to save tokens when screenshotting.
 cdp-cli resize-window "example" 1024 728
 
-# 3. Search the accessibility snapshot for nodes referencing "input" or "button"
-cdp-cli snapshot "example" --format ax | grep -E -i 'input|button'
+# 3. Get actionable elements snapshot
+cdp-cli snapshot "example"
+# Output: [button] "Submit" → #form > button
+# Use selector directly or text matching
 
 # 4. Interact with elements
 cdp-cli fill "input#search" "query" "example"
-cdp-cli click "button[type='submit']" "example"
+cdp-cli click --text "Submit" "example"
 
 # 5. Capture result in lower resolution to save tokens
 cdp-cli screenshot "example" --output result.png --scale 0.5
@@ -327,14 +336,19 @@ cdp-cli close-page "localhost"
 ### Pattern 3: Automated Testing
 
 ```bash
-# 1. Chain multiple cdp-cli commands to fill form
-cdp-cli fill "input#username" "testuser" "test" && cdp-cli fill "input#password" "testpass" "test" && cdp-cli click "button#login" "test"
+# Chain commands with && (stops on first failure)
+cdp-cli click --text "9" "PAGEID" && \
+cdp-cli click --text "9" "PAGEID" && \
+cdp-cli click --text "Management" "PAGEID" && \
+sleep 2 && \
+cdp-cli screenshot "PAGEID" --output result.png --scale 0.5
 
-# 2. Wait and verify
-sleep 2 && cdp-cli eval "document.querySelector('.success-message')?.textContent" "test"
-
-# 3. Capture evidence
-cdp-cli screenshot "test" --output test-result.jpg --scale 0.5
+# Fill form and submit
+cdp-cli fill "input#username" "testuser" "PAGEID" && \
+cdp-cli fill "input#password" "testpass" "PAGEID" && \
+cdp-cli click "button#login" "PAGEID" && \
+sleep 2 && \
+cdp-cli screenshot "PAGEID" --output login-result.png --scale 0.5
 ```
 
 ### Pattern 4: Data Extraction
@@ -385,9 +399,12 @@ cdp-cli eval "Array.from(document.querySelectorAll('.item')).map(el => ({
    cdp-cli click --text "OK" --nth 1 "test"
    ```
 
-6. **Use accessibility tree for element discovery**:
+6. **Use snapshot for element discovery**:
    ```bash
-   cdp-cli snapshot "example" --format ax | grep -E -i 'input|button'
+   cdp-cli snapshot "example"
+   # Output: [button] "Login" → #header > button:nth-of-type(2)
+   # Use the selector directly: cdp-cli click "#header > button:nth-of-type(2)" "example"
+   # Or use text matching: cdp-cli click --text "Login" "example"
    ```
 
 7. **Error handling**: All errors output NDJSON with `"error": true`
