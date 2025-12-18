@@ -255,9 +255,9 @@ cli.command(
       })
       .option('format', {
         type: 'string',
-        description: 'Snapshot format (text, dom, ax)',
+        description: 'Snapshot format (ax, text)',
         alias: 'f',
-        default: 'text'
+        default: 'ax'
       });
   },
   async (argv) => {

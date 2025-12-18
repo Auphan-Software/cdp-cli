@@ -90,7 +90,7 @@ export async function snapshot(
 
     ws = await context.connect(page);
 
-    const format = options.format || 'text';
+    const format = options.format || 'ax';
 
     if (format === 'text') {
       // Simple text snapshot
@@ -101,21 +101,192 @@ export async function snapshot(
       });
 
       outputRaw(result.result?.value || '');
-    } else if (format === 'dom') {
-      // DOM snapshot
-      await context.sendCommand(ws, 'DOM.enable');
-      const doc = await context.sendCommand(ws, 'DOM.getDocument', {
-        depth: -1,
-        pierce: true
+    } else if (format === 'ax') {
+      // Simplified actionable elements snapshot for integration testing
+      await context.sendCommand(ws, 'Runtime.enable');
+      const result = await context.sendCommand(ws, 'Runtime.evaluate', {
+        expression: `
+(() => {
+  const results = [];
+  const seen = new Set();
+
+  // Selectors for clickable elements
+  const clickableSelector = [
+    'button',
+    '[role="button"]',
+    'a[href]',
+    'input[type="submit"]',
+    'input[type="button"]',
+    'input[type="reset"]',
+    'input[type="checkbox"]',
+    'input[type="radio"]',
+    'select',
+    'label',
+    'summary',
+    '[onclick]',
+    '[onmousedown]',
+    '[ng-click]',
+    '[data-action]',
+    'li.item',
+    '[class*="-btn"]'
+  ].join(',');
+
+  // Selectors for fillable elements
+  const fillableSelector = [
+    'input:not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]):not([type="hidden"])',
+    'textarea',
+    '[contenteditable="true"]'
+  ].join(',');
+
+  function getSelector(el) {
+    if (el.id) return '#' + CSS.escape(el.id);
+
+    // Try data-testid or name
+    const testId = el.getAttribute('data-testid');
+    if (testId) return '[data-testid="' + testId + '"]';
+
+    const name = el.getAttribute('name');
+    if (name) return el.tagName.toLowerCase() + '[name="' + name + '"]';
+
+    // Build a path, anchored on nearest ID
+    const parts = [];
+    let current = el;
+    while (current && current !== document.body && parts.length < 4) {
+      let selector = current.tagName.toLowerCase();
+
+      // If we hit an ID, anchor there and stop
+      if (current.id && current !== el) {
+        parts.unshift('#' + CSS.escape(current.id));
+        break;
+      }
+
+      const parent = current.parentElement;
+      if (parent) {
+        const siblings = Array.from(parent.children).filter(c => c.tagName === current.tagName);
+        if (siblings.length > 1) {
+          const idx = siblings.indexOf(current) + 1;
+          selector += ':nth-of-type(' + idx + ')';
+        }
+      }
+      parts.unshift(selector);
+      current = parent;
+    }
+    return parts.join(' > ');
+  }
+
+  function formatElement(el) {
+    const tag = el.tagName.toLowerCase();
+    const type = el.getAttribute('type');
+    const role = el.getAttribute('role');
+    const rect = el.getBoundingClientRect();
+
+    // Skip invisible elements
+    if (rect.width === 0 && rect.height === 0) return null;
+
+    // Skip duplicates
+    if (seen.has(el)) return null;
+    seen.add(el);
+
+    const info = {
+      role: role || tag + (type ? ':' + type : ''),
+      selector: getSelector(el)
+    };
+
+    // Get label/name
+    const rawText = (el.innerText || '').trim();
+    const text = rawText.replace(/[\\r\\n]+/g, ' ').replace(/\\s{2,}/g, ' ').slice(0, 80);
+    const title = el.getAttribute('title');
+    const ariaLabel = el.getAttribute('aria-label');
+    const placeholder = el.getAttribute('placeholder');
+    const value = el.value;
+    const name = el.getAttribute('name');
+
+    // Try aria-labelledby
+    const labelledBy = el.getAttribute('aria-labelledby');
+    let labelledByText = '';
+    if (labelledBy) {
+      const labelEl = document.getElementById(labelledBy);
+      if (labelEl) labelledByText = (labelEl.innerText || '').trim().replace(/[\\r\\n]+/g, ' ').replace(/\\s{2,}/g, ' ').slice(0, 60);
+    }
+
+    // For icon buttons, check child elements for title/aria-label
+    let iconLabel = '';
+    if (!text && (tag === 'button' || tag === 'a')) {
+      const icon = el.querySelector('[title], [aria-label], i[class], svg[class]');
+      if (icon) {
+        iconLabel = icon.getAttribute('title') || icon.getAttribute('aria-label') || '';
+        if (!iconLabel && icon.className) {
+          // Try to extract icon name from class (e.g., 'fa-edit' -> 'edit')
+          const match = icon.className.match(/(?:fa|icon|bi|mdi)-([a-z-]+)/i);
+          if (match) iconLabel = match[1].replace(/-/g, ' ');
+        }
+      }
+    }
+
+    if (ariaLabel) info.label = ariaLabel;
+    else if (labelledByText) info.label = labelledByText;
+    else if (title) info.label = title;
+    else if (iconLabel) info.label = iconLabel;
+    else if (text && text.length < 60) info.label = text;
+    else if (placeholder) info.label = placeholder;
+
+    if (name) info.name = name;
+    if (value && tag === 'select') info.value = value;
+    if (value && (tag === 'input' || tag === 'textarea') && type !== 'password') {
+      info.value = value.slice(0, 40);
+    }
+
+    // Checkbox/radio state
+    if (el.checked !== undefined) info.checked = el.checked;
+
+    // Select options
+    if (tag === 'select' && el.options) {
+      info.options = Array.from(el.options).slice(0, 5).map(o => o.text.trim().slice(0, 30));
+      if (el.options.length > 5) info.options.push('...');
+    }
+
+    return info;
+  }
+
+  // Find clickable elements
+  document.querySelectorAll(clickableSelector).forEach(el => {
+    const info = formatElement(el);
+    if (info) {
+      info.action = 'click';
+      results.push(info);
+    }
+  });
+
+  // Find fillable elements
+  document.querySelectorAll(fillableSelector).forEach(el => {
+    const info = formatElement(el);
+    if (info) {
+      info.action = 'fill';
+      results.push(info);
+    }
+  });
+
+  return results;
+})()
+        `,
+        returnByValue: true
       });
 
-      outputLine(doc);
-    } else if (format === 'ax') {
-      // Accessibility tree snapshot
-      await context.sendCommand(ws, 'Accessibility.enable');
-      const ax = await context.sendCommand(ws, 'Accessibility.getFullAXTree');
+      const elements = result.result?.value || [];
 
-      outputLine(ax);
+      // Format as simple lines
+      const lines = elements.map((el: any) => {
+        let line = `[${el.role}]`;
+        if (el.label) line += ` "${el.label}"`;
+        if (el.name) line += ` name=${el.name}`;
+        if (el.value) line += ` value="${el.value}"`;
+        if (el.checked !== undefined) line += el.checked ? ' ✓' : ' ○';
+        if (el.options) line += ` options=[${el.options.map((o: string) => `"${o}"`).join(',')}]`;
+        line += ` → ${el.selector}`;
+        return line;
+      });
+
+      outputRaw(lines.join('\n'));
     } else {
       throw new Error(`Unknown snapshot format: ${format}`);
     }
