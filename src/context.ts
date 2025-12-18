@@ -5,6 +5,7 @@
 
 import { WebSocket } from 'ws';
 import { fetch as undiciFetch } from 'undici';
+import { getPageNotFoundHint } from './validation.js';
 
 export interface Page {
   id: string;
@@ -90,6 +91,10 @@ export class CDPContext {
   async findPage(idOrTitle: string): Promise<Page> {
     const pages = await this.getPages();
 
+    if (pages.length === 0) {
+      throw new Error('No pages found. Is Chrome running with --remote-debugging-port?');
+    }
+
     // Prefer exact ID match, which guarantees uniqueness.
     const byId = pages.find((page) => page.id === idOrTitle);
     if (byId) {
@@ -101,7 +106,22 @@ export class CDPContext {
     );
 
     if (titleMatches.length === 0) {
-      throw new Error(`Page not found: ${idOrTitle}`);
+      // Provide helpful hint if the value looks like something else
+      const hint = getPageNotFoundHint(idOrTitle);
+      const availablePages = pages
+        .slice(0, 3)
+        .map((p) => `  - "${p.title}" (${p.id})`)
+        .join('\n');
+      const morePages = pages.length > 3 ? `\n  ... and ${pages.length - 3} more` : '';
+
+      let errorMsg = `Page not found: "${idOrTitle}"`;
+      if (hint) {
+        errorMsg += `\n\nHint: ${hint}`;
+      }
+      errorMsg += `\n\nAvailable pages:\n${availablePages}${morePages}`;
+      errorMsg += `\n\nUse 'cdp-cli list-pages' to see all pages.`;
+
+      throw new Error(errorMsg);
     }
 
     if (titleMatches.length > 1) {

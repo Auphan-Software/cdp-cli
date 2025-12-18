@@ -15,8 +15,39 @@ import * as network from './commands/network.js';
 import * as input from './commands/input.js';
 import * as daemon from './commands/daemon.js';
 import * as logs from './commands/logs.js';
+import { outputError } from './output.js';
+import {
+  validateNavigateParams,
+  validateEvalParams,
+  validateLogsParams,
+  validatePressKeyParams,
+  validateFillParams,
+  validateLogsDetailParams,
+  buildErrorWithHint
+} from './validation.js';
 
 const DEFAULT_CDP_URL = 'http://localhost:9222';
+
+// Global error handler for unhandled exceptions
+process.on('uncaughtException', (error) => {
+  outputError(
+    error.message || 'An unexpected error occurred',
+    'UNCAUGHT_EXCEPTION',
+    { stack: error.stack }
+  );
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason) => {
+  const message = reason instanceof Error ? reason.message : String(reason);
+  const stack = reason instanceof Error ? reason.stack : undefined;
+  outputError(
+    message || 'An unhandled promise rejection occurred',
+    'UNHANDLED_REJECTION',
+    { stack }
+  );
+  process.exit(1);
+});
 
 // Create CLI
 const cli = yargs(hideBin(process.argv))
@@ -28,10 +59,35 @@ const cli = yargs(hideBin(process.argv))
     description: 'Chrome DevTools Protocol URL',
     default: DEFAULT_CDP_URL
   })
-  .demandCommand(1, 'You must provide a command')
+  .demandCommand(1)
+  .strict()
   .help()
   .alias('help', 'h')
-  .alias('version', 'v');
+  .alias('version', 'v')
+  .fail((msg, err, yargs) => {
+    // Show help when no command provided
+    if (msg === 'Not enough non-option arguments: got 0, need at least 1') {
+      yargs.showHelp();
+      process.exit(0);
+    }
+    // Custom error handler to output NDJSON format
+    if (err) {
+      // Validation error from .check() or coerce
+      outputError(
+        err.message,
+        'VALIDATION_ERROR',
+        { usage: yargs.help() }
+      );
+    } else if (msg) {
+      // Yargs built-in error (missing command, missing required arg, etc)
+      outputError(
+        msg,
+        'ARGUMENT_ERROR',
+        { usage: yargs.help() }
+      );
+    }
+    process.exit(1);
+  });
 
 // Page management commands
 cli.command(
@@ -71,6 +127,13 @@ cli.command(
       .positional('page', {
         describe: 'Page ID or title',
         type: 'string'
+      })
+      .check((argv) => {
+        const hint = validateNavigateParams(argv.action as string, argv.page as string);
+        if (hint.likely) {
+          throw new Error(buildErrorWithHint('Invalid parameter order', hint));
+        }
+        return true;
       });
   },
   async (argv) => {
@@ -218,6 +281,13 @@ cli.command(
       .positional('page', {
         describe: 'Page ID or title',
         type: 'string'
+      })
+      .check((argv) => {
+        const hint = validateEvalParams(argv.expression as string, argv.page as string);
+        if (hint.likely) {
+          throw new Error(buildErrorWithHint('Invalid parameter order', hint));
+        }
+        return true;
       });
   },
   async (argv) => {
@@ -427,6 +497,17 @@ cli.command(
       .positional('page', {
         describe: 'Page ID or title',
         type: 'string'
+      })
+      .check((argv) => {
+        const hint = validateFillParams(
+          argv.selector as string,
+          argv.value as string,
+          argv.page as string
+        );
+        if (hint.likely) {
+          throw new Error(buildErrorWithHint('Invalid parameter order', hint));
+        }
+        return true;
       });
   },
   async (argv) => {
@@ -454,6 +535,13 @@ cli.command(
       .positional('page', {
         describe: 'Page ID or title',
         type: 'string'
+      })
+      .check((argv) => {
+        const hint = validatePressKeyParams(argv.key as string, argv.page as string);
+        if (hint.likely) {
+          throw new Error(buildErrorWithHint('Invalid parameter order', hint));
+        }
+        return true;
       });
   },
   async (argv) => {
@@ -520,6 +608,13 @@ cli.command(
         type: 'string',
         description: 'Filter by type (log/error/warn for console, xhr/fetch/etc for network)',
         alias: 'f'
+      })
+      .check((argv) => {
+        const hint = validateLogsParams(argv.type as string, argv.page as string);
+        if (hint.likely) {
+          throw new Error(buildErrorWithHint('Invalid parameter order', hint));
+        }
+        return true;
       });
   },
   async (argv) => {
@@ -558,6 +653,13 @@ cli.command(
       .positional('page', {
         describe: 'Page ID or title',
         type: 'string'
+      })
+      .check((argv) => {
+        const hint = validateLogsDetailParams(argv.messageId as number, argv.page as string);
+        if (hint.likely) {
+          throw new Error(buildErrorWithHint('Invalid parameter order', hint));
+        }
+        return true;
       });
   },
   async (argv) => {
