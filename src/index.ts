@@ -13,6 +13,8 @@ import * as pages from './commands/pages.js';
 import * as debug from './commands/debug.js';
 import * as network from './commands/network.js';
 import * as input from './commands/input.js';
+import * as daemon from './commands/daemon.js';
+import * as logs from './commands/logs.js';
 
 const DEFAULT_CDP_URL = 'http://localhost:9222';
 
@@ -458,6 +460,111 @@ cli.command(
     const context = new CDPContext(argv['cdp-url'] as string);
     await input.pressKey(context, argv.key as string, {
       page: argv.page as string
+    });
+  }
+);
+
+// Daemon commands
+cli.command(
+  'daemon <action>',
+  'Manage the CDP daemon (start, stop, status)',
+  (yargs) => {
+    return yargs.positional('action', {
+      describe: 'Action to perform',
+      type: 'string',
+      choices: ['start', 'stop', 'status']
+    })
+    .option('buffer-size', {
+      type: 'number',
+      description: 'Max log entries per page (default: 500)',
+      default: 500
+    });
+  },
+  async (argv) => {
+    const action = argv.action as string;
+    if (action === 'start') {
+      await daemon.startDaemon({
+        cdpUrl: argv['cdp-url'] as string,
+        bufferSize: argv['buffer-size'] as number
+      });
+    } else if (action === 'stop') {
+      await daemon.stopDaemon();
+    } else if (action === 'status') {
+      await daemon.daemonStatus();
+    }
+  }
+);
+
+// Logs commands
+cli.command(
+  'logs <type> <page>',
+  'Get logs from daemon (console, network, clear)',
+  (yargs) => {
+    return yargs
+      .positional('type', {
+        describe: 'Log type',
+        type: 'string',
+        choices: ['console', 'network', 'clear']
+      })
+      .positional('page', {
+        describe: 'Page ID or title',
+        type: 'string'
+      })
+      .option('last', {
+        type: 'number',
+        description: 'Get last N entries (0 for all)',
+        alias: 'n',
+        default: 20
+      })
+      .option('filter', {
+        type: 'string',
+        description: 'Filter by type (log/error/warn for console, xhr/fetch/etc for network)',
+        alias: 'f'
+      });
+  },
+  async (argv) => {
+    const context = new CDPContext(argv['cdp-url'] as string);
+    const logType = argv.type as string;
+
+    if (logType === 'console') {
+      await logs.getConsoleLogs(context, {
+        page: argv.page as string,
+        last: argv.last as number | undefined,
+        type: argv.filter as string | undefined
+      });
+    } else if (logType === 'network') {
+      await logs.getNetworkLogs(context, {
+        page: argv.page as string,
+        last: argv.last as number | undefined,
+        type: argv.filter as string | undefined
+      });
+    } else if (logType === 'clear') {
+      await logs.clearLogs(context, {
+        page: argv.page as string
+      });
+    }
+  }
+);
+
+cli.command(
+  'logs-detail <messageId> <page>',
+  'Get console message details with stack trace',
+  (yargs) => {
+    return yargs
+      .positional('messageId', {
+        describe: 'Console message ID',
+        type: 'number'
+      })
+      .positional('page', {
+        describe: 'Page ID or title',
+        type: 'string'
+      });
+  },
+  async (argv) => {
+    const context = new CDPContext(argv['cdp-url'] as string);
+    await logs.getConsoleDetail(context, {
+      page: argv.page as string,
+      messageId: argv.messageId as number
     });
   }
 );

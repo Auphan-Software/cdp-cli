@@ -24,8 +24,15 @@ export interface CDPMessage {
   error?: any;
 }
 
+export interface StackFrame {
+  functionName: string;
+  url: string;
+  lineNumber: number;
+  columnNumber: number;
+}
+
 export interface ConsoleMessage {
-  id: string;
+  id: number;
   type: string;
   timestamp: number;
   text: string;
@@ -33,6 +40,7 @@ export interface ConsoleMessage {
   line?: number;
   url?: string;
   args?: any[];
+  stackTrace?: StackFrame[];
 }
 
 export interface NetworkRequest {
@@ -54,9 +62,10 @@ export class CDPContext {
   private cdpUrl: string;
   // CDP message ID counter (resets to 1 for each new context/command)
   private messageId = 1;
+  private consoleId = 1;
 
   // Collected data
-  private consoleMessages: Map<string, ConsoleMessage> = new Map();
+  private consoleMessages: Map<number, ConsoleMessage> = new Map();
   private networkRequests: Map<string, NetworkRequest> = new Map();
 
   constructor(cdpUrl: string = 'http://localhost:9222') {
@@ -169,20 +178,28 @@ export class CDPContext {
       const message: CDPMessage = JSON.parse(data.toString());
 
       if (message.method === 'Runtime.consoleAPICalled') {
-        const { type, args, timestamp } = message.params;
+        const { type, args, timestamp, stackTrace } = message.params;
         const text = args.map((arg: any) => {
           if (arg.value !== undefined) return String(arg.value);
           if (arg.description !== undefined) return arg.description;
           return JSON.stringify(arg);
         }).join(' ');
 
+        const frames: StackFrame[] | undefined = stackTrace?.callFrames?.map((f: any) => ({
+          functionName: f.functionName || '(anonymous)',
+          url: f.url,
+          lineNumber: f.lineNumber,
+          columnNumber: f.columnNumber
+        }));
+
         const consoleMsg: ConsoleMessage = {
-          id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
+          id: this.consoleId++,
           type,
           timestamp: timestamp || Date.now(),
           text,
           source: 'console-api',
-          args
+          args,
+          stackTrace: frames
         };
 
         this.consoleMessages.set(consoleMsg.id, consoleMsg);
@@ -193,14 +210,23 @@ export class CDPContext {
 
       if (message.method === 'Runtime.exceptionThrown') {
         const { exceptionDetails, timestamp } = message.params;
+
+        const frames: StackFrame[] | undefined = exceptionDetails.stackTrace?.callFrames?.map((f: any) => ({
+          functionName: f.functionName || '(anonymous)',
+          url: f.url,
+          lineNumber: f.lineNumber,
+          columnNumber: f.columnNumber
+        }));
+
         const consoleMsg: ConsoleMessage = {
-          id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
+          id: this.consoleId++,
           type: 'error',
           timestamp: timestamp || Date.now(),
           text: exceptionDetails.text,
           source: 'exception',
           line: exceptionDetails.lineNumber,
-          url: exceptionDetails.url
+          url: exceptionDetails.url,
+          stackTrace: frames
         };
 
         this.consoleMessages.set(consoleMsg.id, consoleMsg);

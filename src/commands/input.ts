@@ -323,7 +323,41 @@ function buildTextSearchExpression(
     if (isMatch) {
       const actionable = el.closest(actionableSelector);
       const directMatch = el.matches && el.matches(actionableSelector);
-      const target = actionable || (directMatch ? el : null);
+      let target = actionable || (directMatch ? el : null);
+
+      // Fallback: check for inline handlers or button-like classes
+      if (!target) {
+        const hasInlineHandler = (node) => {
+          return node.hasAttribute && (
+            node.hasAttribute('onclick') ||
+            node.hasAttribute('onmousedown') ||
+            node.hasAttribute('onmouseup') ||
+            node.hasAttribute('ontouchstart') ||
+            node.hasAttribute('onpointerdown') ||
+            node.hasAttribute('ng-click') ||
+            node.hasAttribute('data-action')
+          );
+        };
+
+        const hasButtonClass = (node) => {
+          if (!node.classList) return false;
+          for (const cls of node.classList) {
+            if (cls.endsWith('-btn') || cls.includes('button')) return true;
+          }
+          return false;
+        };
+
+        // Check element and ancestors for clickability
+        let candidate = el;
+        while (candidate && candidate !== document.body) {
+          if (hasInlineHandler(candidate) || hasButtonClass(candidate)) {
+            target = candidate;
+            break;
+          }
+          candidate = candidate.parentElement;
+        }
+      }
+
       if (!target || seen.has(target)) continue;
 
       const rect = target.getBoundingClientRect();

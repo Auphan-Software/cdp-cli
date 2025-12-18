@@ -45,17 +45,20 @@ chrome.exe --remote-debugging-port=9222
 ## Quick Start
 
 ```bash
-# List all open pages
-cdp-cli list-pages
+# Start the daemon (enables automatic logging for all new pages)
+cdp-cli daemon start
 
-# Navigate to a URL
+# Create a new page (auto-registers with daemon for logging)
 cdp-cli new-page "https://example.com"
 
-# Take a screenshot
-cdp-cli screenshot "example" --output screenshot.jpg
+# Take a screenshot at 50% scale (token friendly)
+cdp-cli screenshot "example" --output screenshot.png --scale 0.5
 
-# List console messages (collects for 0.1s)
-cdp-cli list-console "example"
+# Query the last 20 console messages
+cdp-cli logs console "example" --last 20
+
+# Query network requests
+cdp-cli logs network "example" --last 10
 
 # Evaluate JavaScript
 cdp-cli eval "document.title" "example"
@@ -114,25 +117,78 @@ cdp-cli close-page A1B2C3
 
 **resize-window** - Resize the Chrome window for a page
 ```bash
-cdp-cli resize-window "example" 1280 720
-cdp-cli resize-window A1B2C3 1440 900 --state maximized
+cdp-cli resize-window "example" 1024 768
+```
+
+### Daemon (Recommended for LLM Agents)
+
+The daemon runs in the background and automatically captures console and network logs for all pages. Logs are stored in a circular buffer (last 500 entries per page) and can be queried at any time.
+
+**daemon start** - Start the background daemon
+```bash
+cdp-cli daemon start                    # Start with defaults
+cdp-cli daemon start --buffer-size 1000 # Custom buffer size
+```
+
+**daemon stop** - Stop the daemon
+```bash
+cdp-cli daemon stop
+```
+
+**daemon status** - Check daemon status and list active sessions
+```bash
+cdp-cli daemon status
+```
+
+Features:
+- **Auto-discovery**: Automatically detects and registers ALL pages (including popups from `window.open`)
+- **Persistent**: Logs survive across CLI invocations (until daemon stops)
+- **Chrome restart handling**: Automatically reconnects and re-registers pages
+- **Idempotent**: Safe to call `daemon start` multiple times
+
+### Log Queries
+
+Query console and network logs from the daemon's buffer. Requires daemon to be running.
+
+**logs console** - Get console messages
+```bash
+cdp-cli logs console "example"              # Last 20 messages (default)
+cdp-cli logs console "example" --last 50    # Last 50 messages
+cdp-cli logs console "example" --last 0     # All buffered messages
+cdp-cli logs console "example" --filter error  # Only errors
+```
+
+**logs network** - Get network requests
+```bash
+cdp-cli logs network "example"              # Last 20 requests (default)
+cdp-cli logs network "example" --last 50    # Last 50 requests
+cdp-cli logs network "example" --last 0     # All buffered requests
+cdp-cli logs network "example" --filter xhr # Only XHR requests
+```
+
+**logs clear** - Clear logs for a page
+```bash
+cdp-cli logs clear "example"
+```
+
+**logs-detail** - Get full console message with stack trace
+```bash
+cdp-cli logs-detail 5 "example"    # Get message ID 5 with stack trace
 ```
 
 ### Debugging
 
-**list-console** - List console messages (collects for 0.1s by default)
+**list-console** - Stream console messages (real-time)
+> For querying buffered logs, use `logs console` with the daemon instead.
 ```bash
-# Collect messages (default 0.1 seconds)
+# Stream messages continuously until interrupted
 cdp-cli list-console "example"
 
-# Collect for longer duration (2 seconds)
+# Collect for duration 2 seconds and quit
 cdp-cli list-console "example" --duration 2
 
 # Filter by type
 cdp-cli list-console "example" --type error
-
-# Combine duration and filtering
-cdp-cli list-console "example" --duration 2 --type error
 ```
 
 **snapshot** - Get page content snapshot
@@ -143,7 +199,7 @@ cdp-cli snapshot "example"
 # DOM tree (JSON)
 cdp-cli snapshot "example" --format dom
 
-# Accessibility tree (JSON) - great for LLM element identification!
+# Accessibility tree (JSON) - great for LLM element identification! (Use grep)
 cdp-cli snapshot "example" --format ax
 ```
 
@@ -177,20 +233,18 @@ Optional flags:
 
 ### Network Inspection
 
-**list-network** - List network requests (collects for 0.1s by default)
+**list-network** - Stream network requests (real-time)
+> For querying buffered logs, use `logs network` with the daemon instead.
 ```bash
-# Collect requests (default 0.1 seconds)
+# Stream requests continuously until interrupted
 cdp-cli list-network "example"
 
-# Collect for longer duration (5 seconds)
+# Collect for duration (5 seconds and quit)
 cdp-cli list-network "example" --duration 5
 
 # Filter by type
 cdp-cli list-network "example" --type fetch
 cdp-cli list-network "example" --type xhr
-
-# Combine duration and filtering
-cdp-cli list-network "example" --duration 5 --type fetch
 ```
 
 ### Input Automation
@@ -234,48 +288,53 @@ cdp-cli press-key escape "example"
 # 1. List pages to find target
 cdp-cli list-pages | grep "example"
 
-# 2. Get accessibility tree to understand page structure
-cdp-cli snapshot "example" --format ax > page-structure.json
+# 2. Always resize window when debugging to save tokens when screenshotting.
+cdp-cli resize-window "example" 1024 728
 
-# 3. Parse structure (LLM can identify element selectors)
+# 3. Search the accessibility snapshot for nodes referencing "input" or "button"
+cdp-cli snapshot "example" --format ax | grep -E -i 'input|button'
+
 # 4. Interact with elements
 cdp-cli fill "input#search" "query" "example"
 cdp-cli click "button[type='submit']" "example"
 
-# 5. Capture result
-cdp-cli screenshot "example" --output result.jpg
+# 5. Capture result in lower resolution to save tokens
+cdp-cli screenshot "example" --output result.png --scale 0.5
 ```
 
 ### Pattern 2: Debug Web Application
 
 ```bash
-# 1. Navigate to app
-cdp-cli new-page "http://localhost:3000"
+# 1. Start daemon (once per session)
+cdp-cli daemon start
 
-# 2. Monitor console for errors (increase duration for continuous monitoring)
-cdp-cli list-console "localhost" --duration 10 --type error
+# 2. Create page (auto-registers with daemon for logging)
+cdp-cli new-page "https://localhost:3000/"
 
-# 3. Inspect failed network requests
-cdp-cli list-network "localhost" --duration 5 | grep '"status":4'
+# 3. Interact with the page...
+cdp-cli click "button#submit" "localhost"
+
+# 4. Query console for errors
+cdp-cli logs console "localhost" --last 50 --filter error
+
+# 5. Query network requests
+cdp-cli logs network "localhost" --last 20
+
+# 6. Close page when done (auto-cleans up daemon session)
+cdp-cli close-page "localhost"
 ```
 
 ### Pattern 3: Automated Testing
 
 ```bash
-# 1. Open test page
-cdp-cli new-page "http://localhost:8080/test.html"
+# 1. Chain multiple cdp-cli commands to fill form
+cdp-cli fill "input#username" "testuser" "test" && cdp-cli fill "input#password" "testpass" "test" && cdp-cli click "button#login" "test"
 
-# 2. Fill form
-cdp-cli fill "input#username" "testuser" "test"
-cdp-cli fill "input#password" "testpass" "test"
-cdp-cli click "button#login" "test"
+# 2. Wait and verify
+sleep 2 && cdp-cli eval "document.querySelector('.success-message')?.textContent" "test"
 
-# 3. Wait and verify
-sleep 2
-cdp-cli eval "document.querySelector('.success-message')?.textContent" "test"
-
-# 4. Capture evidence
-cdp-cli screenshot "test" --output test-result.jpg
+# 3. Capture evidence
+cdp-cli screenshot "test" --output test-result.jpg --scale 0.5
 ```
 
 ### Pattern 4: Data Extraction
@@ -299,32 +358,39 @@ cdp-cli eval "Array.from(document.querySelectorAll('.item')).map(el => ({
 
 ## Tips for LLM Agents
 
-1. **Use NDJSON parsing**: Each line is a complete JSON object
+1. **Start the daemon first**: Always run `cdp-cli daemon start` at the beginning of your session. This enables automatic log capture for all pages.
+   ```bash
+   cdp-cli daemon start
+   ```
+
+2. **Use NDJSON parsing**: Each line is a complete JSON object
    ```javascript
    const lines = output.split('\n').filter(l => l.trim());
    const objects = lines.map(l => JSON.parse(l));
    ```
 
-2. **Leverage grep for filtering**:
+3. **Query logs instead of streaming**: Use `logs console` and `logs network` to query buffered logs instead of running background streaming processes.
    ```bash
-   cdp-cli list-network "example" | grep '"status":404'
-   cdp-cli list-console "example" | grep error
+   cdp-cli logs console "example" --last 20
+   cdp-cli logs network "example" --filter xhr
    ```
 
-3. **Use accessibility tree for element discovery**:
+4. **Use scaled screenshots to reduced token consumption**:
    ```bash
-   cdp-cli snapshot "example" --format ax
-   # Parse to find elements by role, name, etc.
-   # Then construct CSS selectors for click/fill
+   cdp-cli screenshot "test" --output test-result.png --scale 0.5
    ```
 
-4. **Chain commands with Unix tools**:
+5. **Use --text and --nth flag to target elements**:
    ```bash
-   cdp-cli list-pages | jq -r '.title'
-   cdp-cli list-console "example" --collect | grep error | tail -5
+   cdp-cli click --text "OK" --nth 1 "test"
    ```
 
-5. **Error handling**: All errors output NDJSON with `"error": true`
+6. **Use accessibility tree for element discovery**:
+   ```bash
+   cdp-cli snapshot "example" --format ax | grep -E -i 'input|button'
+   ```
+
+7. **Error handling**: All errors output NDJSON with `"error": true`
    ```json
    {"error":true,"message":"Page not found: example","code":"PAGE_NOT_FOUND"}
    ```

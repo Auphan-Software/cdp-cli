@@ -4,6 +4,9 @@
 
 import { CDPContext, Page } from '../context.js';
 import { outputLines, outputLine, outputError, outputSuccess } from '../output.js';
+import { DaemonClient } from '../daemon/client.js';
+
+type WindowState = 'normal' | 'minimized' | 'maximized' | 'fullscreen';
 
 /**
  * List all open pages
@@ -40,10 +43,24 @@ export async function newPage(
   try {
     const page = await context.createPage(url);
 
+    // Register with daemon if running
+    const daemonClient = new DaemonClient();
+    let loggingEnabled = false;
+
+    if (await daemonClient.isRunning()) {
+      try {
+        await daemonClient.createSession(page.id, page.webSocketDebuggerUrl);
+        loggingEnabled = true;
+      } catch {
+        // Daemon registration failed, but page was still created
+      }
+    }
+
     outputSuccess('Page created', {
       id: page.id,
       title: page.title,
-      url: page.url
+      url: page.url,
+      logging: loggingEnabled
     });
   } catch (error) {
     outputError(
@@ -127,6 +144,17 @@ export async function closePage(
 ): Promise<void> {
   try {
     const page = await context.findPage(idOrTitle);
+
+    // Clean up daemon session if running
+    const daemonClient = new DaemonClient();
+    if (await daemonClient.isRunning()) {
+      try {
+        await daemonClient.deleteSession(page.id);
+      } catch {
+        // Daemon cleanup failed, continue with page close
+      }
+    }
+
     await context.closePage(page);
 
     outputSuccess('Page closed', {
@@ -140,5 +168,78 @@ export async function closePage(
       { idOrTitle }
     );
     process.exit(1);
+  }
+}
+
+/**
+ * Resize the browser window containing the target page
+ */
+export async function resizeWindow(
+  context: CDPContext,
+  idOrTitle: string,
+  options: { width: number; height: number; state?: WindowState }
+): Promise<void> {
+  let ws;
+  try {
+    const { width, height, state } = options;
+    if (!Number.isFinite(width) || width <= 0) {
+      throw new Error('Width must be a positive number');
+    }
+
+    if (!Number.isFinite(height) || height <= 0) {
+      throw new Error('Height must be a positive number');
+    }
+
+    const page = await context.findPage(idOrTitle);
+    ws = await context.connect(page);
+
+    const windowInfo = await context.sendCommand(ws, 'Browser.getWindowForTarget', {
+      targetId: page.id
+    });
+
+    const windowId = windowInfo?.windowId;
+    if (typeof windowId !== 'number') {
+      throw new Error('Unable to determine window for target page');
+    }
+
+    const bounds: {
+      windowState: WindowState;
+      width?: number;
+      height?: number;
+    } = {
+      windowState: state ?? 'normal'
+    };
+
+    bounds.width = Math.round(width);
+    bounds.height = Math.round(height);
+
+    await context.sendCommand(ws, 'Browser.setWindowBounds', {
+      windowId,
+      bounds
+    });
+
+    outputSuccess('Window resized', {
+      page: page.id,
+      windowId,
+      width: bounds.width,
+      height: bounds.height,
+      state: bounds.windowState
+    });
+  } catch (error) {
+    outputError(
+      (error as Error).message,
+      'RESIZE_WINDOW_FAILED',
+      {
+        page: idOrTitle,
+        width: options.width,
+        height: options.height,
+        state: options.state ?? 'normal'
+      }
+    );
+    process.exit(1);
+  } finally {
+    if (ws) {
+      ws.close();
+    }
   }
 }

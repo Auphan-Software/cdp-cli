@@ -244,15 +244,15 @@ export async function screenshot(
     };
 
     if (scale !== 1) {
-      const layoutMetrics = await context.sendCommand(ws, 'Page.getLayoutMetrics');
-      const width =
-        layoutMetrics?.cssContentSize?.width ??
-        layoutMetrics?.contentSize?.width ??
-        layoutMetrics?.layoutViewport?.clientWidth;
-      const height =
-        layoutMetrics?.cssContentSize?.height ??
-        layoutMetrics?.contentSize?.height ??
-        layoutMetrics?.layoutViewport?.clientHeight;
+      // Get CSS viewport dimensions via JS evaluation (most reliable across browsers)
+      await context.sendCommand(ws, 'Runtime.enable');
+      const viewportResult = await context.sendCommand(ws, 'Runtime.evaluate', {
+        expression: 'JSON.stringify({width: window.innerWidth, height: window.innerHeight})',
+        returnByValue: true
+      });
+      const viewport = JSON.parse(viewportResult.result?.value || '{}');
+      const width = viewport.width;
+      const height = viewport.height;
 
       if (!width || !height) {
         throw new Error('Unable to determine page dimensions for scaling.');
