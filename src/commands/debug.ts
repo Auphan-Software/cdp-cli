@@ -6,6 +6,7 @@ import { CDPContext, ConsoleMessage } from '../context.js';
 import { outputLine, outputError, outputSuccess, outputRaw } from '../output.js';
 import { writeFileSync } from 'fs';
 import { extname } from 'node:path';
+import sharp from 'sharp';
 
 /**
  * List console messages
@@ -414,35 +415,21 @@ export async function screenshot(
       quality: format === 'jpeg' ? quality : undefined
     };
 
-    if (scale !== 1) {
-      // Get CSS viewport dimensions via JS evaluation (most reliable across browsers)
-      await context.sendCommand(ws, 'Runtime.enable');
-      const viewportResult = await context.sendCommand(ws, 'Runtime.evaluate', {
-        expression: 'JSON.stringify({width: window.innerWidth, height: window.innerHeight})',
-        returnByValue: true
-      });
-      const viewport = JSON.parse(viewportResult.result?.value || '{}');
-      const width = viewport.width;
-      const height = viewport.height;
-
-      if (!width || !height) {
-        throw new Error('Unable to determine page dimensions for scaling.');
-      }
-
-      captureParams.clip = {
-        x: 0,
-        y: 0,
-        width,
-        height,
-        scale
-      };
-    }
-
     const result = await context.sendCommand(ws, 'Page.captureScreenshot', captureParams);
 
+    let buffer: Buffer = Buffer.from(result.data, 'base64');
+
+    // Resize with sharp if scale !== 1 (avoids CDP viewport side effects)
+    if (scale !== 1) {
+      const image = sharp(buffer);
+      const metadata = await image.metadata();
+      if (metadata.width && metadata.height) {
+        const newWidth = Math.round(metadata.width * scale);
+        buffer = Buffer.from(await image.resize(newWidth).toBuffer());
+      }
+    }
+
     if (options.output) {
-      // Save to file
-      const buffer = Buffer.from(result.data, 'base64');
       writeFileSync(options.output, buffer);
 
       outputSuccess('Screenshot saved', {
@@ -451,11 +438,10 @@ export async function screenshot(
         size: buffer.length
       });
     } else {
-      // Output base64 data
       outputLine({
         success: true,
         format,
-        data: result.data
+        data: buffer.toString('base64')
       });
     }
   } catch (error) {
