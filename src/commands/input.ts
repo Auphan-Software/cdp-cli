@@ -108,22 +108,18 @@ function normalizeMetadata(raw: any): ElementMetadata {
   };
 }
 
-function summarizeMatches(matches: ElementMatch[]): Array<{
-  index: number;
-  tagName: string;
-  id: string | null;
-  classes: string[];
-  text: string;
-  rect: ElementMetadata['rect'];
-}> {
-  return matches.map((match, index) => ({
-    index: index + 1,
-    tagName: match.metadata.tagName,
-    id: match.metadata.id,
-    classes: match.metadata.classes,
-    text: truncate(match.metadata.text, 160),
-    rect: roundRect(match.metadata.rect)
-  }));
+function summarizeMatches(matches: ElementMatch[]): string[] {
+  return matches.map((match, index) => {
+    const { tagName, id, classes, text } = match.metadata;
+    let line = `${index + 1}. [${tagName}]`;
+    if (text) line += ` "${truncate(text, 50)}"`;
+    // Build selector from metadata
+    let selector = tagName;
+    if (id) selector += `#${id}`;
+    if (classes.length) selector += `.${classes.join('.')}`;
+    line += ` → ${selector}`;
+    return line;
+  });
 }
 
 function roundRect(rect: ElementMetadata['rect']): ElementMetadata['rect'] {
@@ -787,7 +783,7 @@ export async function fill(
   context: CDPContext,
   selector: string,
   value: string,
-  options: { page: string }
+  options: { page: string; nth?: number }
 ): Promise<void> {
   let ws;
   try {
@@ -796,8 +792,30 @@ export async function fill(
 
     ws = await context.connect(page);
 
-    // Find element and focus it
-    const { nodeId } = await findElement(context, ws, selector);
+    await context.sendCommand(ws, 'DOM.enable');
+
+    // Find all matching elements
+    const matches = await resolveBySelector(context, ws, selector);
+
+    if (matches.length === 0) {
+      throw new Error(`Element not found: ${selector}`);
+    }
+
+    let selectedIndex = 0;
+    if (typeof options.nth === 'number') {
+      if (options.nth < 1 || options.nth > matches.length) {
+        throw new Error(
+          `--nth ${options.nth} is out of range (1-${matches.length})\n${summarizeMatches(matches).join('\n')}`
+        );
+      }
+      selectedIndex = options.nth - 1;
+    } else if (matches.length > 1) {
+      throw new Error(
+        `Multiple elements matched. Use --nth to choose one.\n${summarizeMatches(matches).join('\n')}`
+      );
+    }
+
+    const { nodeId } = matches[selectedIndex];
     await context.sendCommand(ws, 'DOM.focus', { nodeId });
 
     // Clear existing value using DOM API (safe from code injection)

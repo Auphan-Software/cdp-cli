@@ -6,9 +6,15 @@
  * Optimized for LLM agents with NDJSON output
  */
 
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { CDPContext } from './context.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const pkg = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf-8'));
 import * as pages from './commands/pages.js';
 import * as debug from './commands/debug.js';
 import * as network from './commands/network.js';
@@ -52,7 +58,7 @@ process.on('unhandledRejection', (reason) => {
 // Create CLI
 const cli = yargs(hideBin(process.argv))
   .scriptName('cdp-cli')
-  .version('0.1.0')
+  .version(pkg.version)
   .usage('Usage: $0 <command> [options]')
   .option('cdp-url', {
     type: 'string',
@@ -498,6 +504,10 @@ cli.command(
         describe: 'Page ID or title',
         type: 'string'
       })
+      .option('nth', {
+        describe: 'Select nth match (1-based) when multiple elements match',
+        type: 'number'
+      })
       .check((argv) => {
         const hint = validateFillParams(
           argv.selector as string,
@@ -517,7 +527,8 @@ cli.command(
       argv.selector as string,
       argv.value as string,
       {
-        page: argv.page as string
+        page: argv.page as string,
+        nth: argv.nth as number | undefined
       }
     );
   }
