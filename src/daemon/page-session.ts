@@ -90,9 +90,9 @@ export class PageSession {
   }
 
   /**
-   * Send CDP command
+   * Send CDP command (public for daemon command execution)
    */
-  private sendCommand(method: string, params?: any): Promise<any> {
+  sendCommand(method: string, params?: any): Promise<any> {
     return new Promise((resolve, reject) => {
       if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
         reject(new Error('WebSocket not connected'));

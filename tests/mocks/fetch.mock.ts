@@ -34,6 +34,11 @@ export function createMockFetch(options?: {
   return async (url: string | URL | Request): Promise<Response> => {
     const urlString = typeof url === 'string' ? url : url.toString();
 
+    // Daemon endpoints - always return "not running" in tests
+    if (urlString.includes(':9223')) {
+      return new MockFetchResponse({ error: 'Daemon not running' }, 503, 'Service Unavailable') as any;
+    }
+
     // Simulate fetch failure
     if (options?.failFetch) {
       return new MockFetchResponse(null, 500, 'Internal Server Error') as any;

@@ -250,4 +250,46 @@ export class DaemonClient {
       return false;
     }
   }
+
+  /**
+   * Execute a CDP command through the daemon (uses warm WS connection)
+   */
+  async execCommand(pageId: string, method: string, params?: any): Promise<any> {
+    const res = await (globalThis.fetch ?? undiciFetch)(
+      `${this.baseUrl}/exec/${encodeURIComponent(pageId)}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ method, params })
+      }
+    );
+
+    const data = await res.json() as { result?: any; error?: string };
+    if (!res.ok) {
+      throw new Error(data.error || 'Command failed');
+    }
+
+    return data.result;
+  }
+
+  /**
+   * Execute multiple CDP commands in sequence through daemon
+   */
+  async execBatch(pageId: string, commands: Array<{ method: string; params?: any }>): Promise<any[]> {
+    const res = await (globalThis.fetch ?? undiciFetch)(
+      `${this.baseUrl}/exec-batch`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pageId, commands })
+      }
+    );
+
+    const data = await res.json() as { results?: any[]; error?: string };
+    if (!res.ok) {
+      throw new Error(data.error || 'Batch command failed');
+    }
+
+    return data.results ?? [];
+  }
 }

@@ -7,6 +7,7 @@ import { outputLine, outputError, outputSuccess, outputRaw } from '../output.js'
 import { writeFileSync } from 'fs';
 import { extname } from 'node:path';
 import sharp from 'sharp';
+import { createExecSession, createExecSessionByPageRef } from '../daemon/exec.js';
 
 /**
  * List console messages
@@ -84,19 +85,17 @@ export async function snapshot(
   context: CDPContext,
   options: { format?: string; page: string }
 ): Promise<void> {
-  let ws;
+  let session: Awaited<ReturnType<typeof createExecSessionByPageRef>> | undefined;
   try {
-    // Get page
-    const page = await context.findPage(options.page);
-
-    ws = await context.connect(page);
+    // Use daemon if available (optimized path), otherwise findPage + direct WebSocket
+    session = await createExecSessionByPageRef(context, options.page);
 
     const format = options.format || 'ax';
 
     if (format === 'text') {
       // Simple text snapshot
-      await context.sendCommand(ws, 'Runtime.enable');
-      const result = await context.sendCommand(ws, 'Runtime.evaluate', {
+      await session.exec('Runtime.enable');
+      const result = await session.exec('Runtime.evaluate', {
         expression: 'document.body.innerText',
         returnByValue: true
       });
@@ -104,8 +103,8 @@ export async function snapshot(
       outputRaw(result.result?.value || '');
     } else if (format === 'ax') {
       // Simplified actionable elements snapshot for integration testing
-      await context.sendCommand(ws, 'Runtime.enable');
-      const result = await context.sendCommand(ws, 'Runtime.evaluate', {
+      await session.exec('Runtime.enable');
+      const result = await session.exec('Runtime.evaluate', {
         expression: `
 (() => {
   const results = [];
@@ -299,9 +298,7 @@ export async function snapshot(
     );
     process.exit(1);
   } finally {
-    if (ws) {
-      ws.close();
-    }
+    session?.close();
   }
 }
 
@@ -313,15 +310,13 @@ export async function evaluate(
   expression: string,
   options: { page: string }
 ): Promise<void> {
-  let ws;
+  let session: Awaited<ReturnType<typeof createExecSessionByPageRef>> | undefined;
   try {
-    // Get page
-    const page = await context.findPage(options.page);
+    // Use daemon if available (optimized path), otherwise findPage + direct WebSocket
+    session = await createExecSessionByPageRef(context, options.page);
 
-    ws = await context.connect(page);
-
-    await context.sendCommand(ws, 'Runtime.enable');
-    const result = await context.sendCommand(ws, 'Runtime.evaluate', {
+    await session.exec('Runtime.enable');
+    const result = await session.exec('Runtime.evaluate', {
       expression,
       returnByValue: true,
       awaitPromise: true
@@ -349,9 +344,7 @@ export async function evaluate(
     );
     process.exit(1);
   } finally {
-    if (ws) {
-      ws.close();
-    }
+    session?.close();
   }
 }
 

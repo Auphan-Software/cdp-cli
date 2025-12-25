@@ -416,6 +416,73 @@ export class CDPDaemon {
         return;
       }
 
+      // Execute raw CDP command on a page session
+      if (method === 'POST' && path.startsWith('/exec/')) {
+        const pageId = decodeURIComponent(path.slice('/exec/'.length));
+        const session = this.sessions.get(pageId);
+
+        if (!session) {
+          this.sendJson(res, 404, { error: 'Session not found' });
+          return;
+        }
+
+        if (!session.isConnected) {
+          this.sendJson(res, 503, { error: 'Session not connected' });
+          return;
+        }
+
+        const body = await this.readBody(req);
+        const { method: cdpMethod, params: cdpParams } = body;
+
+        if (!cdpMethod) {
+          this.sendJson(res, 400, { error: 'CDP method required' });
+          return;
+        }
+
+        try {
+          const result = await session.sendCommand(cdpMethod, cdpParams);
+          this.sendJson(res, 200, { result });
+        } catch (err) {
+          this.sendJson(res, 500, { error: (err as Error).message });
+        }
+        return;
+      }
+
+      // Batch execute multiple CDP commands
+      if (method === 'POST' && path === '/exec-batch') {
+        const body = await this.readBody(req);
+        const { pageId, commands } = body;
+
+        if (!pageId || !Array.isArray(commands)) {
+          this.sendJson(res, 400, { error: 'pageId and commands array required' });
+          return;
+        }
+
+        const session = this.sessions.get(pageId);
+        if (!session) {
+          this.sendJson(res, 404, { error: 'Session not found' });
+          return;
+        }
+
+        if (!session.isConnected) {
+          this.sendJson(res, 503, { error: 'Session not connected' });
+          return;
+        }
+
+        const results: any[] = [];
+        for (const cmd of commands) {
+          try {
+            const result = await session.sendCommand(cmd.method, cmd.params);
+            results.push({ success: true, result });
+          } catch (err) {
+            results.push({ success: false, error: (err as Error).message });
+          }
+        }
+
+        this.sendJson(res, 200, { results });
+        return;
+      }
+
       // Not found
       this.sendJson(res, 404, { error: 'Not found' });
     } catch (err) {
