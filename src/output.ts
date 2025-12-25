@@ -28,15 +28,36 @@ export function outputLines(data: any[], options: OutputOptions = {}): void {
 }
 
 /**
- * Output an error in NDJSON format
+ * Format details object as plain text
+ */
+function formatDetails(details: any): string {
+  const lines: string[] = [];
+  for (const [key, value] of Object.entries(details)) {
+    if (value === undefined || value === null) continue;
+    if (Array.isArray(value)) {
+      lines.push(`${key}:`);
+      for (const item of value) {
+        lines.push(`  ${item}`);
+      }
+    } else if (typeof value === 'object') {
+      lines.push(`${key}: ${JSON.stringify(value)}`);
+    } else {
+      lines.push(`${key}: ${value}`);
+    }
+  }
+  return lines.join('\n');
+}
+
+/**
+ * Output an error in plain text format
  */
 export function outputError(message: string, code?: string, details?: any): void {
-  outputLine({
-    error: true,
-    message,
-    code: code || 'ERROR',
-    ...(details && { details })
-  });
+  const codeStr = code || 'ERROR';
+  let output = `${codeStr}: ${message}`;
+  if (details) {
+    output += `\n${formatDetails(details)}`;
+  }
+  console.error(output);
 }
 
 /**
