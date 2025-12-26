@@ -154,6 +154,41 @@ export class CDPContext {
   }
 
   /**
+   * Check if DevTools is attached to a page (blocks Page domain commands)
+   */
+  async isDevToolsAttached(ws: WebSocket): Promise<boolean> {
+    const id = this.messageId++;
+
+    return new Promise((resolve) => {
+      const messageHandler = (data: Buffer) => {
+        const message: CDPMessage = JSON.parse(data.toString());
+        if (message.id === id) {
+          clearTimeout(timeout);
+          ws.off('message', messageHandler);
+          resolve(message.result?.targetInfo?.attached === true);
+        }
+      };
+
+      const timeout = setTimeout(() => {
+        ws.off('message', messageHandler);
+        resolve(false); // Assume not attached if we can't check
+      }, 2000);
+
+      ws.on('message', messageHandler);
+      ws.send(JSON.stringify({ id, method: 'Target.getTargetInfo', params: {} }));
+    });
+  }
+
+  /**
+   * Throw if DevTools is attached (for commands that need Page domain)
+   */
+  async assertNoDevTools(ws: WebSocket): Promise<void> {
+    if (await this.isDevToolsAttached(ws)) {
+      throw new Error('DevTools is open on this tab. Close DevTools to use this command.');
+    }
+  }
+
+  /**
    * Send a CDP command and wait for response
    */
   async sendCommand(

@@ -13,6 +13,7 @@ interface ClickTargetInput {
   match?: TextMatchMode;
   caseSensitive?: boolean;
   nth?: number;
+  within?: string;
 }
 
 interface ElementMetadata {
@@ -236,11 +237,25 @@ async function getElementMetadataForNode(
 async function resolveBySelector(
   context: CDPContext,
   ws: any,
-  selector: string
+  selector: string,
+  within?: string
 ): Promise<ElementMatch[]> {
   const doc = await context.sendCommand(ws, 'DOM.getDocument');
+
+  let rootNodeId = doc.root.nodeId;
+  if (within) {
+    const containerResult = await context.sendCommand(ws, 'DOM.querySelector', {
+      nodeId: doc.root.nodeId,
+      selector: within
+    });
+    if (!containerResult.nodeId) {
+      throw new Error(`Container not found: ${within}`);
+    }
+    rootNodeId = containerResult.nodeId;
+  }
+
   const result = await context.sendCommand(ws, 'DOM.querySelectorAll', {
-    nodeId: doc.root.nodeId,
+    nodeId: rootNodeId,
     selector
   });
 
@@ -263,17 +278,20 @@ async function resolveBySelector(
 function buildTextSearchExpression(
   text: string,
   match: TextMatchMode,
-  caseSensitive: boolean
+  caseSensitive: boolean,
+  within?: string
 ): string {
   const serializedText = JSON.stringify(text);
   const serializedMatch = JSON.stringify(match);
   const caseFlag = caseSensitive ? 'true' : 'false';
+  const serializedWithin = within ? JSON.stringify(within) : 'null';
 
   return `
 (() => {
   const pattern = ${serializedText};
   const mode = ${serializedMatch};
   const caseSensitive = ${caseFlag};
+  const withinSelector = ${serializedWithin};
   let normalizedPattern = pattern;
   const results = [];
   const seen = new Set();
@@ -290,7 +308,14 @@ function buildTextSearchExpression(
     normalizedPattern = pattern.toLowerCase();
   }
 
-  const root = document.body || document.documentElement;
+  let root = document.body || document.documentElement;
+  if (withinSelector) {
+    const container = document.querySelector(withinSelector);
+    if (!container) {
+      return { error: 'Container not found: ' + withinSelector };
+    }
+    root = container;
+  }
   if (!root) {
     return { matches: [] };
   }
@@ -378,8 +403,9 @@ async function resolveByText(
   const text = target.text ?? '';
   const matchMode: TextMatchMode = target.match ?? 'exact';
   const caseSensitive = target.caseSensitive ?? false;
+  const within = target.within;
 
-  const expression = buildTextSearchExpression(text, matchMode, caseSensitive);
+  const expression = buildTextSearchExpression(text, matchMode, caseSensitive, within);
   const evaluation = await context.sendCommand(ws, 'Runtime.evaluate', {
     expression,
     returnByValue: false,
@@ -538,7 +564,7 @@ async function resolveClickCandidates(
   target: ClickTargetInput
 ): Promise<ElementMatch[]> {
   if (target.selector) {
-    return resolveBySelector(context, ws, target.selector);
+    return resolveBySelector(context, ws, target.selector, target.within);
   }
 
   if (target.text) {
@@ -603,6 +629,7 @@ export async function click(
     }
 
     ws = await context.connect(page);
+    await context.assertNoDevTools(ws);
 
     await context.sendCommand(ws, 'DOM.enable');
     await context.sendCommand(ws, 'Runtime.enable');
@@ -745,6 +772,7 @@ export async function click(
       text: target.text ?? null,
       match: target.selector ? undefined : target.match ?? 'exact',
       caseSensitive: target.caseSensitive ?? false,
+      within: target.within ?? null,
       index: selectedIndex + 1,
       totalMatches: matches.length,
       x: xRounded,
@@ -783,7 +811,7 @@ export async function fill(
   context: CDPContext,
   selector: string,
   value: string,
-  options: { page: string; nth?: number }
+  options: { page: string; nth?: number; within?: string }
 ): Promise<void> {
   let ws;
   try {
@@ -791,11 +819,12 @@ export async function fill(
     const page = await context.findPage(options.page);
 
     ws = await context.connect(page);
+    await context.assertNoDevTools(ws);
 
     await context.sendCommand(ws, 'DOM.enable');
 
     // Find all matching elements
-    const matches = await resolveBySelector(context, ws, selector);
+    const matches = await resolveBySelector(context, ws, selector, options.within);
 
     if (matches.length === 0) {
       throw new Error(`Element not found: ${selector}`);
@@ -840,7 +869,8 @@ export async function fill(
 
     outputSuccess('Fill performed', {
       selector,
-      value
+      value,
+      within: options.within ?? null
     });
   } catch (error) {
     outputError(
@@ -870,6 +900,7 @@ export async function pressKey(
     const page = await context.findPage(options.page);
 
     ws = await context.connect(page);
+    await context.assertNoDevTools(ws);
 
     // Map common key names
     const keyMap: Record<string, string> = {

@@ -24,6 +24,8 @@ export async function listConsole(
 
     // Connect and enable Runtime domain
     ws = await context.connect(page);
+    await context.assertNoDevTools(ws);
+
     context.setupConsoleCollection(ws, (message: ConsoleMessage) => {
       if (options.type && message.type !== options.type) {
         return;
@@ -89,6 +91,7 @@ export async function snapshot(
   try {
     // Use daemon if available (optimized path), otherwise findPage + direct WebSocket
     session = await createExecSessionByPageRef(context, options.page);
+    await session.assertNoDevTools();
 
     const format = options.format || 'ax';
 
@@ -314,6 +317,7 @@ export async function evaluate(
   try {
     // Use daemon if available (optimized path), otherwise findPage + direct WebSocket
     session = await createExecSessionByPageRef(context, options.page);
+    await session.assertNoDevTools();
 
     await session.exec('Runtime.enable');
     const result = await session.exec('Runtime.evaluate', {
@@ -361,6 +365,7 @@ export async function screenshot(
     const page = await context.findPage(options.page);
 
     ws = await context.connect(page);
+    await context.assertNoDevTools(ws);
 
     const validFormats = ['jpeg', 'png', 'webp'];
     const detectedFormat = (() => {

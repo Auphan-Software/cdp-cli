@@ -21,6 +21,8 @@ export interface ExecSession {
   useDaemon: boolean;
   /** Execute a CDP command */
   exec: (method: string, params?: any) => Promise<any>;
+  /** Check if DevTools is attached and throw if so */
+  assertNoDevTools: () => Promise<void>;
   /** Close the session */
   close: () => void;
 }
@@ -76,6 +78,12 @@ export async function createExecSession(
         ws: null,
         useDaemon: true,
         exec: (method: string, params?: any) => daemon.execCommand(page.id, method, params),
+        assertNoDevTools: async () => {
+          const result = await daemon.execCommand(page.id, 'Target.getTargetInfo', {});
+          if (result?.targetInfo?.attached === true) {
+            throw new Error('DevTools is open on this tab. Close DevTools to use this command.');
+          }
+        },
         close: () => {} // No cleanup needed for daemon
       };
     }
@@ -90,6 +98,7 @@ export async function createExecSession(
     ws,
     useDaemon: false,
     exec: (method: string, params?: any) => context.sendCommand(ws, method, params),
+    assertNoDevTools: () => context.assertNoDevTools(ws),
     close: () => ws.close()
   };
 }
@@ -116,11 +125,18 @@ export async function createExecSessionByPageRef(
     }
 
     if (session) {
+      const sessionPageId = session.pageId;
       return {
-        pageId: session.pageId,
+        pageId: sessionPageId,
         ws: null,
         useDaemon: true,
-        exec: (method: string, params?: any) => daemon.execCommand(session!.pageId, method, params),
+        exec: (method: string, params?: any) => daemon.execCommand(sessionPageId, method, params),
+        assertNoDevTools: async () => {
+          const result = await daemon.execCommand(sessionPageId, 'Target.getTargetInfo', {});
+          if (result?.targetInfo?.attached === true) {
+            throw new Error('DevTools is open on this tab. Close DevTools to use this command.');
+          }
+        },
         close: () => {}
       };
     }
@@ -136,6 +152,7 @@ export async function createExecSessionByPageRef(
     ws,
     useDaemon: false,
     exec: (method: string, params?: any) => context.sendCommand(ws, method, params),
+    assertNoDevTools: () => context.assertNoDevTools(ws),
     close: () => ws.close()
   };
 }

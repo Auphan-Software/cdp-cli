@@ -20,6 +20,8 @@ export async function listNetwork(
 
     // Connect and enable Network domain
     ws = await context.connect(page);
+    await context.assertNoDevTools(ws);
+
     context.setupNetworkCollection(
       ws,
       (request: NetworkRequest, event) => {
