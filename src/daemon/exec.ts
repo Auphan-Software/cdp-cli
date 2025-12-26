@@ -78,12 +78,7 @@ export async function createExecSession(
         ws: null,
         useDaemon: true,
         exec: (method: string, params?: any) => daemon.execCommand(page.id, method, params),
-        assertNoDevTools: async () => {
-          const result = await daemon.execCommand(page.id, 'Target.getTargetInfo', {});
-          if (result?.targetInfo?.attached === true) {
-            throw new Error('DevTools is open on this tab. Close DevTools to use this command.');
-          }
-        },
+        assertNoDevTools: async () => {}, // Daemon handles its own connection - no check needed
         close: () => {} // No cleanup needed for daemon
       };
     }
@@ -93,12 +88,24 @@ export async function createExecSession(
 
   // Fall back to direct WebSocket connection
   const ws = await context.connect(page);
+
+  // Check if daemon has a session for this page - if so, skip DevTools check
+  let daemonConnectedToPage = false;
+  try {
+    const sessions = await daemon.listSessions();
+    daemonConnectedToPage = sessions.some(s => s.pageId === page.id && s.connected);
+  } catch {
+    // Daemon not running
+  }
+
   return {
     pageId: page.id,
     ws,
     useDaemon: false,
     exec: (method: string, params?: any) => context.sendCommand(ws, method, params),
-    assertNoDevTools: () => context.assertNoDevTools(ws),
+    assertNoDevTools: daemonConnectedToPage
+      ? async () => {}
+      : () => context.assertNoDevTools(page.id),
     close: () => ws.close()
   };
 }
@@ -131,12 +138,7 @@ export async function createExecSessionByPageRef(
         ws: null,
         useDaemon: true,
         exec: (method: string, params?: any) => daemon.execCommand(sessionPageId, method, params),
-        assertNoDevTools: async () => {
-          const result = await daemon.execCommand(sessionPageId, 'Target.getTargetInfo', {});
-          if (result?.targetInfo?.attached === true) {
-            throw new Error('DevTools is open on this tab. Close DevTools to use this command.');
-          }
-        },
+        assertNoDevTools: async () => {}, // Daemon handles its own connection - no check needed
         close: () => {}
       };
     }
@@ -147,12 +149,25 @@ export async function createExecSessionByPageRef(
   // Fall back to traditional path: findPage + direct WebSocket
   const page = await context.findPage(pageIdOrTitle);
   const ws = await context.connect(page);
+
+  // Check if daemon has a session for this page - if so, skip DevTools check
+  // (daemon's connection shows as attached but doesn't block commands)
+  let daemonConnectedToPage = false;
+  try {
+    const sessions = await daemon.listSessions();
+    daemonConnectedToPage = sessions.some(s => s.pageId === page.id && s.connected);
+  } catch {
+    // Daemon not running
+  }
+
   return {
     pageId: page.id,
     ws,
     useDaemon: false,
     exec: (method: string, params?: any) => context.sendCommand(ws, method, params),
-    assertNoDevTools: () => context.assertNoDevTools(ws),
+    assertNoDevTools: daemonConnectedToPage
+      ? async () => {} // Daemon connected - skip check
+      : () => context.assertNoDevTools(page.id),
     close: () => ws.close()
   };
 }

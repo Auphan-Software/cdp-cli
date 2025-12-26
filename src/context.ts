@@ -154,36 +154,69 @@ export class CDPContext {
   }
 
   /**
-   * Check if DevTools is attached to a page (blocks Page domain commands)
+   * Check if DevTools is attached to a page via browser endpoint
+   * Must check BEFORE connecting to page, as our connection counts as attached
    */
-  async isDevToolsAttached(ws: WebSocket): Promise<boolean> {
-    const id = this.messageId++;
+  async isDevToolsAttached(pageId: string): Promise<boolean> {
+    // Get browser websocket URL
+    const response = await (globalThis.fetch ?? undiciFetch)(`${this.cdpUrl}/json/version`);
+    if (!response.ok) return false;
+    const version = await response.json() as { webSocketDebuggerUrl?: string };
+    if (!version.webSocketDebuggerUrl) return false;
 
     return new Promise((resolve) => {
-      const messageHandler = (data: Buffer) => {
+      const ws = new WebSocket(version.webSocketDebuggerUrl!);
+      const id = this.messageId++;
+
+      ws.on('open', () => {
+        ws.send(JSON.stringify({ id, method: 'Target.getTargets', params: {} }));
+      });
+
+      ws.on('message', (data: Buffer) => {
         const message: CDPMessage = JSON.parse(data.toString());
         if (message.id === id) {
           clearTimeout(timeout);
-          ws.off('message', messageHandler);
-          resolve(message.result?.targetInfo?.attached === true);
+          ws.close();
+          const target = message.result?.targetInfos?.find(
+            (t: { targetId: string }) => t.targetId === pageId
+          );
+          resolve(target?.attached === true);
         }
-      };
+      });
+
+      ws.on('error', () => {
+        clearTimeout(timeout);
+        resolve(false);
+      });
 
       const timeout = setTimeout(() => {
-        ws.off('message', messageHandler);
-        resolve(false); // Assume not attached if we can't check
+        ws.close();
+        resolve(false);
       }, 2000);
-
-      ws.on('message', messageHandler);
-      ws.send(JSON.stringify({ id, method: 'Target.getTargetInfo', params: {} }));
     });
   }
 
   /**
    * Throw if DevTools is attached (for commands that need Page domain)
+   * Skips check if cdp-cli daemon is connected (its connection shows as attached but works fine)
    */
-  async assertNoDevTools(ws: WebSocket): Promise<void> {
-    if (await this.isDevToolsAttached(ws)) {
+  async assertNoDevTools(pageId: string, skipIfDaemonConnected = true): Promise<void> {
+    if (skipIfDaemonConnected) {
+      // Check if daemon is connected to this page
+      try {
+        const response = await (globalThis.fetch ?? undiciFetch)('http://127.0.0.1:9223/sessions');
+        if (response.ok) {
+          const data = await response.json() as { sessions: Array<{ pageId: string; connected: boolean }> };
+          if (data.sessions?.some(s => s.pageId === pageId && s.connected)) {
+            return; // Daemon connected - skip check
+          }
+        }
+      } catch {
+        // Daemon not running
+      }
+    }
+
+    if (await this.isDevToolsAttached(pageId)) {
       throw new Error('DevTools is open on this tab. Close DevTools to use this command.');
     }
   }
