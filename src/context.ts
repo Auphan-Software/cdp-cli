@@ -102,7 +102,7 @@ export class CDPContext {
     }
 
     const titleMatches = pages.filter((page) =>
-      page.title.includes(idOrTitle)
+      page.title.includes(idOrTitle) && !page.url.startsWith('devtools://')
     );
 
     if (titleMatches.length === 0) {
@@ -197,18 +197,17 @@ export class CDPContext {
   }
 
   /**
-   * Throw if DevTools is attached (for commands that need Page domain)
-   * Skips check if cdp-cli daemon is connected (its connection shows as attached but works fine)
+   * Auto-close DevTools if attached, or skip if daemon connected
    */
   async assertNoDevTools(pageId: string, skipIfDaemonConnected = true): Promise<void> {
+    // Check if daemon is connected - if so, skip (daemon connection is benign)
     if (skipIfDaemonConnected) {
-      // Check if daemon is connected to this page
       try {
         const response = await (globalThis.fetch ?? undiciFetch)('http://127.0.0.1:9223/sessions');
         if (response.ok) {
           const data = await response.json() as { sessions: Array<{ pageId: string; connected: boolean }> };
           if (data.sessions?.some(s => s.pageId === pageId && s.connected)) {
-            return; // Daemon connected - skip check
+            return;
           }
         }
       } catch {
@@ -216,8 +215,57 @@ export class CDPContext {
       }
     }
 
-    if (await this.isDevToolsAttached(pageId)) {
-      throw new Error('DevTools is open on this tab. Close DevTools to use this command.');
+    if (!await this.isDevToolsAttached(pageId)) {
+      return; // Not attached, we're good
+    }
+
+    // DevTools is attached - try to auto-close it
+    const closed = await this.closeDevToolsForPage(pageId);
+    if (closed) {
+      // Wait for Chrome to release the debugger connection
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Verify it's actually detached now
+      if (!await this.isDevToolsAttached(pageId)) {
+        return; // Successfully closed
+      }
+    }
+
+    throw new Error('DevTools is open on this tab. Close DevTools to use this command.');
+  }
+
+  /**
+   * Find and close DevTools window for a specific page
+   */
+  private async closeDevToolsForPage(pageId: string): Promise<boolean> {
+    try {
+      // Get all pages including DevTools
+      const response = await (globalThis.fetch ?? undiciFetch)(`${this.cdpUrl}/json`);
+      if (!response.ok) return false;
+
+      const pages = await response.json() as Page[];
+
+      // Find the target page to get its title
+      const targetPage = pages.find(p => p.id === pageId);
+      if (!targetPage) return false;
+
+      // Find DevTools page that matches this page's title
+      // DevTools title format: "DevTools - <page title>"
+      const devToolsPage = pages.find(p =>
+        p.url.startsWith('devtools://') &&
+        p.title.includes(targetPage.title.slice(0, 30))
+      );
+
+      if (!devToolsPage) return false;
+
+      // Close the DevTools page
+      const closeResponse = await (globalThis.fetch ?? undiciFetch)(
+        `${this.cdpUrl}/json/close/${devToolsPage.id}`
+      );
+
+      return closeResponse.ok;
+    } catch {
+      return false;
     }
   }
 
