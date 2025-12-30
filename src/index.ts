@@ -448,6 +448,15 @@ cli.command(
           return num;
         }
       })
+      .option('within', {
+        type: 'string',
+        description: 'CSS selector to scope the search within a container'
+      })
+      .option('touch', {
+        type: 'boolean',
+        description: 'Use touch events instead of mouse events',
+        default: false
+      })
       .check((argv) => {
         const hasSelector = typeof argv.selector === 'string' && argv.selector.length > 0;
         const hasText = typeof argv.text === 'string' && argv.text.length > 0;
@@ -464,6 +473,9 @@ cli.command(
         ) {
           throw new Error('--double cannot be combined with --longpress');
         }
+        if (argv.touch === true && argv.double === true) {
+          throw new Error('--touch cannot be combined with --double');
+        }
         return true;
       });
   },
@@ -476,12 +488,14 @@ cli.command(
         text: argv.text as string | undefined,
         match: argv.match as 'exact' | 'contains' | 'regex',
         caseSensitive: argv.caseSensitive as boolean,
-        nth: argv.nth as number | undefined
+        nth: argv.nth as number | undefined,
+        within: argv.within as string | undefined
       },
       {
         page: argv.page as string,
         double: argv.double as boolean,
-        longpress: argv.longpress as number | undefined
+        longpress: argv.longpress as number | undefined,
+        touch: argv.touch as boolean
       }
     );
   }
@@ -508,6 +522,10 @@ cli.command(
         describe: 'Select nth match (1-based) when multiple elements match',
         type: 'number'
       })
+      .option('within', {
+        type: 'string',
+        description: 'CSS selector to scope the search within a container'
+      })
       .check((argv) => {
         const hint = validateFillParams(
           argv.selector as string,
@@ -528,7 +546,8 @@ cli.command(
       argv.value as string,
       {
         page: argv.page as string,
-        nth: argv.nth as number | undefined
+        nth: argv.nth as number | undefined,
+        within: argv.within as string | undefined
       }
     );
   }
@@ -559,6 +578,128 @@ cli.command(
     const context = new CDPContext(argv['cdp-url'] as string);
     await input.pressKey(context, argv.key as string, {
       page: argv.page as string
+    });
+  }
+);
+
+cli.command(
+  'drag <from> <to> <page>',
+  'Drag from one element/position to another',
+  (yargs) => {
+    return yargs
+      .positional('from', {
+        describe: 'Source: CSS selector or x,y coordinates',
+        type: 'string'
+      })
+      .positional('to', {
+        describe: 'Destination: CSS selector or x,y coordinates',
+        type: 'string'
+      })
+      .positional('page', {
+        describe: 'Page ID or title',
+        type: 'string'
+      })
+      .option('touch', {
+        type: 'boolean',
+        description: 'Use touch events instead of mouse events',
+        default: false
+      })
+      .option('longpress', {
+        type: 'number',
+        description: 'Hold at start position before dragging (seconds)',
+        coerce: (value: unknown) => {
+          if (value === true) return 1;
+          if (value === undefined || value === null || value === '') return undefined;
+          const num = Number(value);
+          if (!Number.isFinite(num) || num < 0) {
+            throw new Error('--longpress must be a non-negative number');
+          }
+          return num;
+        }
+      })
+      .option('steps', {
+        type: 'number',
+        description: 'Number of intermediate move events',
+        default: 10
+      })
+      .option('duration', {
+        type: 'number',
+        description: 'Total drag duration in milliseconds',
+        default: 300
+      })
+      .option('text', {
+        type: 'string',
+        description: 'Match source element by visible text'
+      })
+      .option('to-text', {
+        type: 'string',
+        description: 'Match destination element by visible text'
+      })
+      .option('match', {
+        type: 'string',
+        description: 'Text matching strategy (exact, contains, regex)',
+        choices: ['exact', 'contains', 'regex'] as const,
+        default: 'exact'
+      })
+      .option('case-sensitive', {
+        type: 'boolean',
+        description: 'Treat text match as case-sensitive',
+        default: false
+      })
+      .option('nth', {
+        type: 'number',
+        description: 'Select Nth source match'
+      })
+      .option('to-nth', {
+        type: 'number',
+        description: 'Select Nth destination match'
+      })
+      .option('within', {
+        type: 'string',
+        description: 'CSS selector to scope source search'
+      })
+      .option('to-within', {
+        type: 'string',
+        description: 'CSS selector to scope destination search'
+      });
+  },
+  async (argv) => {
+    const context = new CDPContext(argv['cdp-url'] as string);
+
+    // Parse from target
+    const fromStr = argv.from as string;
+    const coordsFrom = fromStr.match(/^(\d+(?:\.\d+)?),(\d+(?:\.\d+)?)$/);
+    const fromTarget = coordsFrom
+      ? { x: parseFloat(coordsFrom[1]), y: parseFloat(coordsFrom[2]) }
+      : {
+          selector: argv.text ? undefined : fromStr,
+          text: argv.text as string | undefined,
+          match: argv.match as 'exact' | 'contains' | 'regex',
+          caseSensitive: argv.caseSensitive as boolean,
+          nth: argv.nth as number | undefined,
+          within: argv.within as string | undefined
+        };
+
+    // Parse to target
+    const toStr = argv.to as string;
+    const coordsTo = toStr.match(/^(\d+(?:\.\d+)?),(\d+(?:\.\d+)?)$/);
+    const toTarget = coordsTo
+      ? { x: parseFloat(coordsTo[1]), y: parseFloat(coordsTo[2]) }
+      : {
+          selector: argv.toText ? undefined : toStr,
+          text: argv.toText as string | undefined,
+          match: argv.match as 'exact' | 'contains' | 'regex',
+          caseSensitive: argv.caseSensitive as boolean,
+          nth: argv.toNth as number | undefined,
+          within: argv.toWithin as string | undefined
+        };
+
+    await input.drag(context, fromTarget, toTarget, {
+      page: argv.page as string,
+      touch: argv.touch as boolean,
+      longpress: argv.longpress as number | undefined,
+      steps: argv.steps as number,
+      duration: argv.duration as number
     });
   }
 );

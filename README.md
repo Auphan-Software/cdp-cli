@@ -257,13 +257,17 @@ cdp-cli list-network "example" --type xhr
 ### Input Automation
 
 **click** - Click an element by CSS selector or visible text
-Supports `--text`, `--match exact|contains|regex`, `--case-sensitive`, and `--nth` for multi-match disambiguation. Use `--longpress <seconds>` to hold the primary button before release (defaults to 1 second when the flag is provided without a value; not compatible with `--double`). When multiple elements match, the CLI reports each candidate (including bounding boxes) so an LLM can choose the right target with `--nth`.
+Supports `--text`, `--match exact|contains|regex`, `--case-sensitive`, `--nth` for multi-match disambiguation, and `--within` to scope the search to a container. Use `--longpress <seconds>` to hold the primary button before release (defaults to 1 second when the flag is provided without a value; not compatible with `--double`). Use `--touch` for touch events instead of mouse events (not compatible with `--double`). When multiple elements match, the CLI reports each candidate (including bounding boxes) so an LLM can choose the right target with `--nth`.
 ```bash
 # CSS selector (default behaviour)
 cdp-cli click "button#submit" "example"
 cdp-cli click "a.link" "example" --double
 cdp-cli click "li.menu-item" "example" --longpress 0.75
 cdp-cli click "li.menu-item" "example" --longpress        # defaults to 1 second
+
+# Touch events (for mobile testing)
+cdp-cli click "button#submit" "example" --touch
+cdp-cli click "button#submit" "example" --touch --longpress 0.5
 
 # Visible text (exact match, case-insensitive by default)
 cdp-cli click --text "Submit" "example"          # single match
@@ -272,12 +276,51 @@ cdp-cli click --text "Submit" --nth 2 "example"  # choose the 2nd match
 # Alternative text matching strategies
 cdp-cli click --text "enter" --match contains "example"
 cdp-cli click --text "^\d+$" --match regex --case-sensitive "example"
+
+# Scoped search within a container
+cdp-cli click --text "Pickles" --within "#modifier-pad" "example"
+cdp-cli click "button.add" --within ".cart-section" "example"
 ```
 
+**drag** - Drag from one element/position to another
+Supports both mouse and touch drag operations. Use `--longpress` before drag for mobile-style drag-and-drop. Targets can be CSS selectors, text matches, or `x,y` coordinates.
+```bash
+# Mouse drag (default)
+cdp-cli drag "#item" "#dropzone" "example"
+cdp-cli drag ".draggable" ".target" "example" --steps 20 --duration 500
+
+# Touch drag
+cdp-cli drag "#item" "#dropzone" "example" --touch
+
+# Touch drag with longpress (mobile drag-and-drop pattern)
+cdp-cli drag "#item" "#dropzone" "example" --touch --longpress 0.5
+
+# Coordinate-based drag
+cdp-cli drag "100,200" "300,400" "example"
+cdp-cli drag "#slider-handle" "250,100" "example"
+
+# Text-based targeting
+cdp-cli drag --text "Item 1" "#dropzone" "example"
+cdp-cli drag "#source" --to-text "Drop Here" "example"
+```
+
+Options:
+- `--touch`: Use touch events instead of mouse
+- `--longpress <seconds>`: Hold at start position before dragging
+- `--steps <n>`: Number of intermediate move events (default: 10)
+- `--duration <ms>`: Total drag duration in milliseconds (default: 300)
+- `--text` / `--to-text`: Match source/destination by visible text
+- `--nth` / `--to-nth`: Select Nth match for source/destination
+- `--within` / `--to-within`: Scope source/destination search to container
+
 **fill** - Fill an input element
+Supports `--nth` for multi-match disambiguation and `--within` to scope the search to a container.
 ```bash
 cdp-cli fill "input#email" "user@example.com" "example"
 cdp-cli fill "input[name='password']" "secret123" "example"
+
+# Scoped search within a container
+cdp-cli fill "input[type='text']" "value" "example" --within "#login-form"
 ```
 
 **press-key** - Press a keyboard key

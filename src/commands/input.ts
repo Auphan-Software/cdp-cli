@@ -16,6 +16,25 @@ interface ClickTargetInput {
   within?: string;
 }
 
+interface DragTargetInput {
+  selector?: string;
+  text?: string;
+  match?: TextMatchMode;
+  caseSensitive?: boolean;
+  nth?: number;
+  within?: string;
+  x?: number;
+  y?: number;
+}
+
+interface DragOptions {
+  page: string;
+  touch?: boolean;
+  longpress?: number;
+  steps?: number;
+  duration?: number;
+}
+
 interface ElementMetadata {
   tagName: string;
   id: string | null;
@@ -580,7 +599,7 @@ async function resolveClickCandidates(
 export async function click(
   context: CDPContext,
   targetInput: ClickTargetInput | string,
-  optionsInput: { page: string; double?: boolean; longpress?: number }
+  optionsInput: { page: string; double?: boolean; longpress?: number; touch?: boolean }
 ): Promise<void> {
   let ws;
   const target: ClickTargetInput =
@@ -606,6 +625,14 @@ export async function click(
       );
     }
 
+    if (options.touch && options.double) {
+      throw new ClickError(
+        'Touch mode does not support double tap (use two separate taps)',
+        'CLICK_INVALID_OPTIONS',
+        { touch: true, double: true }
+      );
+    }
+
     let page: Page;
     try {
       page = await context.findPage(options.page);
@@ -628,8 +655,8 @@ export async function click(
       }
     }
 
+    await context.assertNoDevTools(page.id);
     ws = await context.connect(page);
-    await context.assertNoDevTools(ws);
 
     await context.sendCommand(ws, 'DOM.enable');
     await context.sendCommand(ws, 'Runtime.enable');
@@ -722,48 +749,74 @@ export async function click(
     const yRounded = Math.round(y);
     const roundedRect = roundRect(rect);
 
-    await context.sendCommand(ws, 'Input.dispatchMouseEvent', {
-      type: 'mouseMoved',
-      x,
-      y
-    });
+    if (options.touch) {
+      // Touch tap sequence
+      await context.sendCommand(ws, 'Input.dispatchTouchEvent', {
+        type: 'touchStart',
+        touchPoints: [{
+          id: 0,
+          x,
+          y,
+          radiusX: 2.5,
+          radiusY: 2.5,
+          rotationAngle: 0,
+          force: 1.0
+        }]
+      });
 
-    await context.sendCommand(ws, 'Input.dispatchMouseEvent', {
-      type: 'mousePressed',
-      x,
-      y,
-      button: 'left',
-      clickCount: 1
-    });
+      if (longpressMs > 0) {
+        await delay(longpressMs);
+      }
 
-    if (longpressMs > 0) {
-      await delay(longpressMs);
-    }
+      await context.sendCommand(ws, 'Input.dispatchTouchEvent', {
+        type: 'touchEnd',
+        touchPoints: []
+      });
+    } else {
+      // Mouse click sequence
+      await context.sendCommand(ws, 'Input.dispatchMouseEvent', {
+        type: 'mouseMoved',
+        x,
+        y
+      });
 
-    await context.sendCommand(ws, 'Input.dispatchMouseEvent', {
-      type: 'mouseReleased',
-      x,
-      y,
-      button: 'left',
-      clickCount: 1
-    });
-
-    if (options.double) {
       await context.sendCommand(ws, 'Input.dispatchMouseEvent', {
         type: 'mousePressed',
         x,
         y,
         button: 'left',
-        clickCount: 2
+        clickCount: 1
       });
+
+      if (longpressMs > 0) {
+        await delay(longpressMs);
+      }
 
       await context.sendCommand(ws, 'Input.dispatchMouseEvent', {
         type: 'mouseReleased',
         x,
         y,
         button: 'left',
-        clickCount: 2
+        clickCount: 1
       });
+
+      if (options.double) {
+        await context.sendCommand(ws, 'Input.dispatchMouseEvent', {
+          type: 'mousePressed',
+          x,
+          y,
+          button: 'left',
+          clickCount: 2
+        });
+
+        await context.sendCommand(ws, 'Input.dispatchMouseEvent', {
+          type: 'mouseReleased',
+          x,
+          y,
+          button: 'left',
+          clickCount: 2
+        });
+      }
     }
 
     outputSuccess('Click performed', {
@@ -779,7 +832,8 @@ export async function click(
       y: yRounded,
       rect: roundedRect,
       double: options.double || false,
-      longpress: longpressSeconds
+      longpress: longpressSeconds,
+      touch: options.touch || false
     });
   } catch (error) {
     if (error instanceof ClickError) {
@@ -817,9 +871,9 @@ export async function fill(
   try {
     // Get page
     const page = await context.findPage(options.page);
+    await context.assertNoDevTools(page.id);
 
     ws = await context.connect(page);
-    await context.assertNoDevTools(ws);
 
     await context.sendCommand(ws, 'DOM.enable');
 
@@ -898,9 +952,9 @@ export async function pressKey(
   try {
     // Get page
     const page = await context.findPage(options.page);
+    await context.assertNoDevTools(page.id);
 
     ws = await context.connect(page);
-    await context.assertNoDevTools(ws);
 
     // Map common key names
     const keyMap: Record<string, string> = {
@@ -937,6 +991,265 @@ export async function pressKey(
       'PRESS_KEY_FAILED',
       { key }
     );
+    process.exit(1);
+  } finally {
+    if (ws) {
+      ws.close();
+    }
+  }
+}
+
+class DragError extends Error {
+  code: string;
+  details: Record<string, unknown>;
+
+  constructor(message: string, code: string, details: Record<string, unknown> = {}) {
+    super(message);
+    this.code = code;
+    this.details = details;
+  }
+}
+
+function parseCoordinates(input: string): { x: number; y: number } | null {
+  const match = input.match(/^(\d+(?:\.\d+)?),(\d+(?:\.\d+)?)$/);
+  if (!match) return null;
+  const x = parseFloat(match[1]);
+  const y = parseFloat(match[2]);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  return { x, y };
+}
+
+async function resolveDragTarget(
+  context: CDPContext,
+  ws: any,
+  target: DragTargetInput,
+  label: string
+): Promise<{ x: number; y: number; metadata?: ElementMetadata }> {
+  // Direct coordinates
+  if (typeof target.x === 'number' && typeof target.y === 'number') {
+    return { x: target.x, y: target.y };
+  }
+
+  // Resolve via element
+  const clickTarget: ClickTargetInput = {
+    selector: target.selector,
+    text: target.text,
+    match: target.match,
+    caseSensitive: target.caseSensitive,
+    nth: target.nth,
+    within: target.within
+  };
+
+  const matches = await resolveClickCandidates(context, ws, clickTarget);
+
+  if (matches.length === 0) {
+    throw new DragError(
+      target.selector
+        ? `${label} element not found: ${target.selector}`
+        : `${label}: no element matched text "${target.text}"`,
+      'DRAG_NOT_FOUND',
+      { label, selector: target.selector, text: target.text }
+    );
+  }
+
+  let selectedIndex = 0;
+  if (typeof target.nth === 'number') {
+    if (target.nth < 1 || target.nth > matches.length) {
+      throw new DragError(
+        `${label}: --nth ${target.nth} is out of range (1-${matches.length})`,
+        'DRAG_NTH_OUT_OF_RANGE',
+        {
+          label,
+          selector: target.selector,
+          text: target.text,
+          requestedNth: target.nth,
+          matches: summarizeMatches(matches)
+        }
+      );
+    }
+    selectedIndex = target.nth - 1;
+  } else if (matches.length > 1) {
+    throw new DragError(
+      `${label}: multiple elements matched. Use --nth to choose one.`,
+      'DRAG_AMBIGUOUS',
+      {
+        label,
+        selector: target.selector,
+        text: target.text,
+        matches: summarizeMatches(matches)
+      }
+    );
+  }
+
+  const chosen = matches[selectedIndex];
+  const rect = chosen.metadata.rect;
+  const width = Number.isFinite(rect.width) ? rect.width : 0;
+  const height = Number.isFinite(rect.height) ? rect.height : 0;
+
+  return {
+    x: rect.x + width / 2,
+    y: rect.y + height / 2,
+    metadata: chosen.metadata
+  };
+}
+
+/**
+ * Drag from one element/position to another
+ */
+export async function drag(
+  context: CDPContext,
+  from: DragTargetInput,
+  to: DragTargetInput,
+  options: DragOptions
+): Promise<void> {
+  let ws;
+
+  const steps = Math.max(1, options.steps ?? 10);
+  const durationMs = Math.max(0, options.duration ?? 300);
+  const longpressSeconds =
+    typeof options.longpress === 'number' && Number.isFinite(options.longpress)
+      ? Math.max(0, options.longpress)
+      : 0;
+  const longpressMs = longpressSeconds * 1000;
+  const stepDelayMs = steps > 1 ? durationMs / (steps - 1) : 0;
+
+  try {
+    const page = await context.findPage(options.page);
+    await context.assertNoDevTools(page.id);
+
+    ws = await context.connect(page);
+
+    await context.sendCommand(ws, 'DOM.enable');
+    await context.sendCommand(ws, 'Runtime.enable');
+
+    const fromPos = await resolveDragTarget(context, ws, from, 'Source');
+    const toPos = await resolveDragTarget(context, ws, to, 'Destination');
+
+    if (options.touch) {
+      // Touch drag sequence
+      await context.sendCommand(ws, 'Input.dispatchTouchEvent', {
+        type: 'touchStart',
+        touchPoints: [{
+          id: 0,
+          x: fromPos.x,
+          y: fromPos.y,
+          radiusX: 2.5,
+          radiusY: 2.5,
+          rotationAngle: 0,
+          force: 1.0
+        }]
+      });
+
+      if (longpressMs > 0) {
+        await delay(longpressMs);
+      }
+
+      // Move through intermediate points
+      for (let i = 1; i <= steps; i++) {
+        const progress = i / steps;
+        const currentX = fromPos.x + (toPos.x - fromPos.x) * progress;
+        const currentY = fromPos.y + (toPos.y - fromPos.y) * progress;
+
+        if (stepDelayMs > 0) {
+          await delay(stepDelayMs);
+        }
+
+        await context.sendCommand(ws, 'Input.dispatchTouchEvent', {
+          type: 'touchMove',
+          touchPoints: [{
+            id: 0,
+            x: currentX,
+            y: currentY,
+            radiusX: 2.5,
+            radiusY: 2.5,
+            rotationAngle: 0,
+            force: 1.0
+          }]
+        });
+      }
+
+      await context.sendCommand(ws, 'Input.dispatchTouchEvent', {
+        type: 'touchEnd',
+        touchPoints: []
+      });
+    } else {
+      // Mouse drag sequence
+      await context.sendCommand(ws, 'Input.dispatchMouseEvent', {
+        type: 'mouseMoved',
+        x: fromPos.x,
+        y: fromPos.y
+      });
+
+      await context.sendCommand(ws, 'Input.dispatchMouseEvent', {
+        type: 'mousePressed',
+        x: fromPos.x,
+        y: fromPos.y,
+        button: 'left',
+        clickCount: 1
+      });
+
+      if (longpressMs > 0) {
+        await delay(longpressMs);
+      }
+
+      // Move through intermediate points
+      for (let i = 1; i <= steps; i++) {
+        const progress = i / steps;
+        const currentX = fromPos.x + (toPos.x - fromPos.x) * progress;
+        const currentY = fromPos.y + (toPos.y - fromPos.y) * progress;
+
+        if (stepDelayMs > 0) {
+          await delay(stepDelayMs);
+        }
+
+        await context.sendCommand(ws, 'Input.dispatchMouseEvent', {
+          type: 'mouseMoved',
+          x: currentX,
+          y: currentY,
+          button: 'left'
+        });
+      }
+
+      await context.sendCommand(ws, 'Input.dispatchMouseEvent', {
+        type: 'mouseReleased',
+        x: toPos.x,
+        y: toPos.y,
+        button: 'left',
+        clickCount: 1
+      });
+    }
+
+    outputSuccess('Drag performed', {
+      mode: options.touch ? 'touch' : 'mouse',
+      from: {
+        x: Math.round(fromPos.x),
+        y: Math.round(fromPos.y),
+        selector: from.selector ?? null,
+        text: from.text ?? null
+      },
+      to: {
+        x: Math.round(toPos.x),
+        y: Math.round(toPos.y),
+        selector: to.selector ?? null,
+        text: to.text ?? null
+      },
+      steps,
+      duration: durationMs,
+      longpress: longpressSeconds
+    });
+  } catch (error) {
+    if (error instanceof DragError) {
+      outputError(error.message, error.code, error.details);
+    } else {
+      outputError(
+        (error as Error).message,
+        'DRAG_FAILED',
+        {
+          from: { selector: from.selector, text: from.text },
+          to: { selector: to.selector, text: to.text }
+        }
+      );
+    }
     process.exit(1);
   } finally {
     if (ws) {
