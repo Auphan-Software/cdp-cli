@@ -21,10 +21,10 @@ export async function listConsole(
   try {
     // Get page to monitor
     const page = await context.findPage(options.page);
+    await context.assertNoDevTools(page.id);
 
     // Connect and enable Runtime domain
     ws = await context.connect(page);
-    await context.assertNoDevTools(ws);
 
     context.setupConsoleCollection(ws, (message: ConsoleMessage) => {
       if (options.type && message.type !== options.type) {
@@ -92,6 +92,7 @@ export async function snapshot(
     // Use daemon if available (optimized path), otherwise findPage + direct WebSocket
     session = await createExecSessionByPageRef(context, options.page);
     await session.assertNoDevTools();
+    await session.assertNoDialog();
 
     const format = options.format || 'ax';
 
@@ -318,6 +319,7 @@ export async function evaluate(
     // Use daemon if available (optimized path), otherwise findPage + direct WebSocket
     session = await createExecSessionByPageRef(context, options.page);
     await session.assertNoDevTools();
+    await session.assertNoDialog();
 
     await session.exec('Runtime.enable');
     const result = await session.exec('Runtime.evaluate', {
@@ -363,9 +365,12 @@ export async function screenshot(
   try {
     // Get page
     const page = await context.findPage(options.page);
+    await context.assertNoDevTools(page.id);
 
     ws = await context.connect(page);
-    await context.assertNoDevTools(ws);
+
+    // Check for blocking dialog before attempting screenshot
+    await context.assertNoDialog(ws);
 
     const validFormats = ['jpeg', 'png', 'webp'];
     const detectedFormat = (() => {
@@ -447,6 +452,67 @@ export async function screenshot(
       (error as Error).message,
       'SCREENSHOT_FAILED',
       { output: options.output }
+    );
+    process.exit(1);
+  } finally {
+    if (ws) {
+      ws.close();
+    }
+  }
+}
+
+/**
+ * Check for and optionally handle JavaScript dialogs (alert/confirm/prompt)
+ */
+export async function dialog(
+  context: CDPContext,
+  options: { page: string; dismiss?: boolean; accept?: boolean; promptText?: string }
+): Promise<void> {
+  let ws;
+  try {
+    const page = await context.findPage(options.page);
+    ws = await context.connect(page);
+
+    const dialogInfo = await context.checkForDialog(ws);
+
+    if (!dialogInfo) {
+      outputLine({
+        success: true,
+        dialog: null,
+        message: 'No dialog present'
+      });
+      return;
+    }
+
+    // If action specified, handle the dialog
+    if (options.dismiss || options.accept) {
+      const action = options.accept ? 'accept' : 'dismiss';
+      await context.handleDialog(ws, options.accept ?? false, options.promptText);
+
+      outputSuccess(`Dialog ${action}ed`, {
+        type: dialogInfo.type,
+        message: dialogInfo.message,
+        action,
+        promptText: options.promptText
+      });
+    } else {
+      // Just report dialog info
+      outputLine({
+        success: true,
+        dialog: {
+          type: dialogInfo.type,
+          message: dialogInfo.message,
+          url: dialogInfo.url,
+          defaultPrompt: dialogInfo.defaultPrompt
+        },
+        hint: "Use --dismiss or --accept to handle the dialog"
+      });
+    }
+  } catch (error) {
+    outputError(
+      (error as Error).message,
+      'DIALOG_FAILED',
+      {}
     );
     process.exit(1);
   } finally {

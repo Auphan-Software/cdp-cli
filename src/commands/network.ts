@@ -17,10 +17,10 @@ export async function listNetwork(
   try {
     // Get page to monitor
     const page = await context.findPage(options.page);
+    await context.assertNoDevTools(page.id);
 
     // Connect and enable Network domain
     ws = await context.connect(page);
-    await context.assertNoDevTools(ws);
 
     context.setupNetworkCollection(
       ws,

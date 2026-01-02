@@ -485,8 +485,8 @@ describe('Debug Commands', () => {
       const lastWriteCall = writeCalls[writeCalls.length - 1];
       expect(lastWriteCall[0]).toBe('/tmp/scaled.jpg');
 
-      const metricsCommand = sentCommands.find(msg => msg.method === 'Page.getLayoutMetrics');
-      expect(metricsCommand).toBeDefined();
+      const evalCommand = sentCommands.find(msg => msg.method === 'Runtime.evaluate' && msg.params?.expression?.includes('innerWidth'));
+      expect(evalCommand).toBeDefined();
 
       const screenshotCommand = sentCommands.find(msg => msg.method === 'Page.captureScreenshot');
       expect(screenshotCommand).toBeDefined();
@@ -535,6 +535,163 @@ describe('Debug Commands', () => {
 
       capture.restore();
       exitMock.restore();
+    });
+  });
+
+  describe('dialog', () => {
+    it('should report no dialog when none present', async () => {
+      const capture = captureConsoleOutput();
+      const context = new CDPContext();
+
+      await debug.dialog(context, { page: 'page1' });
+
+      const logs = capture.getLogs();
+      capture.restore();
+
+      expect(logs).toHaveLength(1);
+      const result = JSON.parse(logs[0]);
+      expect(result.success).toBe(true);
+      expect(result.dialog).toBeNull();
+      expect(result.message).toBe('No dialog present');
+    });
+
+    it('should report dialog info when dialog is present', async () => {
+      const capture = captureConsoleOutput();
+      const context = new CDPContext();
+
+      const originalConnect = context.connect.bind(context);
+      context.connect = async (page) => {
+        const ws = await originalConnect(page) as MockWebSocket;
+
+        // Simulate dialog opening after Page.enable
+        const originalSend = ws.send.bind(ws);
+        ws.send = (data: string) => {
+          const msg = JSON.parse(data);
+          originalSend(data);
+          if (msg.method === 'Page.enable') {
+            setTimeout(() => {
+              ws.simulateMessage({
+                method: 'Page.javascriptDialogOpening',
+                params: {
+                  type: 'alert',
+                  message: 'Test alert message',
+                  url: 'https://example.com',
+                  defaultPrompt: ''
+                }
+              });
+            }, 5);
+          }
+        };
+
+        return ws;
+      };
+
+      await debug.dialog(context, { page: 'page1' });
+
+      const logs = capture.getLogs();
+      capture.restore();
+
+      expect(logs).toHaveLength(1);
+      const result = JSON.parse(logs[0]);
+      expect(result.success).toBe(true);
+      expect(result.dialog).toBeDefined();
+      expect(result.dialog.type).toBe('alert');
+      expect(result.dialog.message).toBe('Test alert message');
+      expect(result.hint).toContain('--dismiss');
+    });
+
+    it('should dismiss dialog when --dismiss flag is used', async () => {
+      const capture = captureConsoleOutput();
+      const context = new CDPContext();
+      let sentCommands: any[] = [];
+
+      const originalConnect = context.connect.bind(context);
+      context.connect = async (page) => {
+        const ws = await originalConnect(page) as MockWebSocket;
+
+        const originalSend = ws.send.bind(ws);
+        ws.send = (data: string) => {
+          const msg = JSON.parse(data);
+          sentCommands.push(msg);
+          originalSend(data);
+          if (msg.method === 'Page.enable') {
+            setTimeout(() => {
+              ws.simulateMessage({
+                method: 'Page.javascriptDialogOpening',
+                params: {
+                  type: 'confirm',
+                  message: 'Are you sure?',
+                  url: 'https://example.com'
+                }
+              });
+            }, 5);
+          }
+        };
+
+        return ws;
+      };
+
+      await debug.dialog(context, { page: 'page1', dismiss: true });
+
+      const logs = capture.getLogs();
+      capture.restore();
+
+      expect(logs).toHaveLength(1);
+      const result = JSON.parse(logs[0]);
+      expect(result.success).toBe(true);
+      expect(result.message).toContain('dismissed');
+
+      const handleDialogCmd = sentCommands.find(c => c.method === 'Page.handleJavaScriptDialog');
+      expect(handleDialogCmd).toBeDefined();
+      expect(handleDialogCmd.params.accept).toBe(false);
+    });
+
+    it('should accept dialog with prompt text when --accept and --prompt-text are used', async () => {
+      const capture = captureConsoleOutput();
+      const context = new CDPContext();
+      let sentCommands: any[] = [];
+
+      const originalConnect = context.connect.bind(context);
+      context.connect = async (page) => {
+        const ws = await originalConnect(page) as MockWebSocket;
+
+        const originalSend = ws.send.bind(ws);
+        ws.send = (data: string) => {
+          const msg = JSON.parse(data);
+          sentCommands.push(msg);
+          originalSend(data);
+          if (msg.method === 'Page.enable') {
+            setTimeout(() => {
+              ws.simulateMessage({
+                method: 'Page.javascriptDialogOpening',
+                params: {
+                  type: 'prompt',
+                  message: 'Enter your name:',
+                  url: 'https://example.com',
+                  defaultPrompt: 'John'
+                }
+              });
+            }, 5);
+          }
+        };
+
+        return ws;
+      };
+
+      await debug.dialog(context, { page: 'page1', accept: true, promptText: 'Jane' });
+
+      const logs = capture.getLogs();
+      capture.restore();
+
+      expect(logs).toHaveLength(1);
+      const result = JSON.parse(logs[0]);
+      expect(result.success).toBe(true);
+      expect(result.message).toContain('accepted');
+
+      const handleDialogCmd = sentCommands.find(c => c.method === 'Page.handleJavaScriptDialog');
+      expect(handleDialogCmd).toBeDefined();
+      expect(handleDialogCmd.params.accept).toBe(true);
+      expect(handleDialogCmd.params.promptText).toBe('Jane');
     });
   });
 });

@@ -657,6 +657,7 @@ export async function click(
 
     await context.assertNoDevTools(page.id);
     ws = await context.connect(page);
+    await context.assertNoDialog(ws);
 
     await context.sendCommand(ws, 'DOM.enable');
     await context.sendCommand(ws, 'Runtime.enable');
@@ -874,6 +875,7 @@ export async function fill(
     await context.assertNoDevTools(page.id);
 
     ws = await context.connect(page);
+    await context.assertNoDialog(ws);
 
     await context.sendCommand(ws, 'DOM.enable');
 
@@ -955,6 +957,7 @@ export async function pressKey(
     await context.assertNoDevTools(page.id);
 
     ws = await context.connect(page);
+    await context.assertNoDialog(ws);
 
     // Map common key names
     const keyMap: Record<string, string> = {
@@ -1118,6 +1121,7 @@ export async function drag(
     await context.assertNoDevTools(page.id);
 
     ws = await context.connect(page);
+    await context.assertNoDialog(ws);
 
     await context.sendCommand(ws, 'DOM.enable');
     await context.sendCommand(ws, 'Runtime.enable');

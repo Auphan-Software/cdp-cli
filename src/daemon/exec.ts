@@ -23,6 +23,8 @@ export interface ExecSession {
   exec: (method: string, params?: any) => Promise<any>;
   /** Check if DevTools is attached and throw if so */
   assertNoDevTools: () => Promise<void>;
+  /** Check if a JavaScript dialog is blocking the page */
+  assertNoDialog: () => Promise<void>;
   /** Close the session */
   close: () => void;
 }
@@ -79,6 +81,7 @@ export async function createExecSession(
         useDaemon: true,
         exec: (method: string, params?: any) => daemon.execCommand(page.id, method, params),
         assertNoDevTools: async () => {}, // Daemon handles its own connection - no check needed
+        assertNoDialog: async () => {}, // TODO: Add daemon dialog check support
         close: () => {} // No cleanup needed for daemon
       };
     }
@@ -106,6 +109,7 @@ export async function createExecSession(
     assertNoDevTools: daemonConnectedToPage
       ? async () => {}
       : () => context.assertNoDevTools(page.id),
+    assertNoDialog: () => context.assertNoDialog(ws),
     close: () => ws.close()
   };
 }
@@ -139,6 +143,7 @@ export async function createExecSessionByPageRef(
         useDaemon: true,
         exec: (method: string, params?: any) => daemon.execCommand(sessionPageId, method, params),
         assertNoDevTools: async () => {}, // Daemon handles its own connection - no check needed
+        assertNoDialog: async () => {}, // TODO: Add daemon dialog check support
         close: () => {}
       };
     }
@@ -168,6 +173,7 @@ export async function createExecSessionByPageRef(
     assertNoDevTools: daemonConnectedToPage
       ? async () => {} // Daemon connected - skip check
       : () => context.assertNoDevTools(page.id),
+    assertNoDialog: () => context.assertNoDialog(ws),
     close: () => ws.close()
   };
 }

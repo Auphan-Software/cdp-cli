@@ -44,6 +44,13 @@ export interface ConsoleMessage {
   stackTrace?: StackFrame[];
 }
 
+export interface DialogInfo {
+  type: 'alert' | 'confirm' | 'prompt' | 'beforeunload';
+  message: string;
+  url: string;
+  defaultPrompt?: string;
+}
+
 export interface NetworkRequest {
   id: string;
   url: string;
@@ -304,6 +311,127 @@ export class CDPContext {
 
       ws.send(JSON.stringify({ id, method, params }));
     });
+  }
+
+  /**
+   * Check if a JavaScript dialog (alert/confirm/prompt) is currently open
+   * Uses multiple strategies since dialog events only fire at open time
+   */
+  async checkForDialog(ws: WebSocket): Promise<DialogInfo | null> {
+    // Strategy 1: Listen for dialog event while enabling Page domain
+    const eventBasedCheck = new Promise<DialogInfo | null>((resolve) => {
+      let dialogInfo: DialogInfo | null = null;
+      let resolved = false;
+
+      const messageHandler = (data: Buffer) => {
+        const message: CDPMessage = JSON.parse(data.toString());
+        if (message.method === 'Page.javascriptDialogOpening') {
+          dialogInfo = {
+            type: message.params.type,
+            message: message.params.message,
+            url: message.params.url,
+            defaultPrompt: message.params.defaultPrompt
+          };
+          if (!resolved) {
+            resolved = true;
+            ws.off('message', messageHandler);
+            resolve(dialogInfo);
+          }
+        }
+      };
+
+      ws.on('message', messageHandler);
+
+      // Short timeout since dialog blocks commands
+      const enableTimeout = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          ws.off('message', messageHandler);
+          resolve(dialogInfo);
+        }
+      }, 300);
+
+      this.sendCommand(ws, 'Page.enable', {}).then(() => {
+        clearTimeout(enableTimeout);
+        setTimeout(() => {
+          if (!resolved) {
+            resolved = true;
+            ws.off('message', messageHandler);
+            resolve(dialogInfo);
+          }
+        }, 50);
+      }).catch(() => {
+        clearTimeout(enableTimeout);
+        if (!resolved) {
+          resolved = true;
+          ws.off('message', messageHandler);
+          resolve(dialogInfo);
+        }
+      });
+    });
+
+    const result = await eventBasedCheck;
+    if (result) return result;
+
+    // Strategy 2: Try Runtime.evaluate - if it times out, dialog is likely blocking
+    // This catches already-open dialogs that we missed the event for
+    try {
+      const evalPromise = this.sendCommand(ws, 'Runtime.evaluate', {
+        expression: '1',
+        timeout: 200
+      });
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('timeout')), 300)
+      );
+      await Promise.race([evalPromise, timeoutPromise]);
+      // If we get here, no dialog is blocking
+      return null;
+    } catch {
+      // Execution blocked - likely a dialog. Return generic info since we can't get message
+      // Note: CDP limitation - we can't dismiss dialogs that were already open before we connected
+      return {
+        type: 'alert',
+        message: '(dialog blocking page - dismiss manually or restart page)',
+        url: '',
+        defaultPrompt: undefined
+      };
+    }
+  }
+
+  /**
+   * Dismiss or accept a JavaScript dialog
+   */
+  async handleDialog(ws: WebSocket, accept: boolean, promptText?: string): Promise<void> {
+    // Ensure Page domain is enabled (required for handleJavaScriptDialog)
+    // This may timeout if dialog is blocking, which is fine
+    try {
+      await Promise.race([
+        this.sendCommand(ws, 'Page.enable', {}),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 500))
+      ]);
+    } catch {
+      // Page.enable may timeout due to dialog, continue anyway
+    }
+
+    await this.sendCommand(ws, 'Page.handleJavaScriptDialog', {
+      accept,
+      promptText
+    });
+  }
+
+  /**
+   * Assert no dialog is open, throw descriptive error if one is
+   */
+  async assertNoDialog(ws: WebSocket): Promise<void> {
+    const dialog = await this.checkForDialog(ws);
+    if (dialog) {
+      const typeLabel = dialog.type.charAt(0).toUpperCase() + dialog.type.slice(1);
+      const canDismiss = !dialog.message.includes('dismiss manually');
+      const hint = canDismiss
+        ? `Use 'cdp-cli dialog <page> --dismiss' to dismiss it, or '--accept' to accept.`
+        : `Dismiss the dialog manually in the browser, or close and reopen the page.`;
+      throw new Error(`${typeLabel} dialog is blocking the page: "${dialog.message}"\n${hint}`);
+    }
   }
 
   /**

@@ -192,12 +192,22 @@ export class MockWebSocket extends EventEmitter {
           break;
 
         case 'Runtime.evaluate':
-          result = {
-            result: {
-              type: 'string',
-              value: 'test result'
-            }
-          };
+          // Return viewport dimensions if the expression asks for them
+          if (message.params?.expression?.includes('innerWidth')) {
+            result = {
+              result: {
+                type: 'string',
+                value: JSON.stringify({ width: 1280, height: 720 })
+              }
+            };
+          } else {
+            result = {
+              result: {
+                type: 'string',
+                value: 'test result'
+              }
+            };
+          }
           break;
 
         case 'Input.dispatchMouseEvent':
@@ -223,6 +233,10 @@ export class MockWebSocket extends EventEmitter {
           break;
 
         case 'Browser.setWindowBounds':
+          result = {};
+          break;
+
+        case 'Page.handleJavaScriptDialog':
           result = {};
           break;
 

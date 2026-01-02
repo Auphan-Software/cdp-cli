@@ -238,6 +238,23 @@ Optional flags:
 - `--quality, -q`: JPEG quality (0-100)
 - `--scale, -s`: Downscale width and height by the factor (`0 < scale <= 1`)
 
+**dialog** - Check for and handle JavaScript dialogs (alert/confirm/prompt)
+```bash
+# Check if a dialog is blocking the page
+cdp-cli dialog "example"
+
+# Dismiss (cancel) the dialog
+cdp-cli dialog "example" --dismiss
+
+# Accept (OK) the dialog
+cdp-cli dialog "example" --accept
+
+# Accept a prompt dialog with text
+cdp-cli dialog "example" --accept --prompt-text "my answer"
+```
+
+When a dialog is blocking, commands like `screenshot`, `eval`, `click`, etc. will fail with an error message indicating a dialog is present and how to dismiss it.
+
 ### Network Inspection
 
 **list-network** - Stream network requests (real-time)

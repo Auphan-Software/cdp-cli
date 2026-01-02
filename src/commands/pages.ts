@@ -84,10 +84,10 @@ export async function navigate(
   try {
     // Get page to navigate
     const page = await context.findPage(pageIdOrTitle);
+    await context.assertNoDevTools(page.id);
 
     // Connect to page
     ws = await context.connect(page);
-    await context.assertNoDevTools(ws);
 
     // Enable Page domain
     await context.sendCommand(ws, 'Page.enable');
@@ -192,8 +192,8 @@ export async function resizeWindow(
     }
 
     const page = await context.findPage(idOrTitle);
+    await context.assertNoDevTools(page.id);
     ws = await context.connect(page);
-    await context.assertNoDevTools(ws);
 
     const windowInfo = await context.sendCommand(ws, 'Browser.getWindowForTarget', {
       targetId: page.id

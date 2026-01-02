@@ -347,6 +347,42 @@ cli.command(
   }
 );
 
+cli.command(
+  'dialog <page>',
+  'Check for or handle JavaScript dialogs (alert/confirm/prompt)',
+  (yargs) => {
+    return yargs
+      .positional('page', {
+        describe: 'Page ID or title',
+        type: 'string'
+      })
+      .option('dismiss', {
+        type: 'boolean',
+        description: 'Dismiss (cancel) the dialog',
+        alias: 'd'
+      })
+      .option('accept', {
+        type: 'boolean',
+        description: 'Accept (OK) the dialog',
+        alias: 'a'
+      })
+      .option('prompt-text', {
+        type: 'string',
+        description: 'Text to enter for prompt dialogs before accepting',
+        alias: 't'
+      });
+  },
+  async (argv) => {
+    const context = new CDPContext(argv['cdp-url'] as string);
+    await debug.dialog(context, {
+      page: argv.page as string,
+      dismiss: argv.dismiss as boolean | undefined,
+      accept: argv.accept as boolean | undefined,
+      promptText: argv['prompt-text'] as string | undefined
+    });
+  }
+);
+
 // Network commands
 cli.command(
   'list-network <page>',
