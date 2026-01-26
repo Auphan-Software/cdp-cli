@@ -12,10 +12,14 @@ vi.mock('ws', () => ({
   WebSocket: MockWebSocket
 }));
 
-// Mock fs module for screenshot tests
-vi.mock('fs', () => ({
-  writeFileSync: vi.fn()
-}));
+// Mock fs module for screenshot tests, but keep real implementations for other functions
+vi.mock('fs', async (importOriginal) => {
+  const actual = await importOriginal() as any;
+  return {
+    ...actual,
+    writeFileSync: vi.fn()
+  };
+});
 
 // Install mock fetch globally BEFORE any imports
 // This ensures daemon checks fail and tests use direct WebSocket path
