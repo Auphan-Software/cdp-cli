@@ -21,7 +21,9 @@ import * as network from './commands/network.js';
 import * as input from './commands/input.js';
 import * as daemon from './commands/daemon.js';
 import * as logs from './commands/logs.js';
+import * as lifecycle from './commands/lifecycle.js';
 import { outputError } from './output.js';
+import { homedir } from 'os';
 import {
   validateNavigateParams,
   validateEvalParams,
@@ -277,21 +279,35 @@ cli.command(
 
 cli.command(
   'eval <expression> <page>',
-  'Evaluate JavaScript expression',
+  'Evaluate JavaScript expression (use -f for file, -a for async)',
   (yargs) => {
     return yargs
       .positional('expression', {
-        describe: 'JavaScript expression to evaluate',
+        describe: 'JavaScript expression (ignored when --file used)',
         type: 'string'
       })
       .positional('page', {
         describe: 'Page ID or title',
         type: 'string'
       })
+      .option('file', {
+        alias: 'f',
+        type: 'string',
+        description: 'Path to JS file to evaluate'
+      })
+      .option('async', {
+        alias: 'a',
+        type: 'boolean',
+        description: 'Wrap code in async IIFE for await support',
+        default: false
+      })
       .check((argv) => {
-        const hint = validateEvalParams(argv.expression as string, argv.page as string);
-        if (hint.likely) {
-          throw new Error(buildErrorWithHint('Invalid parameter order', hint));
+        // If --file is used, ignore expression validation
+        if (!argv.file) {
+          const hint = validateEvalParams(argv.expression as string, argv.page as string);
+          if (hint.likely) {
+            throw new Error(buildErrorWithHint('Invalid parameter order', hint));
+          }
         }
         return true;
       });
@@ -299,7 +315,9 @@ cli.command(
   async (argv) => {
     const context = new CDPContext(argv['cdp-url'] as string);
     await debug.evaluate(context, argv.expression as string, {
-      page: argv.page as string
+      page: argv.page as string,
+      file: argv.file as string | undefined,
+      async: argv.async as boolean
     });
   }
 );
@@ -855,6 +873,44 @@ cli.command(
     await logs.getConsoleDetail(context, {
       page: argv.page as string,
       messageId: argv.messageId as number
+    });
+  }
+);
+
+// Status command
+cli.command(
+  'status',
+  'Check daemon and Chrome connection status',
+  () => {},
+  async (argv) => {
+    const context = new CDPContext(argv['cdp-url'] as string);
+    await debug.status(context);
+  }
+);
+
+// Ready command
+cli.command(
+  'ready',
+  'Launch Chrome + start daemon + return pages',
+  (yargs) => {
+    return yargs
+      .option('profile', {
+        alias: 'p',
+        type: 'string',
+        description: 'Chrome profile directory',
+        default: join(homedir(), 'cdp-cli-profile')
+      })
+      .option('port', {
+        type: 'number',
+        description: 'CDP port',
+        default: 9222
+      });
+  },
+  async (argv) => {
+    await lifecycle.ready({
+      profile: argv.profile as string,
+      port: argv.port as number,
+      cdpUrl: argv['cdp-url'] as string
     });
   }
 );

@@ -1,13 +1,15 @@
 /**
- * Debugging commands: console, snapshot, eval, screenshot
+ * Debugging commands: console, snapshot, eval, screenshot, status
  */
 
 import { CDPContext, ConsoleMessage } from '../context.js';
 import { outputLine, outputError, outputSuccess, outputRaw } from '../output.js';
-import { writeFileSync } from 'fs';
+import { readFileSync, writeFileSync } from 'fs';
 import { extname } from 'node:path';
 import sharp from 'sharp';
 import { createExecSession, createExecSessionByPageRef } from '../daemon/exec.js';
+import { DaemonClient } from '../daemon/client.js';
+import { fetch as undiciFetch } from 'undici';
 
 /**
  * List console messages
@@ -312,10 +314,21 @@ export async function snapshot(
 export async function evaluate(
   context: CDPContext,
   expression: string,
-  options: { page: string }
+  options: { page: string; file?: string; async?: boolean }
 ): Promise<void> {
   let session: Awaited<ReturnType<typeof createExecSessionByPageRef>> | undefined;
   try {
+    // Read from file if --file provided
+    let code = expression;
+    if (options.file) {
+      code = readFileSync(options.file, 'utf-8');
+    }
+
+    // Wrap in async IIFE if --async
+    if (options.async) {
+      code = `(async () => { ${code} })()`;
+    }
+
     // Use daemon if available (optimized path), otherwise findPage + direct WebSocket
     session = await createExecSessionByPageRef(context, options.page);
     await session.assertNoDevTools();
@@ -323,7 +336,7 @@ export async function evaluate(
 
     await session.exec('Runtime.enable');
     const result = await session.exec('Runtime.evaluate', {
-      expression,
+      expression: code,
       returnByValue: true,
       awaitPromise: true
     });
@@ -519,5 +532,50 @@ export async function dialog(
     if (ws) {
       ws.close();
     }
+  }
+}
+
+/**
+ * Get combined status of daemon and Chrome
+ */
+export async function status(context: CDPContext): Promise<void> {
+  try {
+    // Check daemon status
+    const client = new DaemonClient();
+    const daemonStatus = await client.getStatus();
+
+    // Check Chrome status
+    let chromeStatus: { running: boolean; version?: string; pages?: number } = { running: false };
+    try {
+      const res = await (globalThis.fetch ?? undiciFetch)(`http://localhost:9222/json/version`, {
+        signal: AbortSignal.timeout(1000)
+      });
+      if (res.ok) {
+        const version = await res.json() as { Browser?: string };
+        const pages = await context.getPages();
+        chromeStatus = {
+          running: true,
+          version: version.Browser,
+          pages: pages.length
+        };
+      }
+    } catch {
+      // Chrome not running
+    }
+
+    outputLine({
+      daemon: {
+        running: daemonStatus.running,
+        sessions: daemonStatus.sessions
+      },
+      chrome: chromeStatus
+    });
+  } catch (error) {
+    outputError(
+      (error as Error).message,
+      'STATUS_FAILED',
+      {}
+    );
+    process.exit(1);
   }
 }
