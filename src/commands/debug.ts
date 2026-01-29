@@ -314,9 +314,10 @@ export async function snapshot(
 export async function evaluate(
   context: CDPContext,
   expression: string,
-  options: { page: string; file?: string; async?: boolean }
+  options: { page: string; file?: string; async?: boolean; frame?: string }
 ): Promise<void> {
   let session: Awaited<ReturnType<typeof createExecSessionByPageRef>> | undefined;
+  let directWs: Awaited<ReturnType<typeof context.connect>> | undefined;
   try {
     // Read from file if --file provided
     let code = expression;
@@ -329,41 +330,82 @@ export async function evaluate(
       code = `(async () => { ${code} })()`;
     }
 
-    // Use daemon if available (optimized path), otherwise findPage + direct WebSocket
-    session = await createExecSessionByPageRef(context, options.page);
-    await session.assertNoDevTools();
-    await session.assertNoDialog();
+    // For frame targeting, we need direct WebSocket (daemon doesn't support contextId)
+    // Otherwise use daemon if available (optimized path)
+    let contextId: number | undefined;
 
-    await session.exec('Runtime.enable');
-    const result = await session.exec('Runtime.evaluate', {
-      expression: code,
-      returnByValue: true,
-      awaitPromise: true
-    });
+    if (options.frame) {
+      // Frame targeting requires direct WebSocket
+      const page = await context.findPage(options.page);
+      directWs = await context.connect(page);
 
-    if (result.exceptionDetails) {
-      outputError(
-        result.exceptionDetails.text,
-        'EVAL_EXCEPTION',
-        result.exceptionDetails
-      );
-      process.exit(1);
+      // Resolve frame context FIRST (this internally enables Runtime and Page domains)
+      // Must be done before any other Runtime.enable call to catch context events
+      contextId = await context.resolveFrameContext(directWs, options.frame);
+
+      const result = await context.sendCommand(directWs, 'Runtime.evaluate', {
+        expression: code,
+        contextId,
+        returnByValue: true,
+        awaitPromise: true
+      });
+
+      if (result.exceptionDetails) {
+        outputError(
+          result.exceptionDetails.text,
+          'EVAL_EXCEPTION',
+          result.exceptionDetails
+        );
+        process.exit(1);
+      }
+
+      outputLine({
+        success: true,
+        value: result.result?.value,
+        type: result.result?.type,
+        frame: options.frame
+      });
+    } else {
+      // No frame - use daemon path if available
+      session = await createExecSessionByPageRef(context, options.page);
+      await session.assertNoDevTools();
+      await session.assertNoDialog();
+
+      await session.exec('Runtime.enable');
+
+      const result = await session.exec('Runtime.evaluate', {
+        expression: code,
+        returnByValue: true,
+        awaitPromise: true
+      });
+
+      if (result.exceptionDetails) {
+        outputError(
+          result.exceptionDetails.text,
+          'EVAL_EXCEPTION',
+          result.exceptionDetails
+        );
+        process.exit(1);
+      }
+
+      outputLine({
+        success: true,
+        value: result.result?.value,
+        type: result.result?.type
+      });
     }
-
-    outputLine({
-      success: true,
-      value: result.result?.value,
-      type: result.result?.type
-    });
   } catch (error) {
     outputError(
       (error as Error).message,
       'EVAL_FAILED',
-      { expression }
+      { expression, frame: options.frame }
     );
     process.exit(1);
   } finally {
     session?.close();
+    if (directWs) {
+      directWs.close();
+    }
   }
 }
 

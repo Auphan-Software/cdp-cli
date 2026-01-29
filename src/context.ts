@@ -63,6 +63,21 @@ export interface NetworkRequest {
   responseHeaders?: Record<string, string>;
 }
 
+export interface FrameInfo {
+  id: string;
+  parentId?: string;
+  url: string;
+  name?: string;
+  securityOrigin?: string;
+}
+
+export interface ExecutionContextInfo {
+  id: number;
+  frameId: string;
+  origin: string;
+  name: string;
+}
+
 /**
  * CDP Context manages connection to Chrome
  */
@@ -620,6 +635,170 @@ export class CDPContext {
     }
 
     return await response.json() as Page;
+  }
+
+  /**
+   * Get frame tree for a page
+   */
+  async getFrameTree(ws: WebSocket): Promise<FrameInfo[]> {
+    await this.sendCommand(ws, 'Page.enable');
+    const result = await this.sendCommand(ws, 'Page.getFrameTree');
+
+    const frames: FrameInfo[] = [];
+
+    const collectFrames = (node: any, parentId?: string) => {
+      const frame = node.frame;
+      frames.push({
+        id: frame.id,
+        parentId,
+        url: frame.url,
+        name: frame.name || undefined,
+        securityOrigin: frame.securityOrigin
+      });
+
+      if (node.childFrames) {
+        for (const child of node.childFrames) {
+          collectFrames(child, frame.id);
+        }
+      }
+    };
+
+    collectFrames(result.frameTree);
+    return frames;
+  }
+
+  /**
+   * Get execution contexts (one per frame)
+   */
+  async getExecutionContexts(ws: WebSocket): Promise<ExecutionContextInfo[]> {
+    const contexts: ExecutionContextInfo[] = [];
+
+    return new Promise((resolve) => {
+      const messageHandler = (data: Buffer) => {
+        const message: CDPMessage = JSON.parse(data.toString());
+        if (message.method === 'Runtime.executionContextCreated') {
+          const ctx = message.params.context;
+          contexts.push({
+            id: ctx.id,
+            frameId: ctx.auxData?.frameId || '',
+            origin: ctx.origin,
+            name: ctx.name
+          });
+        }
+      };
+
+      ws.on('message', messageHandler);
+
+      // Enable Runtime to get execution context events
+      this.sendCommand(ws, 'Runtime.enable').then(() => {
+        // Give time for all context events to arrive
+        setTimeout(() => {
+          ws.off('message', messageHandler);
+          resolve(contexts);
+        }, 100);
+      });
+    });
+  }
+
+  /**
+   * Resolve frame specification to execution context ID
+   * @param ws WebSocket connection
+   * @param frameSpec Frame specification: selector (e.g. "#iframe"), index (e.g. "1"), or "auto"
+   * @returns contextId for Runtime.evaluate, or undefined for top frame
+   */
+  async resolveFrameContext(
+    ws: WebSocket,
+    frameSpec?: string
+  ): Promise<number | undefined> {
+    if (!frameSpec || frameSpec === '0') {
+      return undefined; // Top frame, use default context
+    }
+
+    const frames = await this.getFrameTree(ws);
+    const contexts = await this.getExecutionContexts(ws);
+
+    // Helper to find context by frame ID
+    const getContextForFrame = (frameId: string): number | undefined => {
+      const ctx = contexts.find(c => c.frameId === frameId);
+      return ctx?.id;
+    };
+
+    // If numeric, treat as frame index (0 = top, 1 = first child, etc.)
+    if (/^\d+$/.test(frameSpec)) {
+      const index = parseInt(frameSpec, 10);
+      if (index === 0) return undefined;
+      if (index > 0 && index <= frames.length - 1) {
+        // frames[0] is top, frames[1] is first iframe
+        const frameId = frames[index]?.id;
+        if (frameId) {
+          return getContextForFrame(frameId);
+        }
+      }
+      throw new Error(`Frame index ${index} not found. Available: 0-${frames.length - 1}`);
+    }
+
+    // Otherwise treat as CSS selector - need to find iframe and get its frame ID
+    // First, evaluate in top context to find the iframe's src/name
+    await this.sendCommand(ws, 'Runtime.enable');
+    const iframeInfo = await this.sendCommand(ws, 'Runtime.evaluate', {
+      expression: `(() => {
+        const iframe = document.querySelector(${JSON.stringify(frameSpec)});
+        if (!iframe || iframe.tagName !== 'IFRAME') return null;
+        return {
+          src: iframe.src,
+          name: iframe.name || iframe.id || '',
+          contentWindow: !!iframe.contentWindow
+        };
+      })()`,
+      returnByValue: true
+    });
+
+    if (!iframeInfo.result?.value) {
+      throw new Error(`No iframe found matching selector: ${frameSpec}`);
+    }
+
+    const { src, name } = iframeInfo.result.value;
+
+    // Find matching frame by URL or name
+    const matchingFrame = frames.find(f =>
+      f.parentId && // Must be a child frame
+      (f.url === src || f.name === name || (name && f.url.includes(name)))
+    );
+
+    if (!matchingFrame) {
+      const availableFrames = frames
+        .filter(f => f.parentId)
+        .map((f, i) => `  ${i + 1}. ${f.name || '(unnamed)'} - ${f.url}`)
+        .join('\n');
+      throw new Error(`Could not find frame context for: ${frameSpec}\n\nAvailable frames:\n${availableFrames}`);
+    }
+
+    const contextId = getContextForFrame(matchingFrame.id);
+    if (!contextId) {
+      throw new Error(`No execution context found for frame: ${matchingFrame.url}`);
+    }
+
+    return contextId;
+  }
+
+  /**
+   * Evaluate expression in a specific frame
+   */
+  async evaluateInFrame(
+    ws: WebSocket,
+    expression: string,
+    frameSpec?: string,
+    options: { returnByValue?: boolean; awaitPromise?: boolean } = {}
+  ): Promise<any> {
+    const contextId = await this.resolveFrameContext(ws, frameSpec);
+
+    await this.sendCommand(ws, 'Runtime.enable');
+    return this.sendCommand(ws, 'Runtime.evaluate', {
+      expression,
+      contextId,
+      returnByValue: options.returnByValue ?? true,
+      awaitPromise: options.awaitPromise ?? false
+    });
   }
 
 }

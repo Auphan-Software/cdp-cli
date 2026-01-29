@@ -136,6 +136,26 @@ cli.command(
         describe: 'Page ID or title',
         type: 'string'
       })
+      .option('wait-for', {
+        type: 'string',
+        description: 'Wait for CSS selector to appear after navigation',
+        alias: 'w'
+      })
+      .option('wait-for-text', {
+        type: 'string',
+        description: 'Wait for text to appear in page body'
+      })
+      .option('wait-for-idle', {
+        type: 'boolean',
+        description: 'Wait for network idle and document ready',
+        default: false
+      })
+      .option('timeout', {
+        type: 'number',
+        description: 'Timeout for wait operations in ms',
+        alias: 't',
+        default: 10000
+      })
       .check((argv) => {
         const hint = validateNavigateParams(argv.action as string, argv.page as string);
         if (hint.likely) {
@@ -149,7 +169,13 @@ cli.command(
     await pages.navigate(
       context,
       argv.action as string,
-      argv.page as string
+      argv.page as string,
+      {
+        waitFor: argv['wait-for'] as string | undefined,
+        waitForText: argv['wait-for-text'] as string | undefined,
+        waitForIdle: argv['wait-for-idle'] as boolean,
+        timeout: argv.timeout as number
+      }
     );
   }
 );
@@ -301,6 +327,10 @@ cli.command(
         description: 'Wrap code in async IIFE for await support',
         default: false
       })
+      .option('frame', {
+        type: 'string',
+        description: 'Target iframe by selector (e.g. "#myframe") or index (1 = first iframe)'
+      })
       .check((argv) => {
         // If --file is used, ignore expression validation
         if (!argv.file) {
@@ -317,7 +347,8 @@ cli.command(
     await debug.evaluate(context, argv.expression as string, {
       page: argv.page as string,
       file: argv.file as string | undefined,
-      async: argv.async as boolean
+      async: argv.async as boolean,
+      frame: argv.frame as string | undefined
     });
   }
 );
