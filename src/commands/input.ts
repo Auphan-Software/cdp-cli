@@ -33,6 +33,7 @@ interface DragOptions {
   longpress?: number;
   steps?: number;
   duration?: number;
+  frame?: string;
 }
 
 interface ElementMetadata {
@@ -594,12 +595,147 @@ async function resolveClickCandidates(
 }
 
 /**
+ * Get iframe element's bounding rect in top frame
+ */
+async function getIframeRect(
+  context: CDPContext,
+  ws: any,
+  frameSpec: string
+): Promise<{ x: number; y: number; width: number; height: number }> {
+  const result = await context.sendCommand(ws, 'Runtime.evaluate', {
+    expression: `(() => {
+      const iframe = document.querySelector(${JSON.stringify(frameSpec)});
+      if (!iframe || iframe.tagName !== 'IFRAME') return null;
+      const rect = iframe.getBoundingClientRect();
+      return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+    })()`,
+    returnByValue: true
+  });
+
+  if (!result.result?.value) {
+    throw new Error(`Iframe not found: ${frameSpec}`);
+  }
+
+  return result.result.value;
+}
+
+/**
+ * Find elements in a frame context and return matches with metadata
+ */
+async function resolveClickCandidatesInFrame(
+  context: CDPContext,
+  ws: any,
+  target: ClickTargetInput,
+  contextId: number
+): Promise<ElementMatch[]> {
+  // Build the search expression based on target type
+  let searchExpr: string;
+
+  if (target.selector) {
+    const selectorJson = JSON.stringify(target.selector);
+    const withinJson = target.within ? JSON.stringify(target.within) : 'null';
+    searchExpr = `(() => {
+      let root = document.body || document.documentElement;
+      if (${withinJson}) {
+        const container = document.querySelector(${withinJson});
+        if (!container) return [];
+        root = container;
+      }
+      const elements = root.querySelectorAll(${selectorJson});
+      return Array.from(elements).map(el => {
+        const rect = el.getBoundingClientRect();
+        return {
+          tagName: (el.tagName || '').toLowerCase(),
+          id: el.id || null,
+          classes: el.classList ? Array.from(el.classList) : [],
+          text: (el.innerText || '').trim().slice(0, 100),
+          rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height }
+        };
+      });
+    })()`;
+  } else if (target.text) {
+    const textJson = JSON.stringify(target.text);
+    const matchJson = JSON.stringify(target.match || 'exact');
+    const caseSensitive = target.caseSensitive ? 'true' : 'false';
+    const withinJson = target.within ? JSON.stringify(target.within) : 'null';
+
+    searchExpr = `(() => {
+      const pattern = ${textJson};
+      const mode = ${matchJson};
+      const caseSensitive = ${caseSensitive};
+      const withinSelector = ${withinJson};
+      const results = [];
+      const seen = new Set();
+      let regex = null;
+      let normalizedPattern = pattern;
+      const actionableSelector = 'button,[role="button"],li.item,[class*="-btn"],input[type="submit"],input[type="button"],input[type="reset"],input[type="checkbox"],input[type="radio"],a[href],textarea,select,label,summary';
+
+      if (mode === 'regex') {
+        try { regex = new RegExp(pattern, caseSensitive ? '' : 'i'); }
+        catch { return []; }
+      } else if (!caseSensitive) {
+        normalizedPattern = pattern.toLowerCase();
+      }
+
+      let root = document.body || document.documentElement;
+      if (withinSelector) {
+        const container = document.querySelector(withinSelector);
+        if (!container) return [];
+        root = container;
+      }
+
+      const elements = root.querySelectorAll(actionableSelector);
+      for (const el of elements) {
+        if (seen.has(el)) continue;
+        const elText = (el.innerText || '').trim();
+        let matched = false;
+
+        if (mode === 'exact') {
+          matched = caseSensitive ? elText === pattern : elText.toLowerCase() === normalizedPattern;
+        } else if (mode === 'contains') {
+          matched = caseSensitive ? elText.includes(pattern) : elText.toLowerCase().includes(normalizedPattern);
+        } else if (regex) {
+          matched = regex.test(elText);
+        }
+
+        if (matched) {
+          seen.add(el);
+          const rect = el.getBoundingClientRect();
+          results.push({
+            tagName: (el.tagName || '').toLowerCase(),
+            id: el.id || null,
+            classes: el.classList ? Array.from(el.classList) : [],
+            text: elText.slice(0, 100),
+            rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height }
+          });
+        }
+      }
+      return results;
+    })()`;
+  } else {
+    return [];
+  }
+
+  const result = await context.sendCommand(ws, 'Runtime.evaluate', {
+    expression: searchExpr,
+    contextId,
+    returnByValue: true
+  });
+
+  const elements = result.result?.value || [];
+  return elements.map((el: any, idx: number) => ({
+    nodeId: idx, // Placeholder - we don't have nodeId in frame context
+    metadata: normalizeMetadata(el)
+  }));
+}
+
+/**
  * Click an element by CSS selector or text match
  */
 export async function click(
   context: CDPContext,
   targetInput: ClickTargetInput | string,
-  optionsInput: { page: string; double?: boolean; longpress?: number; touch?: boolean }
+  optionsInput: { page: string; double?: boolean; longpress?: number; touch?: boolean; frame?: string }
 ): Promise<void> {
   let ws;
   const target: ClickTargetInput =
@@ -662,7 +798,32 @@ export async function click(
     await context.sendCommand(ws, 'DOM.enable');
     await context.sendCommand(ws, 'Runtime.enable');
 
-    const matches = await resolveClickCandidates(context, ws, target);
+    // Frame offset for coordinate translation
+    let frameOffsetX = 0;
+    let frameOffsetY = 0;
+
+    // Resolve elements - use frame context if specified
+    let matches: ElementMatch[];
+    if (options.frame) {
+      // Get iframe rect for coordinate offset
+      const iframeRect = await getIframeRect(context, ws, options.frame);
+      frameOffsetX = iframeRect.x;
+      frameOffsetY = iframeRect.y;
+
+      // Resolve frame context
+      const contextId = await context.resolveFrameContext(ws, options.frame);
+      if (contextId === undefined) {
+        throw new ClickError(
+          `Could not resolve frame context: ${options.frame}`,
+          'CLICK_FRAME_ERROR',
+          { frame: options.frame }
+        );
+      }
+
+      matches = await resolveClickCandidatesInFrame(context, ws, target, contextId);
+    } else {
+      matches = await resolveClickCandidates(context, ws, target);
+    }
 
     if (matches.length === 0) {
       throw new ClickError(
@@ -674,7 +835,8 @@ export async function click(
           selector: target.selector,
           text: target.text,
           match: target.selector ? undefined : target.match ?? 'exact',
-          caseSensitive: target.caseSensitive ?? false
+          caseSensitive: target.caseSensitive ?? false,
+          frame: options.frame
         }
       );
     }
@@ -744,8 +906,9 @@ export async function click(
       );
     }
 
-    const x = rect.x + width / 2;
-    const y = rect.y + height / 2;
+    // Add frame offset for elements inside iframes
+    const x = frameOffsetX + rect.x + width / 2;
+    const y = frameOffsetY + rect.y + height / 2;
     const xRounded = Math.round(x);
     const yRounded = Math.round(y);
     const roundedRect = roundRect(rect);
@@ -827,6 +990,7 @@ export async function click(
       match: target.selector ? undefined : target.match ?? 'exact',
       caseSensitive: target.caseSensitive ?? false,
       within: target.within ?? null,
+      frame: options.frame ?? null,
       index: selectedIndex + 1,
       totalMatches: matches.length,
       x: xRounded,
@@ -866,7 +1030,7 @@ export async function fill(
   context: CDPContext,
   selector: string,
   value: string,
-  options: { page: string; nth?: number; within?: string }
+  options: { page: string; nth?: number; within?: string; frame?: string }
 ): Promise<void> {
   let ws;
   try {
@@ -878,61 +1042,122 @@ export async function fill(
     await context.assertNoDialog(ws);
 
     await context.sendCommand(ws, 'DOM.enable');
+    await context.sendCommand(ws, 'Runtime.enable');
 
-    // Find all matching elements
-    const matches = await resolveBySelector(context, ws, selector, options.within);
+    if (options.frame) {
+      // Frame targeting: use click to focus then type
+      const iframeRect = await getIframeRect(context, ws, options.frame);
+      const contextId = await context.resolveFrameContext(ws, options.frame);
 
-    if (matches.length === 0) {
-      throw new Error(`Element not found: ${selector}`);
-    }
+      if (contextId === undefined) {
+        throw new Error(`Could not resolve frame context: ${options.frame}`);
+      }
 
-    let selectedIndex = 0;
-    if (typeof options.nth === 'number') {
-      if (options.nth < 1 || options.nth > matches.length) {
+      // Find element in frame
+      const matches = await resolveClickCandidatesInFrame(
+        context, ws,
+        { selector, within: options.within },
+        contextId
+      );
+
+      if (matches.length === 0) {
+        throw new Error(`Element not found in frame: ${selector}`);
+      }
+
+      let selectedIndex = 0;
+      if (typeof options.nth === 'number') {
+        if (options.nth < 1 || options.nth > matches.length) {
+          throw new Error(`--nth ${options.nth} is out of range (1-${matches.length})`);
+        }
+        selectedIndex = options.nth - 1;
+      } else if (matches.length > 1) {
+        throw new Error(`Multiple elements matched. Use --nth to choose one.`);
+      }
+
+      const rect = matches[selectedIndex].metadata.rect;
+      const x = iframeRect.x + rect.x + rect.width / 2;
+      const y = iframeRect.y + rect.y + rect.height / 2;
+
+      // Click to focus
+      await context.sendCommand(ws, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
+      await context.sendCommand(ws, 'Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 });
+      await context.sendCommand(ws, 'Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
+
+      // Clear and type via frame context
+      await context.sendCommand(ws, 'Runtime.evaluate', {
+        expression: `document.querySelector(${JSON.stringify(selector)}).value = ''`,
+        contextId
+      });
+
+      // Type the value
+      for (const char of value) {
+        await context.sendCommand(ws, 'Input.dispatchKeyEvent', { type: 'keyDown', text: char });
+        await context.sendCommand(ws, 'Input.dispatchKeyEvent', { type: 'keyUp', text: char });
+      }
+
+      outputSuccess('Fill performed', {
+        selector,
+        value,
+        within: options.within ?? null,
+        frame: options.frame
+      });
+    } else {
+      // Standard path - no frame
+      const matches = await resolveBySelector(context, ws, selector, options.within);
+
+      if (matches.length === 0) {
+        throw new Error(`Element not found: ${selector}`);
+      }
+
+      let selectedIndex = 0;
+      if (typeof options.nth === 'number') {
+        if (options.nth < 1 || options.nth > matches.length) {
+          throw new Error(
+            `--nth ${options.nth} is out of range (1-${matches.length})\n${summarizeMatches(matches).join('\n')}`
+          );
+        }
+        selectedIndex = options.nth - 1;
+      } else if (matches.length > 1) {
         throw new Error(
-          `--nth ${options.nth} is out of range (1-${matches.length})\n${summarizeMatches(matches).join('\n')}`
+          `Multiple elements matched. Use --nth to choose one.\n${summarizeMatches(matches).join('\n')}`
         );
       }
-      selectedIndex = options.nth - 1;
-    } else if (matches.length > 1) {
-      throw new Error(
-        `Multiple elements matched. Use --nth to choose one.\n${summarizeMatches(matches).join('\n')}`
-      );
-    }
 
-    const { nodeId } = matches[selectedIndex];
-    await context.sendCommand(ws, 'DOM.focus', { nodeId });
+      const { nodeId } = matches[selectedIndex];
+      await context.sendCommand(ws, 'DOM.focus', { nodeId });
 
-    // Clear existing value using DOM API (safe from code injection)
-    await context.sendCommand(ws, 'DOM.setAttributeValue', {
-      nodeId,
-      name: 'value',
-      value: ''
-    });
-
-    // Type the value
-    for (const char of value) {
-      await context.sendCommand(ws, 'Input.dispatchKeyEvent', {
-        type: 'keyDown',
-        text: char
+      // Clear existing value using DOM API (safe from code injection)
+      await context.sendCommand(ws, 'DOM.setAttributeValue', {
+        nodeId,
+        name: 'value',
+        value: ''
       });
 
-      await context.sendCommand(ws, 'Input.dispatchKeyEvent', {
-        type: 'keyUp',
-        text: char
+      // Type the value
+      for (const char of value) {
+        await context.sendCommand(ws, 'Input.dispatchKeyEvent', {
+          type: 'keyDown',
+          text: char
+        });
+
+        await context.sendCommand(ws, 'Input.dispatchKeyEvent', {
+          type: 'keyUp',
+          text: char
+        });
+      }
+
+      outputSuccess('Fill performed', {
+        selector,
+        value,
+        within: options.within ?? null,
+        frame: null
       });
     }
-
-    outputSuccess('Fill performed', {
-      selector,
-      value,
-      within: options.within ?? null
-    });
   } catch (error) {
     outputError(
       (error as Error).message,
       'FILL_FAILED',
-      { selector, value }
+      { selector, value, frame: options.frame }
     );
     process.exit(1);
   } finally {
@@ -1026,11 +1251,16 @@ async function resolveDragTarget(
   context: CDPContext,
   ws: any,
   target: DragTargetInput,
-  label: string
+  label: string,
+  frameOffset?: { x: number; y: number },
+  contextId?: number
 ): Promise<{ x: number; y: number; metadata?: ElementMetadata }> {
-  // Direct coordinates
+  // Direct coordinates (add frame offset if provided)
   if (typeof target.x === 'number' && typeof target.y === 'number') {
-    return { x: target.x, y: target.y };
+    return {
+      x: target.x + (frameOffset?.x ?? 0),
+      y: target.y + (frameOffset?.y ?? 0)
+    };
   }
 
   // Resolve via element
@@ -1043,7 +1273,10 @@ async function resolveDragTarget(
     within: target.within
   };
 
-  const matches = await resolveClickCandidates(context, ws, clickTarget);
+  // Use frame context if provided
+  const matches = contextId !== undefined
+    ? await resolveClickCandidatesInFrame(context, ws, clickTarget, contextId)
+    : await resolveClickCandidates(context, ws, clickTarget);
 
   if (matches.length === 0) {
     throw new DragError(
@@ -1090,8 +1323,8 @@ async function resolveDragTarget(
   const height = Number.isFinite(rect.height) ? rect.height : 0;
 
   return {
-    x: rect.x + width / 2,
-    y: rect.y + height / 2,
+    x: (frameOffset?.x ?? 0) + rect.x + width / 2,
+    y: (frameOffset?.y ?? 0) + rect.y + height / 2,
     metadata: chosen.metadata
   };
 }
@@ -1126,8 +1359,17 @@ export async function drag(
     await context.sendCommand(ws, 'DOM.enable');
     await context.sendCommand(ws, 'Runtime.enable');
 
-    const fromPos = await resolveDragTarget(context, ws, from, 'Source');
-    const toPos = await resolveDragTarget(context, ws, to, 'Destination');
+    // Frame targeting
+    let frameOffset: { x: number; y: number } | undefined;
+    let contextId: number | undefined;
+    if (options.frame) {
+      const iframeRect = await getIframeRect(context, ws, options.frame);
+      frameOffset = { x: iframeRect.x, y: iframeRect.y };
+      contextId = await context.resolveFrameContext(ws, options.frame);
+    }
+
+    const fromPos = await resolveDragTarget(context, ws, from, 'Source', frameOffset, contextId);
+    const toPos = await resolveDragTarget(context, ws, to, 'Destination', frameOffset, contextId);
 
     if (options.touch) {
       // Touch drag sequence
@@ -1225,6 +1467,7 @@ export async function drag(
 
     outputSuccess('Drag performed', {
       mode: options.touch ? 'touch' : 'mouse',
+      frame: options.frame ?? null,
       from: {
         x: Math.round(fromPos.x),
         y: Math.round(fromPos.y),

@@ -43,44 +43,34 @@ cdp-cli navigate "http://example.com" PAGE --wait-for "#content" --wait-for-fram
 - Extracted `getAxSnapshotScript()` and `formatAxElements()` helpers in debug.ts
 - Reduced code duplication for ax snapshot logic
 
-## Remaining Work
+## Session 3 Completed
 
-### Complex (Lower Priority)
-| Command | Work Needed |
-|---------|-------------|
-| `click --frame` | Coordinate translation: iframe rect + element rect |
-| `fill --frame` | Same as click - need iframe offset |
-| `drag --frame` | Same as click |
+### Input Commands Frame Support ✅
+All input commands now support `--frame` for targeting elements inside iframes:
+- `click --frame <spec>` - click elements in iframe
+- `fill --frame <spec>` - fill inputs in iframe
+- `drag --frame <spec>` - drag within iframe (applies to both source and destination)
 
-**Coordinate Translation Challenge:**
-Input events (mouse/touch) use viewport coordinates. When targeting elements inside iframes:
-1. Find element in iframe context
-2. Get element's rect (relative to iframe)
-3. Get iframe's rect (relative to viewport)
-4. Add offsets: `viewportX = iframeX + elementX`
+**Implementation:**
+1. Get iframe rect from top frame for coordinate offset
+2. Resolve frame execution context
+3. Find element in frame using Runtime.evaluate with contextId
+4. Add iframe offset to element coordinates for viewport translation
 
-### Implementation Pattern for Input Commands
+**Helper functions added in input.ts:**
+- `getIframeRect(context, ws, frameSpec)` - get iframe bounding rect
+- `resolveClickCandidatesInFrame(context, ws, target, contextId)` - find elements in frame
 
-```typescript
-// In click command, if frame specified:
-if (options.frame) {
-  // 1. Get iframe element rect in top frame
-  const iframeRect = await getIframeRect(ws, options.frame);
+## All Frame Support Complete ✅
 
-  // 2. Resolve frame context
-  const contextId = await context.resolveFrameContext(ws, options.frame);
-
-  // 3. Find element in frame and get its rect
-  const elementRect = await findElementInFrame(ws, contextId, target);
-
-  // 4. Translate coordinates
-  const x = iframeRect.x + elementRect.x + elementRect.width / 2;
-  const y = iframeRect.y + elementRect.y + elementRect.height / 2;
-
-  // 5. Dispatch input event with translated coords
-  await dispatchClick(ws, x, y);
-}
-```
+| Command | Status |
+|---------|--------|
+| `eval --frame` | ✅ |
+| `snapshot --frame` | ✅ |
+| `navigate --wait-for-frame` | ✅ |
+| `click --frame` | ✅ |
+| `fill --frame` | ✅ |
+| `drag --frame` | ✅ |
 
 ## Files Modified
 

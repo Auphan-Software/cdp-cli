@@ -552,6 +552,10 @@ cli.command(
         description: 'Use touch events instead of mouse events',
         default: false
       })
+      .option('frame', {
+        type: 'string',
+        description: 'Target iframe by selector (e.g. "#myframe") or index (1 = first iframe)'
+      })
       .check((argv) => {
         const hasSelector = typeof argv.selector === 'string' && argv.selector.length > 0;
         const hasText = typeof argv.text === 'string' && argv.text.length > 0;
@@ -590,7 +594,8 @@ cli.command(
         page: argv.page as string,
         double: argv.double as boolean,
         longpress: argv.longpress as number | undefined,
-        touch: argv.touch as boolean
+        touch: argv.touch as boolean,
+        frame: argv.frame as string | undefined
       }
     );
   }
@@ -621,6 +626,10 @@ cli.command(
         type: 'string',
         description: 'CSS selector to scope the search within a container'
       })
+      .option('frame', {
+        type: 'string',
+        description: 'Target iframe by selector (e.g. "#myframe") or index (1 = first iframe)'
+      })
       .check((argv) => {
         const hint = validateFillParams(
           argv.selector as string,
@@ -642,7 +651,8 @@ cli.command(
       {
         page: argv.page as string,
         nth: argv.nth as number | undefined,
-        within: argv.within as string | undefined
+        within: argv.within as string | undefined,
+        frame: argv.frame as string | undefined
       }
     );
   }
@@ -756,6 +766,10 @@ cli.command(
       .option('to-within', {
         type: 'string',
         description: 'CSS selector to scope destination search'
+      })
+      .option('frame', {
+        type: 'string',
+        description: 'Target iframe by selector (e.g. "#myframe") - applies to both source and destination'
       });
   },
   async (argv) => {
@@ -794,7 +808,8 @@ cli.command(
       touch: argv.touch as boolean,
       longpress: argv.longpress as number | undefined,
       steps: argv.steps as number,
-      duration: argv.duration as number
+      duration: argv.duration as number,
+      frame: argv.frame as string | undefined
     });
   }
 );
