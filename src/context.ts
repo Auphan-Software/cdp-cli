@@ -689,14 +689,17 @@ export class CDPContext {
 
       ws.on('message', messageHandler);
 
-      // Enable Runtime to get execution context events
-      this.sendCommand(ws, 'Runtime.enable').then(() => {
-        // Give time for all context events to arrive
-        setTimeout(() => {
-          ws.off('message', messageHandler);
-          resolve(contexts);
-        }, 100);
-      });
+      // Disable then re-enable Runtime to force fresh context events
+      // (if already enabled, we won't get events for existing contexts)
+      this.sendCommand(ws, 'Runtime.disable')
+        .then(() => this.sendCommand(ws, 'Runtime.enable'))
+        .then(() => {
+          // Give time for all context events to arrive
+          setTimeout(() => {
+            ws.off('message', messageHandler);
+            resolve(contexts);
+          }, 100);
+        });
     });
   }
 

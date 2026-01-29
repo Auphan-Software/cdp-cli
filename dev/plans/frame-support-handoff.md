@@ -25,13 +25,25 @@ cdp-cli eval "document.querySelector('select')?.id" "PAGE" --frame "#page-engine
 - `getExecutionContexts(ws)` - collects execution contexts per frame
 - `resolveFrameContext(ws, frameSpec)` - resolves selector/index to contextId
 
-## Remaining Work
+## Session 2 Completed
 
-### Easy (Medium Priority)
-| Command | Work Needed |
-|---------|-------------|
-| `snapshot --frame` | Pass contextId to Runtime.evaluate |
-| `wait-for --frame` in navigate | Evaluate selector check in frame context |
+### Snapshot Frame Support ✅
+- `--frame <selector>` - target iframe by CSS selector
+- `--frame <index>` - target iframe by index (1 = first iframe)
+
+### Navigate Wait Frame Support ✅
+- `--wait-for-frame <spec>` - target iframe for `--wait-for` and `--wait-for-text` checks
+
+Example:
+```bash
+cdp-cli navigate "http://example.com" PAGE --wait-for "#content" --wait-for-frame "#myframe"
+```
+
+### Code Refactoring ✅
+- Extracted `getAxSnapshotScript()` and `formatAxElements()` helpers in debug.ts
+- Reduced code duplication for ax snapshot logic
+
+## Remaining Work
 
 ### Complex (Lower Priority)
 | Command | Work Needed |

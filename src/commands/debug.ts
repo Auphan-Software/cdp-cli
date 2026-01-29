@@ -12,106 +12,10 @@ import { DaemonClient } from '../daemon/client.js';
 import { fetch as undiciFetch } from 'undici';
 
 /**
- * List console messages
+ * Get the ax snapshot script for evaluating in page context
  */
-export async function listConsole(
-  context: CDPContext,
-  options: { type?: string; page: string; duration?: number }
-): Promise<void> {
-  let ws;
-  const duration = options.duration ?? 0;
-  try {
-    // Get page to monitor
-    const page = await context.findPage(options.page);
-    await context.assertNoDevTools(page.id);
-
-    // Connect and enable Runtime domain
-    ws = await context.connect(page);
-
-    context.setupConsoleCollection(ws, (message: ConsoleMessage) => {
-      if (options.type && message.type !== options.type) {
-        return;
-      }
-
-      outputLine({
-        type: message.type,
-        timestamp: message.timestamp,
-        text: message.text,
-        source: message.source,
-        ...(message.line !== undefined && { line: message.line }),
-        ...(message.url && { url: message.url })
-      });
-    });
-    await context.sendCommand(ws, 'Runtime.enable');
-
-    if (duration > 0) {
-      await new Promise(resolve => setTimeout(resolve, duration * 1000));
-    } else {
-      await new Promise<void>((resolve) => {
-        function cleanup(): void {
-          process.off('SIGINT', onSigint);
-          process.off('SIGTERM', onSigterm);
-        }
-
-        function onSigint(): void {
-          process.exitCode = 130;
-          cleanup();
-          resolve();
-        }
-
-        function onSigterm(): void {
-          process.exitCode = 143;
-          cleanup();
-          resolve();
-        }
-
-        process.on('SIGINT', onSigint);
-        process.on('SIGTERM', onSigterm);
-      });
-    }
-  } catch (error) {
-    outputError(
-      (error as Error).message,
-      'LIST_CONSOLE_FAILED'
-    );
-    process.exit(1);
-  } finally {
-    if (ws) {
-      ws.close();
-    }
-  }
-}
-
-/**
- * Take a snapshot of the page (DOM or accessibility tree)
- */
-export async function snapshot(
-  context: CDPContext,
-  options: { format?: string; page: string }
-): Promise<void> {
-  let session: Awaited<ReturnType<typeof createExecSessionByPageRef>> | undefined;
-  try {
-    // Use daemon if available (optimized path), otherwise findPage + direct WebSocket
-    session = await createExecSessionByPageRef(context, options.page);
-    await session.assertNoDevTools();
-    await session.assertNoDialog();
-
-    const format = options.format || 'ax';
-
-    if (format === 'text') {
-      // Simple text snapshot
-      await session.exec('Runtime.enable');
-      const result = await session.exec('Runtime.evaluate', {
-        expression: 'document.body.innerText',
-        returnByValue: true
-      });
-
-      outputRaw(result.result?.value || '');
-    } else if (format === 'ax') {
-      // Simplified actionable elements snapshot for integration testing
-      await session.exec('Runtime.enable');
-      const result = await session.exec('Runtime.evaluate', {
-        expression: `
+function getAxSnapshotScript(): string {
+  return `
 (() => {
   const results = [];
   const seen = new Set();
@@ -274,25 +178,159 @@ export async function snapshot(
 
   return results;
 })()
-        `,
+  `;
+}
+
+/**
+ * Format ax snapshot elements into output lines
+ */
+function formatAxElements(elements: any[]): string {
+  const lines = elements.map((el: any) => {
+    let line = `[${el.role}]`;
+    if (el.label) line += ` "${el.label}"`;
+    if (el.name) line += ` name=${el.name}`;
+    if (el.value) line += ` value="${el.value}"`;
+    if (el.checked !== undefined) line += el.checked ? ' ✓' : ' ○';
+    if (el.options) line += ` options=[${el.options.map((o: string) => `"${o}"`).join(',')}]`;
+    line += ` → ${el.selector}`;
+    return line;
+  });
+  return lines.join('\n');
+}
+
+/**
+ * List console messages
+ */
+export async function listConsole(
+  context: CDPContext,
+  options: { type?: string; page: string; duration?: number }
+): Promise<void> {
+  let ws;
+  const duration = options.duration ?? 0;
+  try {
+    // Get page to monitor
+    const page = await context.findPage(options.page);
+    await context.assertNoDevTools(page.id);
+
+    // Connect and enable Runtime domain
+    ws = await context.connect(page);
+
+    context.setupConsoleCollection(ws, (message: ConsoleMessage) => {
+      if (options.type && message.type !== options.type) {
+        return;
+      }
+
+      outputLine({
+        type: message.type,
+        timestamp: message.timestamp,
+        text: message.text,
+        source: message.source,
+        ...(message.line !== undefined && { line: message.line }),
+        ...(message.url && { url: message.url })
+      });
+    });
+    await context.sendCommand(ws, 'Runtime.enable');
+
+    if (duration > 0) {
+      await new Promise(resolve => setTimeout(resolve, duration * 1000));
+    } else {
+      await new Promise<void>((resolve) => {
+        function cleanup(): void {
+          process.off('SIGINT', onSigint);
+          process.off('SIGTERM', onSigterm);
+        }
+
+        function onSigint(): void {
+          process.exitCode = 130;
+          cleanup();
+          resolve();
+        }
+
+        function onSigterm(): void {
+          process.exitCode = 143;
+          cleanup();
+          resolve();
+        }
+
+        process.on('SIGINT', onSigint);
+        process.on('SIGTERM', onSigterm);
+      });
+    }
+  } catch (error) {
+    outputError(
+      (error as Error).message,
+      'LIST_CONSOLE_FAILED'
+    );
+    process.exit(1);
+  } finally {
+    if (ws) {
+      ws.close();
+    }
+  }
+}
+
+/**
+ * Take a snapshot of the page (DOM or accessibility tree)
+ */
+export async function snapshot(
+  context: CDPContext,
+  options: { format?: string; page: string; frame?: string }
+): Promise<void> {
+  let session: Awaited<ReturnType<typeof createExecSessionByPageRef>> | undefined;
+  let directWs: Awaited<ReturnType<typeof context.connect>> | undefined;
+  try {
+    const format = options.format || 'ax';
+
+    // For frame targeting, we need direct WebSocket (daemon doesn't support contextId)
+    if (options.frame) {
+      const page = await context.findPage(options.page);
+      directWs = await context.connect(page);
+
+      // Resolve frame context
+      const contextId = await context.resolveFrameContext(directWs, options.frame);
+
+      if (format === 'text') {
+        const result = await context.sendCommand(directWs, 'Runtime.evaluate', {
+          expression: 'document.body.innerText',
+          contextId,
+          returnByValue: true
+        });
+        outputRaw(result.result?.value || '');
+      } else if (format === 'ax') {
+        const result = await context.sendCommand(directWs, 'Runtime.evaluate', {
+          expression: getAxSnapshotScript(),
+          contextId,
+          returnByValue: true
+        });
+        const elements = result.result?.value || [];
+        outputRaw(formatAxElements(elements));
+      } else {
+        throw new Error(`Unknown snapshot format: ${format}`);
+      }
+      return;
+    }
+
+    // No frame - use daemon if available (optimized path)
+    session = await createExecSessionByPageRef(context, options.page);
+    await session.assertNoDevTools();
+    await session.assertNoDialog();
+
+    if (format === 'text') {
+      // Simple text snapshot
+      await session.exec('Runtime.enable');
+      const result = await session.exec('Runtime.evaluate', {
+        expression: 'document.body.innerText',
         returnByValue: true
       });
 
-      const elements = result.result?.value || [];
-
-      // Format as simple lines
-      const lines = elements.map((el: any) => {
-        let line = `[${el.role}]`;
-        if (el.label) line += ` "${el.label}"`;
-        if (el.name) line += ` name=${el.name}`;
-        if (el.value) line += ` value="${el.value}"`;
-        if (el.checked !== undefined) line += el.checked ? ' ✓' : ' ○';
-        if (el.options) line += ` options=[${el.options.map((o: string) => `"${o}"`).join(',')}]`;
-        line += ` → ${el.selector}`;
-        return line;
+      outputRaw(result.result?.value || '');
+    } else if (format === 'ax') {
+      await session.exec('Runtime.enable');
+      const result = await session.exec('Runtime.evaluate', {
+        expression: getAxSnapshotScript(),
+        returnByValue: true
       });
-
-      outputRaw(lines.join('\n'));
+      outputRaw(formatAxElements(result.result?.value || []));
     } else {
       throw new Error(`Unknown snapshot format: ${format}`);
     }
@@ -305,6 +343,7 @@ export async function snapshot(
     process.exit(1);
   } finally {
     session?.close();
+    directWs?.close();
   }
 }
 

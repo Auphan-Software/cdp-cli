@@ -78,16 +78,18 @@ export interface NavigateOptions {
   waitForText?: string;
   waitForIdle?: boolean;
   timeout?: number;
+  waitForFrame?: string;
 }
 
 /**
- * Wait for a CSS selector to appear in the page
+ * Wait for a CSS selector to appear in the page (or frame)
  */
 async function waitForSelector(
   context: CDPContext,
   ws: WebSocket,
   selector: string,
-  timeout: number
+  timeout: number,
+  contextId?: number
 ): Promise<void> {
   const start = Date.now();
   const pollInterval = 100;
@@ -95,7 +97,8 @@ async function waitForSelector(
   while (Date.now() - start < timeout) {
     const result = await context.sendCommand(ws, 'Runtime.evaluate', {
       expression: `document.querySelector(${JSON.stringify(selector)}) !== null`,
-      returnByValue: true
+      returnByValue: true,
+      contextId
     });
 
     if (result.result?.value === true) {
@@ -109,13 +112,14 @@ async function waitForSelector(
 }
 
 /**
- * Wait for text to appear in the page body
+ * Wait for text to appear in the page body (or frame)
  */
 async function waitForText(
   context: CDPContext,
   ws: WebSocket,
   text: string,
-  timeout: number
+  timeout: number,
+  contextId?: number
 ): Promise<void> {
   const start = Date.now();
   const pollInterval = 100;
@@ -123,7 +127,8 @@ async function waitForText(
   while (Date.now() - start < timeout) {
     const result = await context.sendCommand(ws, 'Runtime.evaluate', {
       expression: `document.body.innerText.includes(${JSON.stringify(text)})`,
-      returnByValue: true
+      returnByValue: true,
+      contextId
     });
 
     if (result.result?.value === true) {
@@ -246,12 +251,34 @@ export async function navigate(
       await waitForIdle(context, ws, timeout);
     }
 
+    // Resolve frame context for wait conditions if specified
+    // Poll for frame since it may not exist immediately after navigation
+    let waitContextId: number | undefined;
+    if (options.waitForFrame && (options.waitFor || options.waitForText)) {
+      const frameStart = Date.now();
+      let frameResolved = false;
+      let lastError: Error | undefined;
+      while (Date.now() - frameStart < timeout) {
+        try {
+          waitContextId = await context.resolveFrameContext(ws, options.waitForFrame);
+          frameResolved = true;
+          break;
+        } catch (e) {
+          lastError = e as Error;
+          await new Promise(r => setTimeout(r, 200));
+        }
+      }
+      if (!frameResolved) {
+        throw new Error(`Timeout waiting for frame: ${options.waitForFrame}. Last error: ${lastError?.message}`);
+      }
+    }
+
     if (options.waitFor) {
-      await waitForSelector(context, ws, options.waitFor, timeout);
+      await waitForSelector(context, ws, options.waitFor, timeout, waitContextId);
     }
 
     if (options.waitForText) {
-      await waitForText(context, ws, options.waitForText, timeout);
+      await waitForText(context, ws, options.waitForText, timeout, waitContextId);
     }
 
     outputSuccess('Navigation complete', {
@@ -259,7 +286,8 @@ export async function navigate(
       page: page.id,
       ...(options.waitFor && { waitedFor: options.waitFor }),
       ...(options.waitForText && { waitedForText: options.waitForText }),
-      ...(options.waitForIdle && { waitedForIdle: true })
+      ...(options.waitForIdle && { waitedForIdle: true }),
+      ...(options.waitForFrame && { waitedInFrame: options.waitForFrame })
     });
   } catch (error) {
     outputError(

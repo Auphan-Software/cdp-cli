@@ -156,6 +156,10 @@ cli.command(
         alias: 't',
         default: 10000
       })
+      .option('wait-for-frame', {
+        type: 'string',
+        description: 'Target iframe for --wait-for/--wait-for-text by selector or index'
+      })
       .check((argv) => {
         const hint = validateNavigateParams(argv.action as string, argv.page as string);
         if (hint.likely) {
@@ -174,7 +178,8 @@ cli.command(
         waitFor: argv['wait-for'] as string | undefined,
         waitForText: argv['wait-for-text'] as string | undefined,
         waitForIdle: argv['wait-for-idle'] as boolean,
-        timeout: argv.timeout as number
+        timeout: argv.timeout as number,
+        waitForFrame: argv['wait-for-frame'] as string | undefined
       }
     );
   }
@@ -292,13 +297,18 @@ cli.command(
         description: 'Snapshot format (ax, text)',
         alias: 'f',
         default: 'ax'
+      })
+      .option('frame', {
+        type: 'string',
+        description: 'Target iframe by selector (e.g. "#myframe") or index (1 = first iframe)'
       });
   },
   async (argv) => {
     const context = new CDPContext(argv['cdp-url'] as string);
     await debug.snapshot(context, {
       format: argv.format as string,
-      page: argv.page as string
+      page: argv.page as string,
+      frame: argv.frame as string | undefined
     });
   }
 );
