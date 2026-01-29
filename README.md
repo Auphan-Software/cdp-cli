@@ -107,7 +107,22 @@ cdp-cli navigate "https://github.com" "example"
 cdp-cli navigate back "example"
 cdp-cli navigate forward "example"
 cdp-cli navigate reload "example"
+
+# Wait for content after navigation
+cdp-cli navigate "https://example.com" "example" --wait-for "#content"
+cdp-cli navigate "https://example.com" "example" --wait-for-text "Welcome"
+cdp-cli navigate "https://example.com" "example" --wait-for-idle
+
+# Wait for content inside an iframe
+cdp-cli navigate "https://example.com" "example" --wait-for "#form" --wait-for-frame "#myframe"
 ```
+
+Options:
+- `--wait-for <selector>`: Wait for CSS selector to appear after navigation
+- `--wait-for-text <text>`: Wait for text to appear in page body
+- `--wait-for-idle`: Wait for network idle and document ready
+- `--wait-for-frame <spec>`: Target iframe for wait checks (by selector or index)
+- `--timeout <ms>`: Timeout for wait operations (default: 10000)
 
 **close-page** - Close a page
 ```bash
@@ -145,6 +160,25 @@ Features:
 - **Persistent**: Logs survive across CLI invocations (until daemon stops)
 - **Chrome restart handling**: Automatically reconnects and re-registers pages
 - **Idempotent**: Safe to call `daemon start` multiple times
+
+**status** - Check daemon and Chrome connection status
+```bash
+cdp-cli status
+```
+
+Output shows daemon state (running/stopped, session count) and Chrome state (running/stopped, version, page count).
+
+**ready** - Launch Chrome + start daemon + return pages (all-in-one)
+```bash
+cdp-cli ready                                    # Uses defaults
+cdp-cli ready --port 9333                        # Custom CDP port
+cdp-cli ready --profile ~/my-chrome-profile     # Custom profile dir
+```
+
+This command:
+1. Launches Chrome with remote debugging if not already running
+2. Starts the daemon if not already running
+3. Returns list of open pages
 
 ### Log Queries
 
@@ -198,7 +232,15 @@ cdp-cli snapshot "example"
 
 # Plain text content
 cdp-cli snapshot "example" --format text
+
+# Target an iframe
+cdp-cli snapshot "example" --frame "#myframe"
+cdp-cli snapshot "example" --frame 1  # First iframe by index
 ```
+
+Options:
+- `--format <ax|text>`: Output format (default: ax)
+- `--frame <spec>`: Target iframe by selector or index
 
 The default `ax` format returns one line per actionable element:
 ```
@@ -215,7 +257,22 @@ Each line shows: `[role] "label" state → selector`
 cdp-cli eval "document.title" "example"
 cdp-cli eval "window.location.href" "example"
 cdp-cli eval "Array.from(document.querySelectorAll('h1')).map(h => h.textContent)" "example"
+
+# Async evaluation (wraps in async IIFE)
+cdp-cli eval --async "await fetch('/api').then(r => r.json())" "example"
+
+# File-based evaluation (avoids shell escaping issues)
+cdp-cli eval _ "example" --file script.js
+cdp-cli eval _ "example" --file script.js --async  # Combined
+
+# Evaluate inside an iframe
+cdp-cli eval "document.querySelector('select')?.id" "example" --frame "#myframe"
 ```
+
+Optional flags:
+- `--async, -a`: Wrap code in async IIFE for await support
+- `--file, -f`: Read JavaScript from file (expression argument ignored)
+- `--frame`: Target iframe by selector or index
 
 **screenshot** - Take a screenshot
 ```bash
@@ -274,7 +331,7 @@ cdp-cli list-network "example" --type xhr
 ### Input Automation
 
 **click** - Click an element by CSS selector or visible text
-Supports `--text`, `--match exact|contains|regex`, `--case-sensitive`, `--nth` for multi-match disambiguation, and `--within` to scope the search to a container. Use `--longpress <seconds>` to hold the primary button before release (defaults to 1 second when the flag is provided without a value; not compatible with `--double`). Use `--touch` for touch events instead of mouse events (not compatible with `--double`). When multiple elements match, the CLI reports each candidate (including bounding boxes) so an LLM can choose the right target with `--nth`.
+Supports `--text`, `--match exact|contains|regex`, `--case-sensitive`, `--nth` for multi-match disambiguation, `--within` to scope the search to a container, and `--frame` to target elements inside iframes. Use `--longpress <seconds>` to hold the primary button before release (defaults to 1 second when the flag is provided without a value; not compatible with `--double`). Use `--touch` for touch events instead of mouse events (not compatible with `--double`). When multiple elements match, the CLI reports each candidate (including bounding boxes) so an LLM can choose the right target with `--nth`.
 ```bash
 # CSS selector (default behaviour)
 cdp-cli click "button#submit" "example"
@@ -297,10 +354,14 @@ cdp-cli click --text "^\d+$" --match regex --case-sensitive "example"
 # Scoped search within a container
 cdp-cli click --text "Pickles" --within "#modifier-pad" "example"
 cdp-cli click "button.add" --within ".cart-section" "example"
+
+# Click inside an iframe (coordinates auto-translated)
+cdp-cli click "#submit-btn" "example" --frame "#myframe"
+cdp-cli click --text "Save" "example" --frame "#myframe"
 ```
 
 **drag** - Drag from one element/position to another
-Supports both mouse and touch drag operations. Use `--longpress` before drag for mobile-style drag-and-drop. Targets can be CSS selectors, text matches, or `x,y` coordinates.
+Supports both mouse and touch drag operations. Use `--longpress` before drag for mobile-style drag-and-drop. Targets can be CSS selectors, text matches, or `x,y` coordinates. Use `--frame` to drag within an iframe.
 ```bash
 # Mouse drag (default)
 cdp-cli drag "#item" "#dropzone" "example"
@@ -319,6 +380,9 @@ cdp-cli drag "#slider-handle" "250,100" "example"
 # Text-based targeting
 cdp-cli drag --text "Item 1" "#dropzone" "example"
 cdp-cli drag "#source" --to-text "Drop Here" "example"
+
+# Drag within an iframe (applies to both source and destination)
+cdp-cli drag "#sortable-item" "#new-position" "example" --frame "#myframe"
 ```
 
 Options:
@@ -329,15 +393,19 @@ Options:
 - `--text` / `--to-text`: Match source/destination by visible text
 - `--nth` / `--to-nth`: Select Nth match for source/destination
 - `--within` / `--to-within`: Scope source/destination search to container
+- `--frame`: Target iframe (applies to both source and destination)
 
 **fill** - Fill an input element
-Supports `--nth` for multi-match disambiguation and `--within` to scope the search to a container.
+Supports `--nth` for multi-match disambiguation, `--within` to scope the search to a container, and `--frame` to target inputs inside iframes.
 ```bash
 cdp-cli fill "input#email" "user@example.com" "example"
 cdp-cli fill "input[name='password']" "secret123" "example"
 
 # Scoped search within a container
 cdp-cli fill "input[type='text']" "value" "example" --within "#login-form"
+
+# Fill input inside an iframe
+cdp-cli fill "#username" "testuser" "example" --frame "#myframe"
 ```
 
 **press-key** - Press a keyboard key
@@ -470,6 +538,19 @@ cdp-cli eval "Array.from(document.querySelectorAll('.item')).map(el => ({
 7. **Error handling**: All errors output NDJSON with `"error": true`
    ```json
    {"error":true,"message":"Page not found: example","code":"PAGE_NOT_FOUND"}
+   ```
+
+8. **Target elements inside iframes with --frame**:
+   ```bash
+   # Most commands support --frame to target iframe content
+   cdp-cli snapshot "example" --frame "#myframe"
+   cdp-cli eval "document.title" "example" --frame "#myframe"
+   cdp-cli click "#submit" "example" --frame "#myframe"
+   cdp-cli fill "#input" "value" "example" --frame "#myframe"
+   cdp-cli drag "#a" "#b" "example" --frame "#myframe"
+
+   # Wait for content inside iframe after navigation
+   cdp-cli navigate "https://example.com" "test" --wait-for "#content" --wait-for-frame "#myframe"
    ```
 
 ## Architecture
