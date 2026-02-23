@@ -133,7 +133,12 @@ cdp-cli close-page A1B2C3
 **resize-window** - Resize the Chrome window for a page
 ```bash
 cdp-cli resize-window "example" 1024 768
+cdp-cli resize-window "example" 0 0 --state maximized
+cdp-cli resize-window "example" 0 0 --state fullscreen
 ```
+
+Optional flags:
+- `--state`: Window state: `normal`, `maximized`, `minimized`, `fullscreen`
 
 ### Daemon (Recommended for LLM Agents)
 
@@ -272,6 +277,7 @@ cdp-cli eval "document.querySelector('select')?.id" "example" --frame "#myframe"
 Optional flags:
 - `--async, -a`: Wrap code in async IIFE for await support
 - `--file, -f`: Read JavaScript from file (expression argument ignored)
+- `--stdin`: Read JavaScript from stdin instead of expression argument
 - `--frame`: Target iframe by selector or index
 
 **screenshot** - Take a screenshot
@@ -331,7 +337,7 @@ cdp-cli list-network "example" --type xhr
 ### Input Automation
 
 **click** - Click an element by CSS selector or visible text
-Supports `--text`, `--match exact|contains|regex`, `--case-sensitive`, `--nth` for multi-match disambiguation, `--within` to scope the search to a container, and `--frame` to target elements inside iframes. Use `--longpress <seconds>` to hold the primary button before release (defaults to 1 second when the flag is provided without a value; not compatible with `--double`). Use `--touch` for touch events instead of mouse events (not compatible with `--double`). When multiple elements match, the CLI reports each candidate (including bounding boxes) so an LLM can choose the right target with `--nth`.
+Supports `--text`, `--match exact|contains|regex`, `--case-sensitive`, `--nth` for multi-match disambiguation, `--within` to scope the search to a container, and `--frame` to target elements inside iframes. Use `--longpress <seconds>` to hold the primary button before release (defaults to 1 second when the flag is provided without a value; not compatible with `--double`). Use `--touch` for touch events instead of mouse events (not compatible with `--double`). When multiple elements match, the CLI reports each candidate (including bounding boxes) so an LLM can choose the right target with `--nth`. Supports `--wait-for`, `--wait-for-text`, `--wait-for-idle`, and `--wait-for-frame` to wait for DOM changes after clicking.
 ```bash
 # CSS selector (default behaviour)
 cdp-cli click "button#submit" "example"
@@ -358,7 +364,20 @@ cdp-cli click "button.add" --within ".cart-section" "example"
 # Click inside an iframe (coordinates auto-translated)
 cdp-cli click "#submit-btn" "example" --frame "#myframe"
 cdp-cli click --text "Save" "example" --frame "#myframe"
+
+# Wait for DOM changes after click
+cdp-cli click --text "Submit" "example" --wait-for "#success-message"
+cdp-cli click --text "Submit" "example" --wait-for-text "Order confirmed"
+cdp-cli click "#load-more" "example" --wait-for-idle
+cdp-cli click "#tab2" "example" --wait-for ".tab-content" --wait-for-frame "#myframe"
 ```
+
+Wait options (shared with navigate):
+- `--wait-for <selector>`: Wait for CSS selector to appear after action
+- `--wait-for-text <text>`: Wait for text to appear in page body
+- `--wait-for-idle`: Wait for network idle and document ready
+- `--wait-for-frame <spec>`: Target iframe for wait checks (by selector or index)
+- `--timeout <ms>`: Timeout for wait operations (default: 10000)
 
 **drag** - Drag from one element/position to another
 Supports both mouse and touch drag operations. Use `--longpress` before drag for mobile-style drag-and-drop. Targets can be CSS selectors, text matches, or `x,y` coordinates. Use `--frame` to drag within an iframe.
@@ -396,7 +415,7 @@ Options:
 - `--frame`: Target iframe (applies to both source and destination)
 
 **fill** - Fill an input element
-Supports `--nth` for multi-match disambiguation, `--within` to scope the search to a container, and `--frame` to target inputs inside iframes.
+Supports `--nth` for multi-match disambiguation, `--within` to scope the search to a container, and `--frame` to target inputs inside iframes. Supports `--wait-for`, `--wait-for-text`, `--wait-for-idle`, and `--wait-for-frame` to wait for DOM changes after filling.
 ```bash
 cdp-cli fill "input#email" "user@example.com" "example"
 cdp-cli fill "input[name='password']" "secret123" "example"
@@ -406,7 +425,29 @@ cdp-cli fill "input[type='text']" "value" "example" --within "#login-form"
 
 # Fill input inside an iframe
 cdp-cli fill "#username" "testuser" "example" --frame "#myframe"
+
+# Wait for DOM changes after fill (e.g. filtered search results)
+cdp-cli fill "#searchBox" "cash discounting" "example" --wait-for-text "Brandy"
+cdp-cli fill "#filter" "active" "example" --wait-for ".results-loaded"
 ```
+
+Wait options (shared with navigate):
+- `--wait-for <selector>`: Wait for CSS selector to appear after action
+- `--wait-for-text <text>`: Wait for text to appear in page body
+- `--wait-for-idle`: Wait for network idle and document ready
+- `--wait-for-frame <spec>`: Target iframe for wait checks (by selector or index)
+- `--timeout <ms>`: Timeout for wait operations (default: 10000)
+
+**dismiss-overlays** - Auto-dismiss toasts, notifications, and modal overlays
+```bash
+cdp-cli dismiss-overlays "example"
+cdp-cli dismiss-overlays "example" --frame "#myframe"
+```
+
+Clicks common dismiss buttons (`.toast-close`, `.notify-hide`, `.notification-dismiss`, etc.) to clear the viewport for screenshots.
+
+Optional flags:
+- `--frame`: Target iframe by selector or index
 
 **press-key** - Press a keyboard key
 ```bash

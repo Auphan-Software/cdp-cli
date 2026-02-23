@@ -6,6 +6,7 @@ import { WebSocket } from 'ws';
 import { CDPContext, Page } from '../context.js';
 import { outputLines, outputLine, outputError, outputSuccess } from '../output.js';
 import { DaemonClient } from '../daemon/client.js';
+import { handleWaitOptions, type WaitOptions } from './wait.js';
 
 type WindowState = 'normal' | 'minimized' | 'maximized' | 'fullscreen';
 
@@ -73,128 +74,7 @@ export async function newPage(
   }
 }
 
-export interface NavigateOptions {
-  waitFor?: string;
-  waitForText?: string;
-  waitForIdle?: boolean;
-  timeout?: number;
-  waitForFrame?: string;
-}
-
-/**
- * Wait for a CSS selector to appear in the page (or frame)
- */
-async function waitForSelector(
-  context: CDPContext,
-  ws: WebSocket,
-  selector: string,
-  timeout: number,
-  contextId?: number
-): Promise<void> {
-  const start = Date.now();
-  const pollInterval = 100;
-
-  while (Date.now() - start < timeout) {
-    const result = await context.sendCommand(ws, 'Runtime.evaluate', {
-      expression: `document.querySelector(${JSON.stringify(selector)}) !== null`,
-      returnByValue: true,
-      contextId
-    });
-
-    if (result.result?.value === true) {
-      return;
-    }
-
-    await new Promise(r => setTimeout(r, pollInterval));
-  }
-
-  throw new Error(`Timeout waiting for selector: ${selector}`);
-}
-
-/**
- * Wait for text to appear in the page body (or frame)
- */
-async function waitForText(
-  context: CDPContext,
-  ws: WebSocket,
-  text: string,
-  timeout: number,
-  contextId?: number
-): Promise<void> {
-  const start = Date.now();
-  const pollInterval = 100;
-
-  while (Date.now() - start < timeout) {
-    const result = await context.sendCommand(ws, 'Runtime.evaluate', {
-      expression: `document.body.innerText.includes(${JSON.stringify(text)})`,
-      returnByValue: true,
-      contextId
-    });
-
-    if (result.result?.value === true) {
-      return;
-    }
-
-    await new Promise(r => setTimeout(r, pollInterval));
-  }
-
-  throw new Error(`Timeout waiting for text: ${text}`);
-}
-
-/**
- * Wait for network idle and DOM ready
- */
-async function waitForIdle(
-  context: CDPContext,
-  ws: WebSocket,
-  timeout: number
-): Promise<void> {
-  await context.sendCommand(ws, 'Network.enable');
-
-  const start = Date.now();
-  let pendingRequests = 0;
-  let lastActivity = Date.now();
-  const idleThreshold = 500; // ms of no network activity
-
-  // Track network requests
-  const requestHandler = () => {
-    pendingRequests++;
-    lastActivity = Date.now();
-  };
-  const responseHandler = () => {
-    pendingRequests = Math.max(0, pendingRequests - 1);
-    lastActivity = Date.now();
-  };
-
-  ws.on('message', (data: Buffer) => {
-    try {
-      const msg = JSON.parse(data.toString());
-      if (msg.method === 'Network.requestWillBeSent') requestHandler();
-      if (msg.method === 'Network.loadingFinished' || msg.method === 'Network.loadingFailed') responseHandler();
-    } catch {
-      // Ignore parse errors
-    }
-  });
-
-  // Wait for document ready + network idle
-  while (Date.now() - start < timeout) {
-    const docReady = await context.sendCommand(ws, 'Runtime.evaluate', {
-      expression: `document.readyState === 'complete'`,
-      returnByValue: true
-    });
-
-    const isDocReady = docReady.result?.value === true;
-    const isNetworkIdle = pendingRequests === 0 && (Date.now() - lastActivity) >= idleThreshold;
-
-    if (isDocReady && isNetworkIdle) {
-      return;
-    }
-
-    await new Promise(r => setTimeout(r, 100));
-  }
-
-  throw new Error('Timeout waiting for idle state');
-}
+export type NavigateOptions = WaitOptions;
 
 /**
  * Navigate page (or back/forward/reload)
@@ -206,7 +86,6 @@ export async function navigate(
   options: NavigateOptions = {}
 ): Promise<void> {
   let ws;
-  const timeout = options.timeout ?? 10000;
 
   try {
     // Get page to navigate
@@ -247,39 +126,7 @@ export async function navigate(
     }
 
     // Handle wait options
-    if (options.waitForIdle) {
-      await waitForIdle(context, ws, timeout);
-    }
-
-    // Resolve frame context for wait conditions if specified
-    // Poll for frame since it may not exist immediately after navigation
-    let waitContextId: number | undefined;
-    if (options.waitForFrame && (options.waitFor || options.waitForText)) {
-      const frameStart = Date.now();
-      let frameResolved = false;
-      let lastError: Error | undefined;
-      while (Date.now() - frameStart < timeout) {
-        try {
-          waitContextId = await context.resolveFrameContext(ws, options.waitForFrame);
-          frameResolved = true;
-          break;
-        } catch (e) {
-          lastError = e as Error;
-          await new Promise(r => setTimeout(r, 200));
-        }
-      }
-      if (!frameResolved) {
-        throw new Error(`Timeout waiting for frame: ${options.waitForFrame}. Last error: ${lastError?.message}`);
-      }
-    }
-
-    if (options.waitFor) {
-      await waitForSelector(context, ws, options.waitFor, timeout, waitContextId);
-    }
-
-    if (options.waitForText) {
-      await waitForText(context, ws, options.waitForText, timeout, waitContextId);
-    }
+    await handleWaitOptions(context, ws, options);
 
     outputSuccess('Navigation complete', {
       action,

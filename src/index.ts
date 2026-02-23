@@ -14,7 +14,9 @@ import { hideBin } from 'yargs/helpers';
 import { CDPContext } from './context.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const pkg = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf-8'));
+const pkg = typeof CDP_CLI_VERSION !== 'undefined'
+  ? { version: CDP_CLI_VERSION }
+  : JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf-8'));
 import * as pages from './commands/pages.js';
 import * as debug from './commands/debug.js';
 import * as network from './commands/network.js';
@@ -72,6 +74,16 @@ const cli = yargs(hideBin(process.argv))
   .help()
   .alias('help', 'h')
   .alias('version', 'v')
+  .wrap(120)
+  .epilog(`Key Features:
+  --frame         Target iframes (click, fill, drag, snapshot, eval, navigate --wait-for)
+  --text/--nth    Click/drag by visible text with multi-match disambiguation
+  --within        Scope element search to a container
+  --wait-for      Wait for selector/text/idle after navigation
+  --touch         Touch events for mobile testing (click, drag)
+  --longpress     Hold before click/drag for mobile patterns
+
+Run "cdp-cli <command> --help" for command-specific options.`)
   .fail((msg, err, yargs) => {
     // Show help when no command provided
     if (msg === 'Not enough non-option arguments: got 0, need at least 1') {
@@ -125,7 +137,7 @@ cli.command(
 
 cli.command(
   'navigate <action> <page>',
-  'Navigate page (URL, back, forward, reload)',
+  'Navigate page (URL, back, forward, reload). Options: --wait-for, --wait-for-text, --wait-for-idle, --wait-for-frame, --timeout',
   (yargs) => {
     return yargs
       .positional('action', {
@@ -285,7 +297,7 @@ cli.command(
 
 cli.command(
   'snapshot <page>',
-  'Take a page snapshot',
+  'Take a page snapshot. Options: --format (ax|text), --frame',
   (yargs) => {
     return yargs
       .positional('page', {
@@ -315,7 +327,7 @@ cli.command(
 
 cli.command(
   'eval <expression> <page>',
-  'Evaluate JavaScript expression (use -f for file, -a for async)',
+  'Evaluate JavaScript expression. Options: --file, --async, --frame',
   (yargs) => {
     return yargs
       .positional('expression', {
@@ -337,13 +349,18 @@ cli.command(
         description: 'Wrap code in async IIFE for await support',
         default: false
       })
+      .option('stdin', {
+        type: 'boolean',
+        description: 'Read JavaScript from stdin instead of expression argument',
+        default: false
+      })
       .option('frame', {
         type: 'string',
         description: 'Target iframe by selector (e.g. "#myframe") or index (1 = first iframe)'
       })
       .check((argv) => {
-        // If --file is used, ignore expression validation
-        if (!argv.file) {
+        // If --file or --stdin is used, ignore expression validation
+        if (!argv.file && !argv.stdin) {
           const hint = validateEvalParams(argv.expression as string, argv.page as string);
           if (hint.likely) {
             throw new Error(buildErrorWithHint('Invalid parameter order', hint));
@@ -358,7 +375,8 @@ cli.command(
       page: argv.page as string,
       file: argv.file as string | undefined,
       async: argv.async as boolean,
-      frame: argv.frame as string | undefined
+      frame: argv.frame as string | undefined,
+      stdin: argv.stdin as boolean
     });
   }
 );
@@ -392,6 +410,10 @@ cli.command(
         type: 'number',
         description: 'Scale factor to resize the image (0 < scale <= 1)',
         alias: 's'
+      })
+      .option('selector', {
+        type: 'string',
+        description: 'CSS selector to capture a specific element instead of the full page'
       });
   },
   async (argv) => {
@@ -401,7 +423,8 @@ cli.command(
       format: argv.format as string,
       quality: argv.quality as number,
       scale: argv.scale as number | undefined,
-      page: argv.page as string
+      page: argv.page as string,
+      selector: argv.selector as string | undefined
     });
   }
 );
@@ -477,7 +500,7 @@ cli.command(
 // Input commands
 cli.command(
   'click [selector] <page>',
-  'Click an element',
+  'Click an element. Options: --text, --nth, --within, --frame, --double, --longpress, --touch',
   (yargs) => {
     return yargs
       .positional('selector', {
@@ -556,6 +579,27 @@ cli.command(
         type: 'string',
         description: 'Target iframe by selector (e.g. "#myframe") or index (1 = first iframe)'
       })
+      .option('wait-for', {
+        type: 'string',
+        description: 'CSS selector to wait for after click'
+      })
+      .option('wait-for-text', {
+        type: 'string',
+        description: 'Text to wait for after click'
+      })
+      .option('wait-for-idle', {
+        type: 'boolean',
+        description: 'Wait for network idle after click',
+        default: false
+      })
+      .option('wait-for-frame', {
+        type: 'string',
+        description: 'Target iframe for wait checks (by selector or index)'
+      })
+      .option('timeout', {
+        type: 'number',
+        description: 'Timeout for wait operations in ms (default: 10000)'
+      })
       .check((argv) => {
         const hasSelector = typeof argv.selector === 'string' && argv.selector.length > 0;
         const hasText = typeof argv.text === 'string' && argv.text.length > 0;
@@ -595,7 +639,12 @@ cli.command(
         double: argv.double as boolean,
         longpress: argv.longpress as number | undefined,
         touch: argv.touch as boolean,
-        frame: argv.frame as string | undefined
+        frame: argv.frame as string | undefined,
+        waitFor: argv.waitFor as string | undefined,
+        waitForText: argv.waitForText as string | undefined,
+        waitForIdle: argv.waitForIdle as boolean | undefined,
+        waitForFrame: argv.waitForFrame as string | undefined,
+        timeout: argv.timeout as number | undefined
       }
     );
   }
@@ -603,7 +652,7 @@ cli.command(
 
 cli.command(
   'fill <selector> <value> <page>',
-  'Fill an input element',
+  'Fill an input element. Options: --nth, --within, --frame',
   (yargs) => {
     return yargs
       .positional('selector', {
@@ -630,6 +679,27 @@ cli.command(
         type: 'string',
         description: 'Target iframe by selector (e.g. "#myframe") or index (1 = first iframe)'
       })
+      .option('wait-for', {
+        type: 'string',
+        description: 'CSS selector to wait for after fill'
+      })
+      .option('wait-for-text', {
+        type: 'string',
+        description: 'Text to wait for after fill'
+      })
+      .option('wait-for-idle', {
+        type: 'boolean',
+        description: 'Wait for network idle after fill',
+        default: false
+      })
+      .option('wait-for-frame', {
+        type: 'string',
+        description: 'Target iframe for wait checks (by selector or index)'
+      })
+      .option('timeout', {
+        type: 'number',
+        description: 'Timeout for wait operations in ms (default: 10000)'
+      })
       .check((argv) => {
         const hint = validateFillParams(
           argv.selector as string,
@@ -652,7 +722,12 @@ cli.command(
         page: argv.page as string,
         nth: argv.nth as number | undefined,
         within: argv.within as string | undefined,
-        frame: argv.frame as string | undefined
+        frame: argv.frame as string | undefined,
+        waitFor: argv.waitFor as string | undefined,
+        waitForText: argv.waitForText as string | undefined,
+        waitForIdle: argv.waitForIdle as boolean | undefined,
+        waitForFrame: argv.waitForFrame as string | undefined,
+        timeout: argv.timeout as number | undefined
       }
     );
   }
@@ -689,7 +764,7 @@ cli.command(
 
 cli.command(
   'drag <from> <to> <page>',
-  'Drag from one element/position to another',
+  'Drag from one element/position to another. Options: --touch, --longpress, --steps, --duration, --text, --to-text, --frame',
   (yargs) => {
     return yargs
       .positional('from', {
@@ -967,6 +1042,174 @@ cli.command(
       profile: argv.profile as string,
       port: argv.port as number,
       cdpUrl: argv['cdp-url'] as string
+    });
+  }
+);
+
+// Query command
+cli.command(
+  'query <selector> <page>',
+  'Query DOM elements. Options: --text, --html, --attrs, --styles, --all, --frame',
+  (yargs) => {
+    return yargs
+      .positional('selector', {
+        describe: 'CSS selector',
+        type: 'string'
+      })
+      .positional('page', {
+        describe: 'Page ID or title',
+        type: 'string'
+      })
+      .option('text', {
+        type: 'boolean',
+        description: 'Return textContent',
+        default: false
+      })
+      .option('html', {
+        type: 'boolean',
+        description: 'Return innerHTML (trimmed, max 2000 chars)',
+        default: false
+      })
+      .option('attrs', {
+        type: 'boolean',
+        description: 'Return all attributes as key-value pairs',
+        default: false
+      })
+      .option('styles', {
+        type: 'string',
+        description: 'Return specified computed style properties (comma-separated, e.g. color,fontSize)'
+      })
+      .option('all', {
+        type: 'boolean',
+        description: 'Query all matching elements (querySelectorAll)',
+        default: false
+      })
+      .option('frame', {
+        type: 'string',
+        description: 'Target iframe by selector or index'
+      });
+  },
+  async (argv) => {
+    const context = new CDPContext(argv['cdp-url'] as string);
+    await debug.query(context, argv.selector as string, {
+      page: argv.page as string,
+      text: argv.text as boolean,
+      html: argv.html as boolean,
+      attrs: argv.attrs as boolean,
+      styles: argv.styles as string | undefined,
+      all: argv.all as boolean,
+      frame: argv.frame as string | undefined
+    });
+  }
+);
+
+// Styles command
+cli.command(
+  'styles <selector> <page>',
+  'Extract computed styles. Options: --compare-siblings, --props, --frame',
+  (yargs) => {
+    return yargs
+      .positional('selector', {
+        describe: 'CSS selector',
+        type: 'string'
+      })
+      .positional('page', {
+        describe: 'Page ID or title',
+        type: 'string'
+      })
+      .option('compare-siblings', {
+        type: 'boolean',
+        description: 'Include parent and sibling computed styles for comparison',
+        default: false
+      })
+      .option('props', {
+        type: 'string',
+        description: 'CSS properties to extract (comma-separated, default: color,fontSize,fontWeight,textAlign,margin,padding,lineHeight,display)'
+      })
+      .option('frame', {
+        type: 'string',
+        description: 'Target iframe by selector or index'
+      });
+  },
+  async (argv) => {
+    const context = new CDPContext(argv['cdp-url'] as string);
+    await debug.styles(context, argv.selector as string, {
+      page: argv.page as string,
+      compareSiblings: argv['compare-siblings'] as boolean,
+      props: argv.props as string | undefined,
+      frame: argv.frame as string | undefined
+    });
+  }
+);
+
+// Emulate command
+cli.command(
+  'emulate <device> <page>',
+  'Emulate a device (ipad, iphone, desktop). Options: --width, --height, --scale, --ua, --touch',
+  (yargs) => {
+    return yargs
+      .positional('device', {
+        describe: 'Device preset (ipad, iphone, desktop) or custom name with flags',
+        type: 'string'
+      })
+      .positional('page', {
+        describe: 'Page ID or title',
+        type: 'string'
+      })
+      .option('width', {
+        type: 'number',
+        description: 'Override viewport width'
+      })
+      .option('height', {
+        type: 'number',
+        description: 'Override viewport height'
+      })
+      .option('scale', {
+        type: 'number',
+        description: 'Device scale factor (deviceScaleFactor)'
+      })
+      .option('ua', {
+        type: 'string',
+        description: 'Custom user agent string'
+      })
+      .option('touch', {
+        type: 'boolean',
+        description: 'Enable touch emulation'
+      });
+  },
+  async (argv) => {
+    const context = new CDPContext(argv['cdp-url'] as string);
+    await debug.emulate(context, argv.device as string, {
+      page: argv.page as string,
+      width: argv.width as number | undefined,
+      height: argv.height as number | undefined,
+      scale: argv.scale as number | undefined,
+      ua: argv.ua as string | undefined,
+      touch: argv.touch as boolean | undefined,
+    });
+  }
+);
+
+// Dismiss overlays command
+cli.command(
+  'dismiss-overlays <page>',
+  'Auto-dismiss toasts, notifications, and modal overlays',
+  (yargs) => {
+    return yargs
+      .positional('page', {
+        describe: 'Page ID or title',
+        type: 'string'
+      })
+      .option('frame', {
+        type: 'string',
+        description: 'Target iframe by selector or index'
+      });
+  },
+  async (argv) => {
+    const context = new CDPContext(argv['cdp-url'] as string);
+    await debug.dismissOverlays(context, {
+      page: argv.page as string,
+      frame: argv.frame as string | undefined
     });
   }
 );

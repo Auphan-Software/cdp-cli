@@ -4,6 +4,7 @@
 
 import { CDPContext, type Page } from '../context.js';
 import { outputError, outputSuccess } from '../output.js';
+import { handleWaitOptions, type WaitOptions } from './wait.js';
 
 type TextMatchMode = 'exact' | 'contains' | 'regex';
 
@@ -735,7 +736,7 @@ async function resolveClickCandidatesInFrame(
 export async function click(
   context: CDPContext,
   targetInput: ClickTargetInput | string,
-  optionsInput: { page: string; double?: boolean; longpress?: number; touch?: boolean; frame?: string }
+  optionsInput: { page: string; double?: boolean; longpress?: number; touch?: boolean; frame?: string } & WaitOptions
 ): Promise<void> {
   let ws;
   const target: ClickTargetInput =
@@ -983,6 +984,15 @@ export async function click(
       }
     }
 
+    // Handle post-action wait conditions
+    await handleWaitOptions(context, ws, {
+      waitFor: options.waitFor,
+      waitForText: options.waitForText,
+      waitForIdle: options.waitForIdle,
+      waitForFrame: options.waitForFrame,
+      timeout: options.timeout
+    });
+
     outputSuccess('Click performed', {
       strategy: target.selector ? 'css' : 'text',
       selector: target.selector ?? null,
@@ -998,7 +1008,11 @@ export async function click(
       rect: roundedRect,
       double: options.double || false,
       longpress: longpressSeconds,
-      touch: options.touch || false
+      touch: options.touch || false,
+      ...(options.waitFor && { waitedFor: options.waitFor }),
+      ...(options.waitForText && { waitedForText: options.waitForText }),
+      ...(options.waitForIdle && { waitedForIdle: true }),
+      ...(options.waitForFrame && { waitedInFrame: options.waitForFrame })
     });
   } catch (error) {
     if (error instanceof ClickError) {
@@ -1030,7 +1044,7 @@ export async function fill(
   context: CDPContext,
   selector: string,
   value: string,
-  options: { page: string; nth?: number; within?: string; frame?: string }
+  options: { page: string; nth?: number; within?: string; frame?: string } & WaitOptions
 ): Promise<void> {
   let ws;
   try {
@@ -1095,11 +1109,24 @@ export async function fill(
         await context.sendCommand(ws, 'Input.dispatchKeyEvent', { type: 'keyUp', text: char });
       }
 
+      // Handle post-action wait conditions
+      await handleWaitOptions(context, ws, {
+        waitFor: options.waitFor,
+        waitForText: options.waitForText,
+        waitForIdle: options.waitForIdle,
+        waitForFrame: options.waitForFrame,
+        timeout: options.timeout
+      });
+
       outputSuccess('Fill performed', {
         selector,
         value,
         within: options.within ?? null,
-        frame: options.frame
+        frame: options.frame,
+        ...(options.waitFor && { waitedFor: options.waitFor }),
+        ...(options.waitForText && { waitedForText: options.waitForText }),
+        ...(options.waitForIdle && { waitedForIdle: true }),
+        ...(options.waitForFrame && { waitedInFrame: options.waitForFrame })
       });
     } else {
       // Standard path - no frame
@@ -1146,11 +1173,24 @@ export async function fill(
         });
       }
 
+      // Handle post-action wait conditions
+      await handleWaitOptions(context, ws, {
+        waitFor: options.waitFor,
+        waitForText: options.waitForText,
+        waitForIdle: options.waitForIdle,
+        waitForFrame: options.waitForFrame,
+        timeout: options.timeout
+      });
+
       outputSuccess('Fill performed', {
         selector,
         value,
         within: options.within ?? null,
-        frame: null
+        frame: null,
+        ...(options.waitFor && { waitedFor: options.waitFor }),
+        ...(options.waitForText && { waitedForText: options.waitForText }),
+        ...(options.waitForIdle && { waitedForIdle: true }),
+        ...(options.waitForFrame && { waitedInFrame: options.waitForFrame })
       });
     }
   } catch (error) {

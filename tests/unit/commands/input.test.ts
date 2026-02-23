@@ -185,6 +185,76 @@ describe('Input Commands', () => {
       capture.restore();
       exitMock.restore();
     });
+
+    it('should call handleWaitOptions after click when wait-for is set', async () => {
+      const capture = captureConsoleOutput();
+      const context = new CDPContext();
+
+      const originalConnect = context.connect.bind(context);
+      context.connect = async (page) => {
+        const ws = await originalConnect(page) as MockWebSocket;
+        const origSend = ws.send.bind(ws);
+        ws.send = (data: string) => {
+          const msg = JSON.parse(data);
+          if (msg.method === 'Runtime.evaluate' && msg.params.expression.includes('querySelector') && msg.params.expression.includes('#result')) {
+            setTimeout(() => {
+              ws.simulateMessage({ id: msg.id, result: { result: { value: true } } });
+            }, 5);
+            ws.sentMessages.push(msg);
+            return;
+          }
+          origSend(data);
+        };
+        return ws;
+      };
+
+      await input.click(context, 'button', {
+        page: 'page1',
+        waitFor: '#result'
+      });
+
+      const logs = capture.getLogs();
+      capture.restore();
+
+      const result = JSON.parse(logs[0]);
+      expect(result.success).toBe(true);
+      expect(result.data.waitedFor).toBe('#result');
+    });
+
+    it('should call handleWaitOptions after click when wait-for-text is set', async () => {
+      const capture = captureConsoleOutput();
+      const context = new CDPContext();
+
+      const originalConnect = context.connect.bind(context);
+      context.connect = async (page) => {
+        const ws = await originalConnect(page) as MockWebSocket;
+        const origSend = ws.send.bind(ws);
+        ws.send = (data: string) => {
+          const msg = JSON.parse(data);
+          if (msg.method === 'Runtime.evaluate' && msg.params.expression.includes('innerText')) {
+            setTimeout(() => {
+              ws.simulateMessage({ id: msg.id, result: { result: { value: true } } });
+            }, 5);
+            ws.sentMessages.push(msg);
+            return;
+          }
+          origSend(data);
+        };
+        return ws;
+      };
+
+      await input.click(context, 'button', {
+        page: 'page1',
+        waitForText: 'Brandy'
+      });
+
+      const logs = capture.getLogs();
+      capture.restore();
+
+      const result = JSON.parse(logs[0]);
+      expect(result.success).toBe(true);
+      expect(result.data.waitedForText).toBe('Brandy');
+    });
   });
 
   describe('fill', () => {
@@ -312,6 +382,76 @@ describe('Input Commands', () => {
 
       capture.restore();
       exitMock.restore();
+    });
+
+    it('should call handleWaitOptions after fill when wait-for is set', async () => {
+      const capture = captureConsoleOutput();
+      const context = new CDPContext();
+
+      const originalConnect = context.connect.bind(context);
+      context.connect = async (page) => {
+        const ws = await originalConnect(page) as MockWebSocket;
+        const origSend = ws.send.bind(ws);
+        ws.send = (data: string) => {
+          const msg = JSON.parse(data);
+          if (msg.method === 'Runtime.evaluate' && msg.params.expression.includes('querySelector') && msg.params.expression.includes('#filtered-list')) {
+            setTimeout(() => {
+              ws.simulateMessage({ id: msg.id, result: { result: { value: true } } });
+            }, 5);
+            ws.sentMessages.push(msg);
+            return;
+          }
+          origSend(data);
+        };
+        return ws;
+      };
+
+      await input.fill(context, 'input#search', 'cash discounting', {
+        page: 'page1',
+        waitFor: '#filtered-list'
+      });
+
+      const logs = capture.getLogs();
+      capture.restore();
+
+      const result = JSON.parse(logs[0]);
+      expect(result.success).toBe(true);
+      expect(result.data.waitedFor).toBe('#filtered-list');
+    });
+
+    it('should call handleWaitOptions after fill when wait-for-text is set', async () => {
+      const capture = captureConsoleOutput();
+      const context = new CDPContext();
+
+      const originalConnect = context.connect.bind(context);
+      context.connect = async (page) => {
+        const ws = await originalConnect(page) as MockWebSocket;
+        const origSend = ws.send.bind(ws);
+        ws.send = (data: string) => {
+          const msg = JSON.parse(data);
+          if (msg.method === 'Runtime.evaluate' && msg.params.expression.includes('innerText')) {
+            setTimeout(() => {
+              ws.simulateMessage({ id: msg.id, result: { result: { value: true } } });
+            }, 5);
+            ws.sentMessages.push(msg);
+            return;
+          }
+          origSend(data);
+        };
+        return ws;
+      };
+
+      await input.fill(context, 'input#search', 'cash discounting', {
+        page: 'page1',
+        waitForText: 'Brandy'
+      });
+
+      const logs = capture.getLogs();
+      capture.restore();
+
+      const result = JSON.parse(logs[0]);
+      expect(result.success).toBe(true);
+      expect(result.data.waitedForText).toBe('Brandy');
     });
   });
 
