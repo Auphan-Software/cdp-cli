@@ -46,12 +46,18 @@ export class DaemonClient {
       return { started: false };
     }
 
-    // Get path to daemon entry point
-    const __filename = fileURLToPath(import.meta.url);
-    const __dirname = dirname(__filename);
-    const daemonScript = join(__dirname, 'daemon-entry.js');
+    const args: string[] = [];
 
-    const args = [daemonScript];
+    // In exe mode, re-invoke self with --__daemon flag
+    // In normal mode, spawn the daemon script directly
+    if (typeof CDP_CLI_EXE_MODE !== 'undefined') {
+      args.push('--__daemon');
+    } else {
+      const __filename = fileURLToPath(import.meta.url);
+      const __dirname = dirname(__filename);
+      args.push(join(__dirname, 'daemon-entry.js'));
+    }
+
     if (options.cdpUrl) {
       args.push('--cdp-url', options.cdpUrl);
     }

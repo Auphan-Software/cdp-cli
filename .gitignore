@@ -4,3 +4,16 @@ build/
 .DS_Store
 coverage/
 .vitest
+
+# Standalone exe is ~116MB, over GitHub's 100MB file limit. It is distributed
+# via S3 (see skills/cdp-cli/INSTALL.md), not the repo. The JS bundles in
+# bundle/ stay tracked.
+bundle/cdp-cli.exe
+bundle/cdp-cli-exe.cjs
+bundle/cdp-cli-exe.mjs
+
+# bun --compile scratch files
+*.bun-build
+
+# Screenshots written by manual test runs
+bundle/*.png
