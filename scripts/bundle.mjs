@@ -13,10 +13,23 @@ const root = join(__dirname, '..');
 
 async function bundle() {
   const commonExternal = [
-    'sharp',     // native module
     'ws',        // uses dynamic require
     'undici',    // large, keep external
   ];
+
+  // pngjs is CommonJS and requires node builtins at load time. In an ESM
+  // bundle esbuild's __require shim cannot resolve those, so the output throws
+  // 'Dynamic require of "util" is not supported' on startup. Restoring a real
+  // require for the bundle fixes it.
+  // Only `require` is injected: the sources already derive their own
+  // __filename/__dirname from import.meta.url, and redeclaring them here is a
+  // syntax error in the bundled output.
+  const esmRequireBanner = {
+    js: [
+      `import { createRequire as __cdpCreateRequire } from 'node:module';`,
+      `const require = __cdpCreateRequire(import.meta.url);`
+    ].join('\n')
+  };
 
   // Bundle main CLI (ESM format, no shebang for node execution)
   await esbuild.build({
@@ -27,6 +40,7 @@ async function bundle() {
     format: 'esm',
     outfile: join(root, 'bundle/cdp-cli.mjs'),
     external: commonExternal,
+    banner: esmRequireBanner,
     minify: false,
     sourcemap: false,
   });
@@ -40,6 +54,7 @@ async function bundle() {
     format: 'esm',
     outfile: join(root, 'bundle/daemon.mjs'),
     external: commonExternal,
+    banner: esmRequireBanner,
     minify: false,
     sourcemap: false,
   });

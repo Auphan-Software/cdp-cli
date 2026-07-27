@@ -234,12 +234,20 @@ export async function resizeWindow(
       bounds
     });
 
+    // Chrome clamps to the available screen area and ignores width/height for
+    // maximized/fullscreen windows, so report what the window actually became.
+    const applied = await context.sendCommand(ws, 'Browser.getWindowForTarget', {
+      targetId: page.id
+    });
+    const actual = applied?.bounds ?? {};
+
     outputSuccess('Window resized', {
       page: page.id,
       windowId,
-      width: bounds.width,
-      height: bounds.height,
-      state: bounds.windowState
+      width: actual.width ?? bounds.width,
+      height: actual.height ?? bounds.height,
+      state: actual.windowState ?? bounds.windowState,
+      requested: { width: bounds.width, height: bounds.height, state: bounds.windowState }
     });
   } catch (error) {
     outputError(

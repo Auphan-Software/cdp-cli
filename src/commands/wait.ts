@@ -97,7 +97,7 @@ export async function waitForIdle(
     lastActivity = Date.now();
   };
 
-  ws.on('message', (data: Buffer) => {
+  const messageHandler = (data: Buffer) => {
     try {
       const msg = JSON.parse(data.toString());
       if (msg.method === 'Network.requestWillBeSent') requestHandler();
@@ -105,22 +105,30 @@ export async function waitForIdle(
     } catch {
       // Ignore parse errors
     }
-  });
+  };
 
-  while (Date.now() - start < timeout) {
-    const docReady = await context.sendCommand(ws, 'Runtime.evaluate', {
-      expression: `document.readyState === 'complete'`,
-      returnByValue: true
-    });
+  ws.on('message', messageHandler);
 
-    const isDocReady = docReady.result?.value === true;
-    const isNetworkIdle = pendingRequests === 0 && (Date.now() - lastActivity) >= idleThreshold;
+  try {
+    while (Date.now() - start < timeout) {
+      const docReady = await context.sendCommand(ws, 'Runtime.evaluate', {
+        expression: `document.readyState === 'complete'`,
+        returnByValue: true
+      });
 
-    if (isDocReady && isNetworkIdle) {
-      return;
+      const isDocReady = docReady.result?.value === true;
+      const isNetworkIdle = pendingRequests === 0 && (Date.now() - lastActivity) >= idleThreshold;
+
+      if (isDocReady && isNetworkIdle) {
+        return;
+      }
+
+      await new Promise(r => setTimeout(r, 100));
     }
-
-    await new Promise(r => setTimeout(r, 100));
+  } finally {
+    // Without this the counters keep mutating for the life of the connection,
+    // which matters on the daemon's long-lived sessions.
+    ws.off('message', messageHandler);
   }
 
   throw new Error('Timeout waiting for idle state');

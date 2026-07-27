@@ -6,7 +6,7 @@ import { CDPContext, ConsoleMessage } from '../context.js';
 import { outputLine, outputError, outputSuccess, outputRaw } from '../output.js';
 import { readFileSync, writeFileSync } from 'fs';
 import { extname } from 'node:path';
-import sharp from 'sharp';
+import { resizePngBuffer } from '../resize.js';
 import { createExecSession, createExecSessionByPageRef } from '../daemon/exec.js';
 import { DaemonClient } from '../daemon/client.js';
 import { fetch as undiciFetch } from 'undici';
@@ -353,15 +353,17 @@ export async function snapshot(
 export async function evaluate(
   context: CDPContext,
   expression: string,
-  options: { page: string; file?: string; async?: boolean; frame?: string }
+  options: { page: string; file?: string; async?: boolean; frame?: string; stdin?: boolean }
 ): Promise<void> {
   let session: Awaited<ReturnType<typeof createExecSessionByPageRef>> | undefined;
   let directWs: Awaited<ReturnType<typeof context.connect>> | undefined;
   try {
-    // Read from file if --file provided
+    // Read from file, stdin, or use expression
     let code = expression;
     if (options.file) {
       code = readFileSync(options.file, 'utf-8');
+    } else if (options.stdin) {
+      code = readFileSync(0, 'utf-8');
     }
 
     // Wrap in async IIFE if --async
@@ -453,7 +455,7 @@ export async function evaluate(
  */
 export async function screenshot(
   context: CDPContext,
-  options: { output?: string; format?: string; page: string; quality?: number; scale?: number }
+  options: { output?: string; format?: string; page: string; quality?: number; scale?: number; selector?: string }
 ): Promise<void> {
   let ws;
   try {
@@ -494,36 +496,84 @@ export async function screenshot(
       return undefined;
     })();
 
-    const format = detectedFormat ?? 'jpeg';
-
-    if (!validFormats.includes(format)) {
-      throw new Error(`Invalid format: ${format}. Must be one of: ${validFormats.join(', ')}`);
-    }
-
-    const quality = options.quality || 90;
     const scale = options.scale ?? 1;
 
     if (scale <= 0 || scale > 1) {
       throw new Error(`Invalid scale: ${scale}. Must be between 0 (exclusive) and 1 (inclusive).`);
     }
 
+    // Downscaling decodes and re-encodes as PNG, so a scaled capture has to be
+    // PNG or the resizer is handed bytes it cannot parse.
+    if (scale !== 1 && detectedFormat && detectedFormat !== 'png') {
+      throw new Error(
+        `--scale re-encodes to PNG and cannot produce ${detectedFormat}. Use --format png (and a .png output path), or drop --scale.`
+      );
+    }
+
+    const format = detectedFormat ?? (scale !== 1 ? 'png' : 'jpeg');
+
+    if (!validFormats.includes(format)) {
+      throw new Error(`Invalid format: ${format}. Must be one of: ${validFormats.join(', ')}`);
+    }
+
+    const quality = options.quality || 90;
+
     const captureParams: Record<string, any> = {
       format,
       quality: format === 'jpeg' ? quality : undefined
     };
 
+    // If --selector provided, scroll element into view and clip to its bounds
+    if (options.selector) {
+      await context.sendCommand(ws, 'Runtime.enable');
+      const boundsResult = await context.sendCommand(ws, 'Runtime.evaluate', {
+        expression: `(() => {
+          const el = document.querySelector(${JSON.stringify(options.selector)});
+          if (!el) return null;
+          el.scrollIntoView({ block: 'center', behavior: 'instant' });
+          const rect = el.getBoundingClientRect();
+          // Page.captureScreenshot clips in document coordinates, not viewport
+          // coordinates, so the scroll offset has to be added back in.
+          return {
+            x: rect.x + window.scrollX,
+            y: rect.y + window.scrollY,
+            width: rect.width,
+            height: rect.height
+          };
+        })()`,
+        returnByValue: true,
+        awaitPromise: false
+      });
+
+      const bounds = boundsResult.result?.value;
+      if (!bounds) {
+        throw new Error(`Element not found: ${options.selector}`);
+      }
+
+      if (bounds.width === 0 && bounds.height === 0) {
+        throw new Error(`Element has no visible area to capture: ${options.selector}`);
+      }
+
+      const padding = 10;
+      captureParams.clip = {
+        x: Math.max(0, bounds.x - padding),
+        y: Math.max(0, bounds.y - padding),
+        width: bounds.width + padding * 2,
+        height: bounds.height + padding * 2,
+        scale: 1
+      };
+      // Lets the clip extend past the current viewport, which it does whenever
+      // the element is taller than the window.
+      captureParams.captureBeyondViewport = true;
+    }
+
     const result = await context.sendCommand(ws, 'Page.captureScreenshot', captureParams);
 
     let buffer: Buffer = Buffer.from(result.data, 'base64');
 
-    // Resize with sharp if scale !== 1 (avoids CDP viewport side effects)
+    // Resize if scale !== 1 (avoids CDP viewport side effects)
     if (scale !== 1) {
-      const image = sharp(buffer);
-      const metadata = await image.metadata();
-      if (metadata.width && metadata.height) {
-        const newWidth = Math.round(metadata.width * scale);
-        buffer = Buffer.from(await image.resize(newWidth).toBuffer());
-      }
+      buffer = Buffer.from(await resizePngBuffer(buffer, scale));
     }
 
     if (options.output) {
@@ -658,5 +708,476 @@ export async function status(context: CDPContext): Promise<void> {
       {}
     );
     process.exit(1);
+  }
+}
+
+/**
+ * Query DOM elements and return structured data (text, html, attrs, styles)
+ */
+export async function query(
+  context: CDPContext,
+  selector: string,
+  options: {
+    page: string;
+    text?: boolean;
+    html?: boolean;
+    attrs?: boolean;
+    styles?: string;
+    all?: boolean;
+    frame?: string;
+  }
+): Promise<void> {
+  let session: Awaited<ReturnType<typeof createExecSessionByPageRef>> | undefined;
+  let directWs: Awaited<ReturnType<typeof context.connect>> | undefined;
+  try {
+    // Default to --text --attrs if no flags specified
+    const hasFlags = options.text || options.html || options.attrs || options.styles;
+    const wantText = options.text || !hasFlags;
+    const wantAttrs = options.attrs || !hasFlags;
+    const wantHtml = options.html || false;
+    const styleProps = options.styles ? options.styles.split(',').map(s => s.trim()) : [];
+
+    const jsExpression = `(() => {
+      const selector = ${JSON.stringify(selector)};
+      const all = ${options.all ? 'true' : 'false'};
+      const wantText = ${wantText};
+      const wantHtml = ${wantHtml};
+      const wantAttrs = ${wantAttrs};
+      const styleProps = ${JSON.stringify(styleProps)};
+
+      const els = all
+        ? Array.from(document.querySelectorAll(selector))
+        : (() => { const el = document.querySelector(selector); return el ? [el] : []; })();
+
+      if (els.length === 0) {
+        return [{ type: 'query', selector, exists: false }];
+      }
+
+      return els.map(el => {
+        const rect = el.getBoundingClientRect();
+        const result = {
+          type: 'query',
+          selector,
+          exists: true,
+          visible: rect.width > 0 && rect.height > 0 && getComputedStyle(el).visibility !== 'hidden'
+        };
+
+        if (wantText) {
+          result.text = (el.textContent || '').trim();
+        }
+        if (wantHtml) {
+          const html = (el.innerHTML || '').trim();
+          result.html = html.length > 2000 ? html.slice(0, 2000) + '...' : html;
+        }
+        if (wantAttrs) {
+          const attrs = {};
+          for (const attr of el.attributes) {
+            attrs[attr.name] = attr.value;
+          }
+          result.attrs = attrs;
+        }
+        if (styleProps.length > 0) {
+          const computed = getComputedStyle(el);
+          const styles = {};
+          for (const prop of styleProps) {
+            const cssProp = prop.replace(/[A-Z]/g, m => '-' + m.toLowerCase());
+            styles[prop] = computed.getPropertyValue(cssProp);
+          }
+          result.styles = styles;
+        }
+        return result;
+      });
+    })()`;
+
+    let evalResult: any;
+
+    if (options.frame) {
+      const page = await context.findPage(options.page);
+      directWs = await context.connect(page);
+      const contextId = await context.resolveFrameContext(directWs, options.frame);
+      const result = await context.sendCommand(directWs, 'Runtime.evaluate', {
+        expression: jsExpression,
+        contextId,
+        returnByValue: true
+      });
+      evalResult = result;
+    } else {
+      session = await createExecSessionByPageRef(context, options.page);
+      await session.assertNoDevTools();
+      await session.assertNoDialog();
+      await session.exec('Runtime.enable');
+      evalResult = await session.exec('Runtime.evaluate', {
+        expression: jsExpression,
+        returnByValue: true
+      });
+    }
+
+    if (evalResult.exceptionDetails) {
+      outputError(
+        evalResult.exceptionDetails.text || 'Query evaluation failed',
+        'QUERY_EXCEPTION',
+        evalResult.exceptionDetails
+      );
+      process.exit(1);
+    }
+
+    const elements = evalResult.result?.value || [];
+    for (const el of elements) {
+      outputLine(el);
+    }
+  } catch (error) {
+    outputError(
+      (error as Error).message,
+      'QUERY_FAILED',
+      { selector }
+    );
+    process.exit(1);
+  } finally {
+    session?.close();
+    directWs?.close();
+  }
+}
+
+/**
+ * Extract computed styles with optional sibling comparison
+ */
+export async function styles(
+  context: CDPContext,
+  selector: string,
+  options: {
+    page: string;
+    compareSiblings?: boolean;
+    props?: string;
+    frame?: string;
+  }
+): Promise<void> {
+  let session: Awaited<ReturnType<typeof createExecSessionByPageRef>> | undefined;
+  let directWs: Awaited<ReturnType<typeof context.connect>> | undefined;
+  try {
+    const defaultProps = ['color', 'fontSize', 'fontWeight', 'textAlign', 'margin', 'padding', 'lineHeight', 'display'];
+    const styleProps = options.props ? options.props.split(',').map(s => s.trim()) : defaultProps;
+    const compareSiblings = options.compareSiblings || false;
+
+    const jsExpression = `(() => {
+      const selector = ${JSON.stringify(selector)};
+      const props = ${JSON.stringify(styleProps)};
+      const compareSiblings = ${compareSiblings};
+
+      function extractStyles(el) {
+        const computed = getComputedStyle(el);
+        const result = {
+          tag: el.tagName,
+          class: el.className || undefined
+        };
+        for (const prop of props) {
+          const cssProp = prop.replace(/[A-Z]/g, m => '-' + m.toLowerCase());
+          result[prop] = computed.getPropertyValue(cssProp);
+        }
+        return result;
+      }
+
+      const el = document.querySelector(selector);
+      if (!el) {
+        return { type: 'styles', selector, exists: false };
+      }
+
+      const result = {
+        type: 'styles',
+        selector,
+        element: extractStyles(el)
+      };
+
+      if (compareSiblings) {
+        const parent = el.parentElement;
+        if (parent) {
+          result.parent = extractStyles(parent);
+          result.siblings = Array.from(parent.children)
+            .filter(c => c !== el && c.nodeType === 1)
+            .slice(0, 10)
+            .map(c => extractStyles(c));
+        }
+      }
+
+      return result;
+    })()`;
+
+    let evalResult: any;
+
+    if (options.frame) {
+      const page = await context.findPage(options.page);
+      directWs = await context.connect(page);
+      const contextId = await context.resolveFrameContext(directWs, options.frame);
+      const result = await context.sendCommand(directWs, 'Runtime.evaluate', {
+        expression: jsExpression,
+        contextId,
+        returnByValue: true
+      });
+      evalResult = result;
+    } else {
+      session = await createExecSessionByPageRef(context, options.page);
+      await session.assertNoDevTools();
+      await session.assertNoDialog();
+      await session.exec('Runtime.enable');
+      evalResult = await session.exec('Runtime.evaluate', {
+        expression: jsExpression,
+        returnByValue: true
+      });
+    }
+
+    if (evalResult.exceptionDetails) {
+      outputError(
+        evalResult.exceptionDetails.text || 'Styles evaluation failed',
+        'STYLES_EXCEPTION',
+        evalResult.exceptionDetails
+      );
+      process.exit(1);
+    }
+
+    outputLine(evalResult.result?.value || { type: 'styles', selector, exists: false });
+  } catch (error) {
+    outputError(
+      (error as Error).message,
+      'STYLES_FAILED',
+      { selector }
+    );
+    process.exit(1);
+  } finally {
+    session?.close();
+    directWs?.close();
+  }
+}
+
+/**
+ * Device presets for emulation
+ */
+interface DevicePreset {
+  width: number;
+  height: number;
+  scale: number;
+  mobile: boolean;
+  touch: boolean;
+  ua: string;
+}
+
+const DEVICE_PRESETS: Record<string, DevicePreset> = {
+  ipad: {
+    width: 1024,
+    height: 1366,
+    scale: 2,
+    mobile: true,
+    touch: true,
+    ua: 'Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+  },
+  iphone: {
+    width: 390,
+    height: 844,
+    scale: 3,
+    mobile: true,
+    touch: true,
+    ua: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+  },
+  desktop: {
+    width: 0,
+    height: 0,
+    scale: 0,
+    mobile: false,
+    touch: false,
+    ua: '',
+  },
+};
+
+/**
+ * Emulate a mobile device using CDP Emulation domain
+ */
+export async function emulate(
+  context: CDPContext,
+  device: string,
+  options: {
+    page: string;
+    width?: number;
+    height?: number;
+    scale?: number;
+    ua?: string;
+    touch?: boolean;
+  }
+): Promise<void> {
+  let session: Awaited<ReturnType<typeof createExecSessionByPageRef>> | undefined;
+  try {
+    // Emulation overrides are scoped to the CDP session that sets them. A
+    // short-lived direct connection loses the user-agent override the moment
+    // it closes, so prefer the daemon's long-lived session when there is one.
+    session = await createExecSessionByPageRef(context, options.page);
+
+    const isDesktop = device === 'desktop';
+
+    if (isDesktop) {
+      // Reset all overrides
+      await session.exec('Emulation.clearDeviceMetricsOverride');
+      await session.exec('Emulation.setUserAgentOverride', { userAgent: '' });
+      await session.exec('Emulation.setTouchEmulationEnabled', { enabled: false });
+
+      outputSuccess('Emulation reset to desktop', {
+        device: 'desktop',
+        persistent: session.useDaemon
+      });
+      return;
+    }
+
+    // Resolve preset or build custom
+    const preset = DEVICE_PRESETS[device];
+    if (!preset && !options.width) {
+      throw new Error(`Unknown device "${device}". Use: ipad, iphone, desktop, or provide --width/--height`);
+    }
+
+    const width = options.width ?? preset?.width ?? 1024;
+    const height = options.height ?? preset?.height ?? 768;
+    const scale = options.scale ?? preset?.scale ?? 1;
+    const mobile = preset?.mobile ?? true;
+    const touch = options.touch ?? preset?.touch ?? false;
+    const ua = options.ua ?? preset?.ua ?? '';
+
+    // Set device metrics
+    await session.exec('Emulation.setDeviceMetricsOverride', {
+      width,
+      height,
+      deviceScaleFactor: scale,
+      mobile,
+    });
+
+    // Set user agent
+    if (ua) {
+      await session.exec('Emulation.setUserAgentOverride', { userAgent: ua });
+    }
+
+    // Enable touch
+    if (touch) {
+      await session.exec('Emulation.setTouchEmulationEnabled', {
+        enabled: true,
+        maxTouchPoints: 5,
+      });
+    }
+
+    // Verify what the page actually ended up with, rather than echoing back the
+    // values we asked for.
+    const applied = await session.exec('Runtime.evaluate', {
+      expression: `JSON.stringify({ width: innerWidth, height: innerHeight, ua: navigator.userAgent })`,
+      returnByValue: true
+    });
+
+    let appliedUa: string | undefined;
+    try {
+      appliedUa = JSON.parse(applied.result?.value ?? '{}').ua;
+    } catch {
+      // Leave undefined; the warning below covers it.
+    }
+
+    const uaApplied = !ua || appliedUa === ua;
+
+    outputSuccess(`Emulating ${preset ? device : 'custom device'}`, {
+      device: preset ? device : 'custom',
+      width,
+      height,
+      scale,
+      mobile,
+      touch,
+      ua: ua || undefined,
+      uaApplied,
+      persistent: session.useDaemon,
+      ...(uaApplied
+        ? {}
+        : {
+            warning:
+              'The user-agent override did not stick. Emulation is bound to the CDP session, so start the daemon (cdp-cli daemon start) to keep it alive.'
+          })
+    });
+  } catch (error) {
+    outputError(
+      (error as Error).message,
+      'EMULATE_FAILED',
+      { device }
+    );
+    process.exit(1);
+  } finally {
+    session?.close();
+  }
+}
+
+/**
+ * Dismiss common UI overlays (toasts, notifications, modals)
+ */
+export async function dismissOverlays(
+  context: CDPContext,
+  options: { page: string; frame?: string }
+): Promise<void> {
+  let session: Awaited<ReturnType<typeof createExecSessionByPageRef>> | undefined;
+  let directWs: Awaited<ReturnType<typeof context.connect>> | undefined;
+  try {
+    const jsExpression = `(() => {
+      const selectors = [
+        'button.notify-hide',
+        '.toast-close',
+        '.notification-dismiss',
+        '[data-dismiss]',
+        '.close-btn',
+        '.modal .close',
+        'button[aria-label="Close"]',
+        'button[aria-label="Dismiss"]'
+      ];
+      const dismissed = [];
+      for (const sel of selectors) {
+        const els = document.querySelectorAll(sel);
+        for (const el of els) {
+          const rect = el.getBoundingClientRect();
+          if (rect.width === 0 && rect.height === 0) continue;
+          const text = (el.textContent || '').trim().slice(0, 40);
+          el.click();
+          dismissed.push({ selector: sel, text });
+        }
+      }
+      return { type: 'dismiss-overlays', dismissed, count: dismissed.length };
+    })()`;
+
+    let evalResult: any;
+
+    if (options.frame) {
+      const page = await context.findPage(options.page);
+      directWs = await context.connect(page);
+      const contextId = await context.resolveFrameContext(directWs, options.frame);
+      evalResult = await context.sendCommand(directWs, 'Runtime.evaluate', {
+        expression: jsExpression,
+        contextId,
+        returnByValue: true
+      });
+    } else {
+      session = await createExecSessionByPageRef(context, options.page);
+      await session.assertNoDevTools();
+      await session.assertNoDialog();
+      await session.exec('Runtime.enable');
+      evalResult = await session.exec('Runtime.evaluate', {
+        expression: jsExpression,
+        returnByValue: true
+      });
+    }
+
+    if (evalResult.exceptionDetails) {
+      outputError(
+        evalResult.exceptionDetails.text || 'Dismiss overlays failed',
+        'DISMISS_OVERLAYS_EXCEPTION',
+        evalResult.exceptionDetails
+      );
+      process.exit(1);
+    }
+
+    outputLine(evalResult.result?.value || { type: 'dismiss-overlays', dismissed: [], count: 0 });
+  } catch (error) {
+    outputError(
+      (error as Error).message,
+      'DISMISS_OVERLAYS_FAILED',
+      {}
+    );
+    process.exit(1);
+  } finally {
+    session?.close();
+    directWs?.close();
   }
 }

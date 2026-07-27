@@ -8,6 +8,11 @@ export class MockWebSocket extends EventEmitter {
   public readyState = 1; // OPEN
   public sentMessages: any[] = [];
   private autoRespond: boolean;
+  private windowBounds: Record<string, any> = {
+    windowState: 'normal',
+    width: 1280,
+    height: 720
+  };
 
   constructor(url: string, options?: { autoRespond?: boolean }) {
     super();
@@ -122,22 +127,44 @@ export class MockWebSocket extends EventEmitter {
           break;
 
         case 'Runtime.callFunctionOn':
-          result = {
-            result: {
-              value: {
-                tagName: 'button',
-                id: 'submit',
-                classes: ['btn', 'primary'],
-                text: 'Submit',
-                rect: {
-                  x: 100,
-                  y: 100,
-                  width: 100,
-                  height: 100
+          // The fill probe focuses the field and clears its value
+          if (message.params?.functionDeclaration?.includes('activeElement')) {
+            result = {
+              result: {
+                value: { tagName: 'input', cleared: '' }
+              }
+            };
+          // The click-point probe scrolls the element into view and hit-tests it
+          } else if (message.params?.functionDeclaration?.includes('elementFromPoint')) {
+            result = {
+              result: {
+                value: {
+                  rect: { x: 100, y: 100, width: 100, height: 100 },
+                  scrolled: false,
+                  inViewport: true,
+                  hitOk: true,
+                  hit: 'button#submit'
                 }
               }
-            }
-          };
+            };
+          } else {
+            result = {
+              result: {
+                value: {
+                  tagName: 'button',
+                  id: 'submit',
+                  classes: ['btn', 'primary'],
+                  text: 'Submit',
+                  rect: {
+                    x: 100,
+                    y: 100,
+                    width: 100,
+                    height: 100
+                  }
+                }
+              }
+            };
+          }
           break;
 
         case 'DOM.focus':
@@ -224,15 +251,14 @@ export class MockWebSocket extends EventEmitter {
         case 'Browser.getWindowForTarget':
           result = {
             windowId: 101,
-            bounds: {
-              windowState: 'normal',
-              width: 1280,
-              height: 720
-            }
+            bounds: { ...this.windowBounds }
           };
           break;
 
         case 'Browser.setWindowBounds':
+          // Chrome applies the bounds, so a later getWindowForTarget reflects
+          // them. Modelling that is what lets resizeWindow report reality.
+          this.windowBounds = { ...this.windowBounds, ...message.params?.bounds };
           result = {};
           break;
 

@@ -734,7 +734,15 @@ export class CDPContext {
         // frames[0] is top, frames[1] is first iframe
         const frameId = frames[index]?.id;
         if (frameId) {
-          return getContextForFrame(frameId);
+          const contextId = getContextForFrame(frameId);
+          // Returning undefined here would silently fall back to the top frame,
+          // so callers would run against the wrong document and still succeed.
+          if (contextId === undefined) {
+            throw new Error(
+              `No execution context found for frame ${index} (${frames[index]?.url ?? 'unknown url'}). The frame may still be loading.`
+            );
+          }
+          return contextId;
         }
       }
       throw new Error(`Frame index ${index} not found. Available: 0-${frames.length - 1}`);

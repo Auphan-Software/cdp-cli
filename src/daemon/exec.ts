@@ -127,13 +127,10 @@ export async function createExecSessionByPageRef(
   // Try daemon path first (single HTTP call for both lookup and session)
   try {
     const sessions = await daemon.listSessions();
-    // Try exact ID match first
-    let session = sessions.find(s => s.pageId === pageIdOrTitle && s.connected);
-
-    // If no exact match and only one session, use it
-    if (!session && sessions.length === 1 && sessions[0].connected) {
-      session = sessions[0];
-    }
+    // Exact ID match only. Falling back to "the only session" would silently
+    // run the command against a page the caller never named - including when
+    // the caller simply mistyped an id.
+    const session = sessions.find(s => s.pageId === pageIdOrTitle && s.connected);
 
     if (session) {
       const sessionPageId = session.pageId;

@@ -6,6 +6,11 @@ export default defineConfig({
     environment: 'node',
     include: ['tests/**/*.test.ts'],
     setupFiles: ['./tests/setup.ts'],
+    // Worker processes race vite-node's module invalidation: when several
+    // files import the same module right after its mtime changes, one worker
+    // can receive a still-executing (empty) namespace, which surfaces as
+    // "handleWaitOptions is not a function". Threads share one module graph.
+    pool: 'threads',
     coverage: {
       provider: 'c8',
       reporter: ['text', 'json', 'html'],

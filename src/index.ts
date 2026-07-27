@@ -500,7 +500,7 @@ cli.command(
 // Input commands
 cli.command(
   'click [selector] <page>',
-  'Click an element. Options: --text, --nth, --within, --frame, --double, --longpress, --touch',
+  'Click an element. Options: --text, --nth, --within, --frame, --double, --longpress, --touch, --force',
   (yargs) => {
     return yargs
       .positional('selector', {
@@ -579,6 +579,11 @@ cli.command(
         type: 'string',
         description: 'Target iframe by selector (e.g. "#myframe") or index (1 = first iframe)'
       })
+      .option('force', {
+        type: 'boolean',
+        description: 'Click even when another element covers the click point',
+        default: false
+      })
       .option('wait-for', {
         type: 'string',
         description: 'CSS selector to wait for after click'
@@ -640,6 +645,7 @@ cli.command(
         longpress: argv.longpress as number | undefined,
         touch: argv.touch as boolean,
         frame: argv.frame as string | undefined,
+        force: argv.force as boolean,
         waitFor: argv.waitFor as string | undefined,
         waitForText: argv.waitForText as string | undefined,
         waitForIdle: argv.waitForIdle as boolean | undefined,

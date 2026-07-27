@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { createRequire as __cdpCreateRequire } from 'node:module';
+const require = __cdpCreateRequire(import.meta.url);
 
 // build/daemon/daemon.js
 import { createServer } from "http";
@@ -540,6 +542,105 @@ Use 'cdp-cli list-pages' to see all pages.`;
     });
   }
   /**
+   * Check if a JavaScript dialog (alert/confirm/prompt) is currently open
+   * Uses multiple strategies since dialog events only fire at open time
+   */
+  async checkForDialog(ws) {
+    const eventBasedCheck = new Promise((resolve) => {
+      let dialogInfo = null;
+      let resolved = false;
+      const messageHandler = (data) => {
+        const message = JSON.parse(data.toString());
+        if (message.method === "Page.javascriptDialogOpening") {
+          dialogInfo = {
+            type: message.params.type,
+            message: message.params.message,
+            url: message.params.url,
+            defaultPrompt: message.params.defaultPrompt
+          };
+          if (!resolved) {
+            resolved = true;
+            ws.off("message", messageHandler);
+            resolve(dialogInfo);
+          }
+        }
+      };
+      ws.on("message", messageHandler);
+      const enableTimeout = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          ws.off("message", messageHandler);
+          resolve(dialogInfo);
+        }
+      }, 300);
+      this.sendCommand(ws, "Page.enable", {}).then(() => {
+        clearTimeout(enableTimeout);
+        setTimeout(() => {
+          if (!resolved) {
+            resolved = true;
+            ws.off("message", messageHandler);
+            resolve(dialogInfo);
+          }
+        }, 50);
+      }).catch(() => {
+        clearTimeout(enableTimeout);
+        if (!resolved) {
+          resolved = true;
+          ws.off("message", messageHandler);
+          resolve(dialogInfo);
+        }
+      });
+    });
+    const result = await eventBasedCheck;
+    if (result)
+      return result;
+    try {
+      const evalPromise = this.sendCommand(ws, "Runtime.evaluate", {
+        expression: "1",
+        timeout: 200
+      });
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 300));
+      await Promise.race([evalPromise, timeoutPromise]);
+      return null;
+    } catch {
+      return {
+        type: "alert",
+        message: "(dialog blocking page - dismiss manually or restart page)",
+        url: "",
+        defaultPrompt: void 0
+      };
+    }
+  }
+  /**
+   * Dismiss or accept a JavaScript dialog
+   */
+  async handleDialog(ws, accept, promptText) {
+    try {
+      await Promise.race([
+        this.sendCommand(ws, "Page.enable", {}),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 500))
+      ]);
+    } catch {
+    }
+    await this.sendCommand(ws, "Page.handleJavaScriptDialog", {
+      accept,
+      promptText
+    });
+  }
+  /**
+   * Assert no dialog is open, throw descriptive error if one is
+   */
+  async assertNoDialog(ws) {
+    const dialog = await this.checkForDialog(ws);
+    if (dialog) {
+      const typeLabel = dialog.type.charAt(0).toUpperCase() + dialog.type.slice(1);
+      const canDismiss = !dialog.message.includes("dismiss manually");
+      const hint = canDismiss ? `Use 'cdp-cli dialog <page> --dismiss' to dismiss it, or '--accept' to accept.` : `Dismiss the dialog manually in the browser, or close and reopen the page.`;
+      throw new Error(`${typeLabel} dialog is blocking the page: "${dialog.message}"
+${hint}`);
+    }
+  }
+  /**
    * Setup console message collection
    */
   setupConsoleCollection(ws, onMessage) {
@@ -693,6 +794,135 @@ Use 'cdp-cli list-pages' to see all pages.`;
       throw new Error(`Failed to create page: ${response.statusText}`);
     }
     return await response.json();
+  }
+  /**
+   * Get frame tree for a page
+   */
+  async getFrameTree(ws) {
+    await this.sendCommand(ws, "Page.enable");
+    const result = await this.sendCommand(ws, "Page.getFrameTree");
+    const frames = [];
+    const collectFrames = (node, parentId) => {
+      const frame = node.frame;
+      frames.push({
+        id: frame.id,
+        parentId,
+        url: frame.url,
+        name: frame.name || void 0,
+        securityOrigin: frame.securityOrigin
+      });
+      if (node.childFrames) {
+        for (const child of node.childFrames) {
+          collectFrames(child, frame.id);
+        }
+      }
+    };
+    collectFrames(result.frameTree);
+    return frames;
+  }
+  /**
+   * Get execution contexts (one per frame)
+   */
+  async getExecutionContexts(ws) {
+    const contexts = [];
+    return new Promise((resolve) => {
+      const messageHandler = (data) => {
+        const message = JSON.parse(data.toString());
+        if (message.method === "Runtime.executionContextCreated") {
+          const ctx = message.params.context;
+          contexts.push({
+            id: ctx.id,
+            frameId: ctx.auxData?.frameId || "",
+            origin: ctx.origin,
+            name: ctx.name
+          });
+        }
+      };
+      ws.on("message", messageHandler);
+      this.sendCommand(ws, "Runtime.disable").then(() => this.sendCommand(ws, "Runtime.enable")).then(() => {
+        setTimeout(() => {
+          ws.off("message", messageHandler);
+          resolve(contexts);
+        }, 100);
+      });
+    });
+  }
+  /**
+   * Resolve frame specification to execution context ID
+   * @param ws WebSocket connection
+   * @param frameSpec Frame specification: selector (e.g. "#iframe"), index (e.g. "1"), or "auto"
+   * @returns contextId for Runtime.evaluate, or undefined for top frame
+   */
+  async resolveFrameContext(ws, frameSpec) {
+    if (!frameSpec || frameSpec === "0") {
+      return void 0;
+    }
+    const frames = await this.getFrameTree(ws);
+    const contexts = await this.getExecutionContexts(ws);
+    const getContextForFrame = (frameId) => {
+      const ctx = contexts.find((c) => c.frameId === frameId);
+      return ctx?.id;
+    };
+    if (/^\d+$/.test(frameSpec)) {
+      const index = parseInt(frameSpec, 10);
+      if (index === 0)
+        return void 0;
+      if (index > 0 && index <= frames.length - 1) {
+        const frameId = frames[index]?.id;
+        if (frameId) {
+          const contextId2 = getContextForFrame(frameId);
+          if (contextId2 === void 0) {
+            throw new Error(`No execution context found for frame ${index} (${frames[index]?.url ?? "unknown url"}). The frame may still be loading.`);
+          }
+          return contextId2;
+        }
+      }
+      throw new Error(`Frame index ${index} not found. Available: 0-${frames.length - 1}`);
+    }
+    await this.sendCommand(ws, "Runtime.enable");
+    const iframeInfo = await this.sendCommand(ws, "Runtime.evaluate", {
+      expression: `(() => {
+        const iframe = document.querySelector(${JSON.stringify(frameSpec)});
+        if (!iframe || iframe.tagName !== 'IFRAME') return null;
+        return {
+          src: iframe.src,
+          name: iframe.name || iframe.id || '',
+          contentWindow: !!iframe.contentWindow
+        };
+      })()`,
+      returnByValue: true
+    });
+    if (!iframeInfo.result?.value) {
+      throw new Error(`No iframe found matching selector: ${frameSpec}`);
+    }
+    const { src, name } = iframeInfo.result.value;
+    const matchingFrame = frames.find((f) => f.parentId && // Must be a child frame
+    (f.url === src || f.name === name || name && f.url.includes(name)));
+    if (!matchingFrame) {
+      const availableFrames = frames.filter((f) => f.parentId).map((f, i) => `  ${i + 1}. ${f.name || "(unnamed)"} - ${f.url}`).join("\n");
+      throw new Error(`Could not find frame context for: ${frameSpec}
+
+Available frames:
+${availableFrames}`);
+    }
+    const contextId = getContextForFrame(matchingFrame.id);
+    if (!contextId) {
+      throw new Error(`No execution context found for frame: ${matchingFrame.url}`);
+    }
+    return contextId;
+  }
+  /**
+   * Evaluate expression in a specific frame
+   */
+  async evaluateInFrame(ws, expression, frameSpec, options = {}) {
+    const contextId = await this.resolveFrameContext(ws, frameSpec);
+    await this.sendCommand(ws, "Runtime.enable");
+    return this.sendCommand(ws, "Runtime.evaluate", {
+      expression,
+      contextId,
+      returnByValue: options.returnByValue ?? true,
+      awaitPromise: options.awaitPromise ?? false
+    });
   }
 };
 

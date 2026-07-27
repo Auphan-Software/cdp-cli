@@ -4,6 +4,7 @@
 
 import { CDPContext, type Page } from '../context.js';
 import { outputError, outputSuccess } from '../output.js';
+import { describeChar, describeKey, type KeyDescriptor } from '../keys.js';
 import { handleWaitOptions, type WaitOptions } from './wait.js';
 
 type TextMatchMode = 'exact' | 'contains' | 'regex';
@@ -52,7 +53,20 @@ interface ElementMetadata {
 
 interface ElementMatch {
   nodeId: number;
+  /** Retained remote handle, used to scroll and hit-test the element. */
+  objectId?: string;
   metadata: ElementMetadata;
+}
+
+/**
+ * Result of scrolling an element into view and hit-testing its center.
+ */
+interface ClickPoint {
+  rect: ElementMetadata['rect'];
+  scrolled: boolean;
+  inViewport: boolean;
+  hitOk: boolean;
+  hit: string | null;
 }
 
 class ClickError extends Error {
@@ -162,6 +176,36 @@ function delay(ms: number): Promise<void> {
   });
 }
 
+/**
+ * Dispatch a full keyDown/keyUp pair for one key.
+ */
+async function dispatchKey(
+  context: CDPContext,
+  ws: any,
+  descriptor: KeyDescriptor
+): Promise<void> {
+  const base = {
+    key: descriptor.key,
+    code: descriptor.code,
+    windowsVirtualKeyCode: descriptor.keyCode,
+    nativeVirtualKeyCode: descriptor.keyCode
+  };
+
+  await context.sendCommand(ws, 'Input.dispatchKeyEvent', {
+    ...base,
+    // keyDown carries the inserted text; a bare rawKeyDown would type nothing.
+    type: descriptor.text ? 'keyDown' : 'rawKeyDown',
+    ...(descriptor.text
+      ? { text: descriptor.text, unmodifiedText: descriptor.text }
+      : {})
+  });
+
+  await context.sendCommand(ws, 'Input.dispatchKeyEvent', {
+    ...base,
+    type: 'keyUp'
+  });
+}
+
 async function safeReleaseObject(
   context: CDPContext,
   ws: any,
@@ -180,7 +224,8 @@ async function safeReleaseObject(
 async function getElementMetadataFromObjectId(
   context: CDPContext,
   ws: any,
-  objectId: string
+  objectId: string,
+  release: boolean = true
 ): Promise<ElementMetadata> {
   try {
     const callResult = await context.sendCommand(ws, 'Runtime.callFunctionOn', {
@@ -208,15 +253,192 @@ async function getElementMetadataFromObjectId(
     });
     return normalizeMetadata(callResult.result?.value);
   } finally {
-    await safeReleaseObject(context, ws, objectId);
+    if (release) {
+      await safeReleaseObject(context, ws, objectId);
+    }
   }
+}
+
+/**
+ * Scroll the element into view when needed, then re-measure and hit-test it.
+ *
+ * CDP input coordinates are viewport-relative, so an element sitting below the
+ * fold must be scrolled in first or the events land on empty space. The hit
+ * test then confirms the click point actually reaches the element rather than
+ * an overlay stacked on top of it.
+ */
+async function getClickPoint(
+  context: CDPContext,
+  ws: any,
+  objectId: string,
+  priorRect: ElementMetadata['rect'],
+  scroll: boolean = true
+): Promise<ClickPoint> {
+  // DOM.scrollIntoViewIfNeeded accounts for clipping scroll containers, which
+  // a viewport-only visibility test cannot: an element scrolled out of an
+  // inner overflow box still reports an on-screen bounding rect.
+  let scrollError: string | undefined;
+  if (scroll) {
+    try {
+      await context.sendCommand(ws, 'DOM.scrollIntoViewIfNeeded', { objectId });
+    } catch (error) {
+      scrollError = (error as Error).message;
+    }
+  }
+
+  const callResult = await context.sendCommand(ws, 'Runtime.callFunctionOn', {
+    objectId,
+    functionDeclaration: `
+      function() {
+        const el = this;
+        if (!el.isConnected) {
+          return { detached: true };
+        }
+
+        const rect = el.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        const inViewport =
+          cx >= 0 && cy >= 0 && cx <= window.innerWidth && cy <= window.innerHeight;
+
+        let hit = inViewport ? document.elementFromPoint(cx, cy) : null;
+        while (hit && hit.shadowRoot) {
+          const deeper = hit.shadowRoot.elementFromPoint(cx, cy);
+          if (!deeper || deeper === hit) break;
+          hit = deeper;
+        }
+
+        // The click counts as landing on the target if the hit node is the
+        // element itself or anything nested inside it.
+        let node = hit;
+        let hitOk = false;
+        while (node) {
+          if (node === el) {
+            hitOk = true;
+            break;
+          }
+          const root = node.getRootNode();
+          node = node.parentElement ||
+            (root && root.host ? root.host : null);
+        }
+
+        const describe = (n) => {
+          if (!n) return null;
+          let out = (n.tagName || '').toLowerCase();
+          if (n.id) out += '#' + n.id;
+          if (n.classList && n.classList.length) {
+            out += '.' + Array.from(n.classList).join('.');
+          }
+          return out;
+        };
+
+        return {
+          rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+          inViewport,
+          hitOk,
+          hit: describe(hit)
+        };
+      }
+    `,
+    returnByValue: true
+  });
+
+  const value = callResult.result?.value;
+
+  if (!value) {
+    throw new ClickError(
+      'Could not measure the element before clicking',
+      'CLICK_MEASURE_FAILED',
+      {}
+    );
+  }
+
+  if (value.detached) {
+    throw new ClickError(
+      'Element was removed from the document before the click',
+      'CLICK_DETACHED',
+      {}
+    );
+  }
+
+  const rect = normalizeMetadata({ rect: value.rect }).rect;
+
+  if (scrollError && !value.hitOk) {
+    throw new ClickError(
+      `Element could not be scrolled into view: ${scrollError}`,
+      'CLICK_OFFSCREEN',
+      { rect: roundRect(rect) }
+    );
+  }
+
+  return {
+    rect,
+    scrolled: rect.x !== priorRect.x || rect.y !== priorRect.y,
+    inViewport: Boolean(value.inViewport),
+    hitOk: Boolean(value.hitOk),
+    hit: typeof value.hit === 'string' ? value.hit : null
+  };
+}
+
+/**
+ * Turn a remote array of elements into matches, retaining each element handle.
+ */
+async function matchesFromArrayHandle(
+  context: CDPContext,
+  ws: any,
+  arrayObjectId: string
+): Promise<ElementMatch[]> {
+  const matches: ElementMatch[] = [];
+
+  try {
+    const props = await context.sendCommand(ws, 'Runtime.getProperties', {
+      objectId: arrayObjectId,
+      ownProperties: true
+    });
+
+    for (const descriptor of props.result ?? []) {
+      if (!/^\d+$/.test(descriptor.name)) {
+        continue;
+      }
+
+      const objectId = descriptor.value?.objectId;
+      if (!objectId) {
+        continue;
+      }
+
+      let nodeId = -1;
+      try {
+        const requested = await context.sendCommand(ws, 'DOM.requestNode', {
+          objectId
+        });
+        if (typeof requested?.nodeId === 'number') {
+          nodeId = requested.nodeId;
+        }
+      } catch {
+        // Elements inside frames may not map to a nodeId; coordinates still work.
+      }
+
+      const metadata = await getElementMetadataFromObjectId(
+        context,
+        ws,
+        objectId,
+        false
+      );
+
+      matches.push({ nodeId, objectId, metadata });
+    }
+  } finally {
+    await safeReleaseObject(context, ws, arrayObjectId);
+  }
+
+  return matches;
 }
 
 async function getElementMetadataForNode(
   context: CDPContext,
   ws: any,
   nodeId: number
-): Promise<ElementMetadata> {
+): Promise<{ metadata: ElementMetadata; objectId?: string }> {
   const resolved = await context.sendCommand(ws, 'DOM.resolveNode', { nodeId });
   const objectId = resolved.object?.objectId;
 
@@ -234,25 +456,30 @@ async function getElementMetadataForNode(
       attrMap[attributes[i]] = attributes[i + 1];
     }
 
-    return normalizeMetadata({
-      tagName: typeof described.node?.nodeName === 'string'
-        ? described.node.nodeName.toLowerCase()
-        : '',
-      id: attrMap.id ?? null,
-      classes: (attrMap.class || '')
-        .split(/\s+/)
-        .filter(Boolean),
-      text: '',
-      rect: {
-        x: 0,
-        y: 0,
-        width: 0,
-        height: 0
-      }
-    });
+    return {
+      metadata: normalizeMetadata({
+        tagName: typeof described.node?.nodeName === 'string'
+          ? described.node.nodeName.toLowerCase()
+          : '',
+        id: attrMap.id ?? null,
+        classes: (attrMap.class || '')
+          .split(/\s+/)
+          .filter(Boolean),
+        text: '',
+        rect: {
+          x: 0,
+          y: 0,
+          width: 0,
+          height: 0
+        }
+      })
+    };
   }
 
-  return getElementMetadataFromObjectId(context, ws, objectId);
+  return {
+    metadata: await getElementMetadataFromObjectId(context, ws, objectId, false),
+    objectId
+  };
 }
 
 async function resolveBySelector(
@@ -289,8 +516,8 @@ async function resolveBySelector(
   const matches: ElementMatch[] = [];
 
   for (const nodeId of nodeIds) {
-    const metadata = await getElementMetadataForNode(context, ws, nodeId);
-    matches.push({ nodeId, metadata });
+    const { metadata, objectId } = await getElementMetadataForNode(context, ws, nodeId);
+    matches.push({ nodeId, objectId, metadata });
   }
 
   return matches;
@@ -505,51 +732,7 @@ async function resolveByText(
     return [];
   }
 
-  const matches: ElementMatch[] = [];
-
-  try {
-    const matchesProps = await context.sendCommand(
-      ws,
-      'Runtime.getProperties',
-      {
-        objectId: matchesObjectId,
-        ownProperties: true
-      }
-    );
-
-    for (const descriptor of matchesProps.result ?? []) {
-      if (!/^\d+$/.test(descriptor.name)) {
-        continue;
-      }
-      const remote = descriptor.value;
-      if (!remote?.objectId) {
-        continue;
-      }
-
-      const objId = remote.objectId;
-      const requested = await context.sendCommand(ws, 'DOM.requestNode', {
-        objectId: objId
-      });
-
-      if (typeof requested?.nodeId !== 'number') {
-        await safeReleaseObject(context, ws, objId);
-        continue;
-      }
-
-      const metadata = await getElementMetadataFromObjectId(
-        context,
-        ws,
-        objId
-      );
-
-      matches.push({
-        nodeId: requested.nodeId,
-        metadata
-      });
-    }
-  } finally {
-    await safeReleaseObject(context, ws, matchesObjectId);
-  }
+  const matches = await matchesFromArrayHandle(context, ws, matchesObjectId);
 
   const unique: ElementMatch[] = [];
   const seenKeys = new Set<string>();
@@ -607,7 +790,14 @@ async function getIframeRect(
     expression: `(() => {
       const iframe = document.querySelector(${JSON.stringify(frameSpec)});
       if (!iframe || iframe.tagName !== 'IFRAME') return null;
-      const rect = iframe.getBoundingClientRect();
+      let rect = iframe.getBoundingClientRect();
+      // Frame-local coordinates are offset by this rect, so the iframe itself
+      // has to be on screen before anything inside it can be clicked.
+      if (rect.top < 0 || rect.left < 0 ||
+          rect.bottom > window.innerHeight || rect.right > window.innerWidth) {
+        iframe.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
+        rect = iframe.getBoundingClientRect();
+      }
       return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
     })()`,
     returnByValue: true
@@ -642,17 +832,7 @@ async function resolveClickCandidatesInFrame(
         if (!container) return [];
         root = container;
       }
-      const elements = root.querySelectorAll(${selectorJson});
-      return Array.from(elements).map(el => {
-        const rect = el.getBoundingClientRect();
-        return {
-          tagName: (el.tagName || '').toLowerCase(),
-          id: el.id || null,
-          classes: el.classList ? Array.from(el.classList) : [],
-          text: (el.innerText || '').trim().slice(0, 100),
-          rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height }
-        };
-      });
+      return Array.from(root.querySelectorAll(${selectorJson}));
     })()`;
   } else if (target.text) {
     const textJson = JSON.stringify(target.text);
@@ -701,14 +881,7 @@ async function resolveClickCandidatesInFrame(
 
         if (matched) {
           seen.add(el);
-          const rect = el.getBoundingClientRect();
-          results.push({
-            tagName: (el.tagName || '').toLowerCase(),
-            id: el.id || null,
-            classes: el.classList ? Array.from(el.classList) : [],
-            text: elText.slice(0, 100),
-            rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height }
-          });
+          results.push(el);
         }
       }
       return results;
@@ -720,14 +893,15 @@ async function resolveClickCandidatesInFrame(
   const result = await context.sendCommand(ws, 'Runtime.evaluate', {
     expression: searchExpr,
     contextId,
-    returnByValue: true
+    returnByValue: false
   });
 
-  const elements = result.result?.value || [];
-  return elements.map((el: any, idx: number) => ({
-    nodeId: idx, // Placeholder - we don't have nodeId in frame context
-    metadata: normalizeMetadata(el)
-  }));
+  const arrayObjectId = result.result?.objectId;
+  if (!arrayObjectId) {
+    return [];
+  }
+
+  return matchesFromArrayHandle(context, ws, arrayObjectId);
 }
 
 /**
@@ -736,7 +910,7 @@ async function resolveClickCandidatesInFrame(
 export async function click(
   context: CDPContext,
   targetInput: ClickTargetInput | string,
-  optionsInput: { page: string; double?: boolean; longpress?: number; touch?: boolean; frame?: string } & WaitOptions
+  optionsInput: { page: string; double?: boolean; longpress?: number; touch?: boolean; frame?: string; force?: boolean } & WaitOptions
 ): Promise<void> {
   let ws;
   const target: ClickTargetInput =
@@ -874,7 +1048,7 @@ export async function click(
     }
 
     const chosen = matches[selectedIndex];
-    const rect = chosen.metadata.rect;
+    let rect = chosen.metadata.rect;
 
     if (!Number.isFinite(rect.x) || !Number.isFinite(rect.y)) {
       throw new ClickError(
@@ -890,10 +1064,7 @@ export async function click(
       );
     }
 
-    const width = Number.isFinite(rect.width) ? rect.width : 0;
-    const height = Number.isFinite(rect.height) ? rect.height : 0;
-
-    if (width === 0 && height === 0) {
+    if (rect.width === 0 && rect.height === 0) {
       throw new ClickError(
         'Matched element has no visible area to click',
         'CLICK_NO_HITBOX',
@@ -906,6 +1077,48 @@ export async function click(
         }
       );
     }
+
+    // Input events use viewport coordinates, so the element has to be scrolled
+    // in and unobstructed before the rect means anything.
+    let scrolled = false;
+    let occludedBy: string | null = null;
+
+    if (chosen.objectId) {
+      const point = await getClickPoint(context, ws, chosen.objectId, rect);
+      rect = point.rect;
+      scrolled = point.scrolled;
+      occludedBy = point.hitOk ? null : point.hit;
+
+      if (!point.inViewport) {
+        throw new ClickError(
+          'Element could not be scrolled into the viewport',
+          'CLICK_OFFSCREEN',
+          {
+            selector: target.selector,
+            text: target.text,
+            frame: options.frame,
+            rect: roundRect(rect)
+          }
+        );
+      }
+
+      if (!point.hitOk && !options.force) {
+        throw new ClickError(
+          `Click point is covered by ${point.hit ?? 'another element'}; the click would not reach the target. Use --force to click anyway.`,
+          'CLICK_OCCLUDED',
+          {
+            selector: target.selector,
+            text: target.text,
+            frame: options.frame,
+            occludedBy: point.hit,
+            rect: roundRect(rect)
+          }
+        );
+      }
+    }
+
+    const width = rect.width;
+    const height = rect.height;
 
     // Add frame offset for elements inside iframes
     const x = frameOffsetX + rect.x + width / 2;
@@ -1009,6 +1222,8 @@ export async function click(
       double: options.double || false,
       longpress: longpressSeconds,
       touch: options.touch || false,
+      scrolled,
+      occludedBy,
       ...(options.waitFor && { waitedFor: options.waitFor }),
       ...(options.waitForText && { waitedForText: options.waitForText }),
       ...(options.waitForIdle && { waitedForIdle: true }),
@@ -1038,6 +1253,87 @@ export async function click(
 }
 
 /**
+ * Focus a field through its remote handle and clear its current value.
+ *
+ * Clearing has to go through the value *property*: DOM.setAttributeValue only
+ * writes the `value` content attribute, which for an input is just the default
+ * value. Once the field is dirty (typed into, or assigned by script) the
+ * attribute is ignored, so the old text survives and typing appends to it.
+ */
+async function focusAndClearField(
+  context: CDPContext,
+  ws: any,
+  objectId: string,
+  selector: string
+): Promise<{ tagName: string; cleared: string }> {
+  try {
+    await context.sendCommand(ws, 'DOM.scrollIntoViewIfNeeded', { objectId });
+  } catch {
+    // A field can still be focused and typed into without being on screen.
+  }
+
+  const callResult = await context.sendCommand(ws, 'Runtime.callFunctionOn', {
+    objectId,
+    functionDeclaration: `
+      function() {
+        const el = this;
+        if (!el.isConnected) {
+          return { error: 'Element was removed from the document' };
+        }
+
+        const tagName = (el.tagName || '').toLowerCase();
+        const editable = el.isContentEditable === true;
+        const isField = tagName === 'input' || tagName === 'textarea';
+
+        if (tagName === 'select') {
+          return { error: 'Cannot type into a <select>; click the option instead' };
+        }
+        if (!isField && !editable) {
+          return { error: 'Element is not a text field (<' + tagName + '>)' };
+        }
+        if (el.disabled === true) {
+          return { error: 'Field is disabled' };
+        }
+        if (el.readOnly === true) {
+          return { error: 'Field is read-only' };
+        }
+
+        el.focus();
+        if (document.activeElement !== el) {
+          return { error: 'Field could not be focused' };
+        }
+
+        const cleared = editable ? (el.textContent || '') : (el.value || '');
+        if (editable) {
+          el.textContent = '';
+        } else {
+          el.value = '';
+        }
+        // Let frameworks observe the clear before the keystrokes arrive.
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+
+        return { tagName, cleared };
+      }
+    `,
+    returnByValue: true
+  });
+
+  const value = callResult.result?.value;
+
+  if (!value) {
+    throw new Error(`Could not prepare field for typing: ${selector}`);
+  }
+  if (value.error) {
+    throw new Error(`${value.error}: ${selector}`);
+  }
+
+  return {
+    tagName: typeof value.tagName === 'string' ? value.tagName : '',
+    cleared: typeof value.cleared === 'string' ? value.cleared : ''
+  };
+}
+
+/**
  * Fill an input element
  */
 export async function fill(
@@ -1058,141 +1354,91 @@ export async function fill(
     await context.sendCommand(ws, 'DOM.enable');
     await context.sendCommand(ws, 'Runtime.enable');
 
+    let matches: ElementMatch[];
     if (options.frame) {
-      // Frame targeting: use click to focus then type
-      const iframeRect = await getIframeRect(context, ws, options.frame);
       const contextId = await context.resolveFrameContext(ws, options.frame);
-
       if (contextId === undefined) {
         throw new Error(`Could not resolve frame context: ${options.frame}`);
       }
-
-      // Find element in frame
-      const matches = await resolveClickCandidatesInFrame(
-        context, ws,
+      matches = await resolveClickCandidatesInFrame(
+        context,
+        ws,
         { selector, within: options.within },
         contextId
       );
-
-      if (matches.length === 0) {
-        throw new Error(`Element not found in frame: ${selector}`);
-      }
-
-      let selectedIndex = 0;
-      if (typeof options.nth === 'number') {
-        if (options.nth < 1 || options.nth > matches.length) {
-          throw new Error(`--nth ${options.nth} is out of range (1-${matches.length})`);
-        }
-        selectedIndex = options.nth - 1;
-      } else if (matches.length > 1) {
-        throw new Error(`Multiple elements matched. Use --nth to choose one.`);
-      }
-
-      const rect = matches[selectedIndex].metadata.rect;
-      const x = iframeRect.x + rect.x + rect.width / 2;
-      const y = iframeRect.y + rect.y + rect.height / 2;
-
-      // Click to focus
-      await context.sendCommand(ws, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
-      await context.sendCommand(ws, 'Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', clickCount: 1 });
-      await context.sendCommand(ws, 'Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 });
-
-      // Clear and type via frame context
-      await context.sendCommand(ws, 'Runtime.evaluate', {
-        expression: `document.querySelector(${JSON.stringify(selector)}).value = ''`,
-        contextId
-      });
-
-      // Type the value
-      for (const char of value) {
-        await context.sendCommand(ws, 'Input.dispatchKeyEvent', { type: 'keyDown', text: char });
-        await context.sendCommand(ws, 'Input.dispatchKeyEvent', { type: 'keyUp', text: char });
-      }
-
-      // Handle post-action wait conditions
-      await handleWaitOptions(context, ws, {
-        waitFor: options.waitFor,
-        waitForText: options.waitForText,
-        waitForIdle: options.waitForIdle,
-        waitForFrame: options.waitForFrame,
-        timeout: options.timeout
-      });
-
-      outputSuccess('Fill performed', {
-        selector,
-        value,
-        within: options.within ?? null,
-        frame: options.frame,
-        ...(options.waitFor && { waitedFor: options.waitFor }),
-        ...(options.waitForText && { waitedForText: options.waitForText }),
-        ...(options.waitForIdle && { waitedForIdle: true }),
-        ...(options.waitForFrame && { waitedInFrame: options.waitForFrame })
-      });
     } else {
-      // Standard path - no frame
-      const matches = await resolveBySelector(context, ws, selector, options.within);
+      matches = await resolveBySelector(context, ws, selector, options.within);
+    }
 
-      if (matches.length === 0) {
-        throw new Error(`Element not found: ${selector}`);
-      }
+    if (matches.length === 0) {
+      throw new Error(
+        options.frame
+          ? `Element not found in frame: ${selector}`
+          : `Element not found: ${selector}`
+      );
+    }
 
-      let selectedIndex = 0;
-      if (typeof options.nth === 'number') {
-        if (options.nth < 1 || options.nth > matches.length) {
-          throw new Error(
-            `--nth ${options.nth} is out of range (1-${matches.length})\n${summarizeMatches(matches).join('\n')}`
-          );
-        }
-        selectedIndex = options.nth - 1;
-      } else if (matches.length > 1) {
+    let selectedIndex = 0;
+    if (typeof options.nth === 'number') {
+      if (options.nth < 1 || options.nth > matches.length) {
         throw new Error(
-          `Multiple elements matched. Use --nth to choose one.\n${summarizeMatches(matches).join('\n')}`
+          `--nth ${options.nth} is out of range (1-${matches.length})\n${summarizeMatches(matches).join('\n')}`
         );
       }
-
-      const { nodeId } = matches[selectedIndex];
-      await context.sendCommand(ws, 'DOM.focus', { nodeId });
-
-      // Clear existing value using DOM API (safe from code injection)
-      await context.sendCommand(ws, 'DOM.setAttributeValue', {
-        nodeId,
-        name: 'value',
-        value: ''
-      });
-
-      // Type the value
-      for (const char of value) {
-        await context.sendCommand(ws, 'Input.dispatchKeyEvent', {
-          type: 'keyDown',
-          text: char
-        });
-
-        await context.sendCommand(ws, 'Input.dispatchKeyEvent', {
-          type: 'keyUp',
-          text: char
-        });
-      }
-
-      // Handle post-action wait conditions
-      await handleWaitOptions(context, ws, {
-        waitFor: options.waitFor,
-        waitForText: options.waitForText,
-        waitForIdle: options.waitForIdle,
-        waitForFrame: options.waitForFrame,
-        timeout: options.timeout
-      });
-
-      outputSuccess('Fill performed', {
-        selector,
-        value,
-        within: options.within ?? null,
-        frame: null,
-        ...(options.waitFor && { waitedFor: options.waitFor }),
-        ...(options.waitForText && { waitedForText: options.waitForText }),
-        ...(options.waitForIdle && { waitedForIdle: true }),
-        ...(options.waitForFrame && { waitedInFrame: options.waitForFrame })
-      });
+      selectedIndex = options.nth - 1;
+    } else if (matches.length > 1) {
+      throw new Error(
+        `Multiple elements matched. Use --nth to choose one.\n${summarizeMatches(matches).join('\n')}`
+      );
     }
+
+    const chosen = matches[selectedIndex];
+    if (!chosen.objectId) {
+      throw new Error(`Could not resolve an element handle for: ${selector}`);
+    }
+
+    // Focus and clear through the chosen handle. Targeting the handle (rather
+    // than re-querying the selector) is what makes --nth and --within apply to
+    // the same element that was matched.
+    const field = await focusAndClearField(context, ws, chosen.objectId, selector);
+
+    for (const char of value) {
+      await dispatchKey(context, ws, describeChar(char));
+    }
+
+    // Typing emits `input` per keystroke; `change` normally waits for blur, so
+    // emit it here to match what a completed edit looks like to the page.
+    await context.sendCommand(ws, 'Runtime.callFunctionOn', {
+      objectId: chosen.objectId,
+      functionDeclaration: `
+        function() {
+          this.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      `,
+      returnByValue: true
+    });
+
+    // Handle post-action wait conditions
+    await handleWaitOptions(context, ws, {
+      waitFor: options.waitFor,
+      waitForText: options.waitForText,
+      waitForIdle: options.waitForIdle,
+      waitForFrame: options.waitForFrame,
+      timeout: options.timeout
+    });
+
+    outputSuccess('Fill performed', {
+      selector,
+      value,
+      within: options.within ?? null,
+      frame: options.frame ?? null,
+      tagName: field.tagName,
+      replaced: field.cleared,
+      ...(options.waitFor && { waitedFor: options.waitFor }),
+      ...(options.waitForText && { waitedForText: options.waitForText }),
+      ...(options.waitForIdle && { waitedForIdle: true }),
+      ...(options.waitForFrame && { waitedInFrame: options.waitForFrame })
+    });
   } catch (error) {
     outputError(
       (error as Error).message,
@@ -1224,34 +1470,13 @@ export async function pressKey(
     ws = await context.connect(page);
     await context.assertNoDialog(ws);
 
-    // Map common key names
-    const keyMap: Record<string, string> = {
-      'enter': 'Enter',
-      'tab': 'Tab',
-      'escape': 'Escape',
-      'backspace': 'Backspace',
-      'delete': 'Delete',
-      'arrowup': 'ArrowUp',
-      'arrowdown': 'ArrowDown',
-      'arrowleft': 'ArrowLeft',
-      'arrowright': 'ArrowRight',
-      'space': ' '
-    };
-
-    const keyValue = keyMap[key.toLowerCase()] || key;
-
-    await context.sendCommand(ws, 'Input.dispatchKeyEvent', {
-      type: 'keyDown',
-      key: keyValue
-    });
-
-    await context.sendCommand(ws, 'Input.dispatchKeyEvent', {
-      type: 'keyUp',
-      key: keyValue
-    });
+    const descriptor = describeKey(key);
+    await dispatchKey(context, ws, descriptor);
 
     outputSuccess('Key pressed', {
-      key: keyValue
+      key: descriptor.key,
+      code: descriptor.code,
+      keyCode: descriptor.keyCode
     });
   } catch (error) {
     outputError(
@@ -1294,7 +1519,7 @@ async function resolveDragTarget(
   label: string,
   frameOffset?: { x: number; y: number },
   contextId?: number
-): Promise<{ x: number; y: number; metadata?: ElementMetadata }> {
+): Promise<{ x: number; y: number; metadata?: ElementMetadata; objectId?: string }> {
   // Direct coordinates (add frame offset if provided)
   if (typeof target.x === 'number' && typeof target.y === 'number') {
     return {
@@ -1358,14 +1583,28 @@ async function resolveDragTarget(
   }
 
   const chosen = matches[selectedIndex];
-  const rect = chosen.metadata.rect;
-  const width = Number.isFinite(rect.width) ? rect.width : 0;
-  const height = Number.isFinite(rect.height) ? rect.height : 0;
+  let rect = chosen.metadata.rect;
+
+  // Same viewport constraint as click: the endpoint has to be on screen or the
+  // mouse events land somewhere else entirely.
+  if (chosen.objectId) {
+    const point = await getClickPoint(context, ws, chosen.objectId, rect);
+    rect = point.rect;
+
+    if (!point.inViewport) {
+      throw new DragError(
+        `${label} could not be scrolled into the viewport`,
+        'DRAG_OFFSCREEN',
+        { label, selector: target.selector, text: target.text, rect: roundRect(rect) }
+      );
+    }
+  }
 
   return {
-    x: (frameOffset?.x ?? 0) + rect.x + width / 2,
-    y: (frameOffset?.y ?? 0) + rect.y + height / 2,
-    metadata: chosen.metadata
+    x: (frameOffset?.x ?? 0) + rect.x + rect.width / 2,
+    y: (frameOffset?.y ?? 0) + rect.y + rect.height / 2,
+    metadata: chosen.metadata,
+    objectId: chosen.objectId
   };
 }
 
@@ -1410,6 +1649,27 @@ export async function drag(
 
     const fromPos = await resolveDragTarget(context, ws, from, 'Source', frameOffset, contextId);
     const toPos = await resolveDragTarget(context, ws, to, 'Destination', frameOffset, contextId);
+
+    // Scrolling the destination into view can push the source back off screen,
+    // so re-measure both (without scrolling again) and require that they are
+    // reachable at the same time.
+    for (const [label, pos] of [['Source', fromPos], ['Destination', toPos]] as const) {
+      if (!pos.objectId) {
+        continue;
+      }
+
+      const refreshed = await getClickPoint(context, ws, pos.objectId, pos.metadata!.rect, false);
+      if (!refreshed.inViewport) {
+        throw new DragError(
+          `${label} scrolled back out of view: the source and destination must be on screen at the same time`,
+          'DRAG_OFFSCREEN',
+          { label, rect: roundRect(refreshed.rect) }
+        );
+      }
+
+      pos.x = (frameOffset?.x ?? 0) + refreshed.rect.x + refreshed.rect.width / 2;
+      pos.y = (frameOffset?.y ?? 0) + refreshed.rect.y + refreshed.rect.height / 2;
+    }
 
     if (options.touch) {
       // Touch drag sequence

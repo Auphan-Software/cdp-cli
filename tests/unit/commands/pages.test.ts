@@ -241,9 +241,12 @@ describe('Pages Commands', () => {
       const result = JSON.parse(logs[0]);
       expect(result.success).toBe(true);
       expect(result.data.page).toBe('page1');
+      // Reported dimensions are read back from the window, not echoed from the
+      // request, since Chrome clamps and ignores sizes in some window states.
       expect(result.data.width).toBe(1400);
       expect(result.data.height).toBe(900);
       expect(result.data.state).toBe('normal');
+      expect(result.data.requested).toEqual({ width: 1400, height: 900, state: 'normal' });
 
       const getWindowMessage = sentMessages.find(msg => msg.method === 'Browser.getWindowForTarget');
       expect(getWindowMessage).toBeDefined();

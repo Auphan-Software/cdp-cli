@@ -1,11 +1,19 @@
 #!/usr/bin/env node
+import { createRequire as __cdpCreateRequire } from 'node:module';
+const require = __cdpCreateRequire(import.meta.url);
 var __create = Object.create;
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
-var __commonJS = (cb, mod) => function __require() {
+var __require = /* @__PURE__ */ ((x) => typeof require !== "undefined" ? require : typeof Proxy !== "undefined" ? new Proxy(x, {
+  get: (a, b) => (typeof require !== "undefined" ? require : a)[b]
+}) : x)(function(x) {
+  if (typeof require !== "undefined") return require.apply(this, arguments);
+  throw Error('Dynamic require of "' + x + '" is not supported');
+});
+var __commonJS = (cb, mod) => function __require2() {
   return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
 };
 var __copyProps = (to, from, except, desc) => {
@@ -58,10 +66,2098 @@ var require_get_caller_file = __commonJS({
   }
 });
 
+// node_modules/pngjs/lib/chunkstream.js
+var require_chunkstream = __commonJS({
+  "node_modules/pngjs/lib/chunkstream.js"(exports, module) {
+    "use strict";
+    var util = __require("util");
+    var Stream = __require("stream");
+    var ChunkStream = module.exports = function() {
+      Stream.call(this);
+      this._buffers = [];
+      this._buffered = 0;
+      this._reads = [];
+      this._paused = false;
+      this._encoding = "utf8";
+      this.writable = true;
+    };
+    util.inherits(ChunkStream, Stream);
+    ChunkStream.prototype.read = function(length, callback) {
+      this._reads.push({
+        length: Math.abs(length),
+        // if length < 0 then at most this length
+        allowLess: length < 0,
+        func: callback
+      });
+      process.nextTick(
+        function() {
+          this._process();
+          if (this._paused && this._reads && this._reads.length > 0) {
+            this._paused = false;
+            this.emit("drain");
+          }
+        }.bind(this)
+      );
+    };
+    ChunkStream.prototype.write = function(data, encoding) {
+      if (!this.writable) {
+        this.emit("error", new Error("Stream not writable"));
+        return false;
+      }
+      let dataBuffer;
+      if (Buffer.isBuffer(data)) {
+        dataBuffer = data;
+      } else {
+        dataBuffer = Buffer.from(data, encoding || this._encoding);
+      }
+      this._buffers.push(dataBuffer);
+      this._buffered += dataBuffer.length;
+      this._process();
+      if (this._reads && this._reads.length === 0) {
+        this._paused = true;
+      }
+      return this.writable && !this._paused;
+    };
+    ChunkStream.prototype.end = function(data, encoding) {
+      if (data) {
+        this.write(data, encoding);
+      }
+      this.writable = false;
+      if (!this._buffers) {
+        return;
+      }
+      if (this._buffers.length === 0) {
+        this._end();
+      } else {
+        this._buffers.push(null);
+        this._process();
+      }
+    };
+    ChunkStream.prototype.destroySoon = ChunkStream.prototype.end;
+    ChunkStream.prototype._end = function() {
+      if (this._reads.length > 0) {
+        this.emit("error", new Error("Unexpected end of input"));
+      }
+      this.destroy();
+    };
+    ChunkStream.prototype.destroy = function() {
+      if (!this._buffers) {
+        return;
+      }
+      this.writable = false;
+      this._reads = null;
+      this._buffers = null;
+      this.emit("close");
+    };
+    ChunkStream.prototype._processReadAllowingLess = function(read) {
+      this._reads.shift();
+      let smallerBuf = this._buffers[0];
+      if (smallerBuf.length > read.length) {
+        this._buffered -= read.length;
+        this._buffers[0] = smallerBuf.slice(read.length);
+        read.func.call(this, smallerBuf.slice(0, read.length));
+      } else {
+        this._buffered -= smallerBuf.length;
+        this._buffers.shift();
+        read.func.call(this, smallerBuf);
+      }
+    };
+    ChunkStream.prototype._processRead = function(read) {
+      this._reads.shift();
+      let pos = 0;
+      let count = 0;
+      let data = Buffer.alloc(read.length);
+      while (pos < read.length) {
+        let buf = this._buffers[count++];
+        let len = Math.min(buf.length, read.length - pos);
+        buf.copy(data, pos, 0, len);
+        pos += len;
+        if (len !== buf.length) {
+          this._buffers[--count] = buf.slice(len);
+        }
+      }
+      if (count > 0) {
+        this._buffers.splice(0, count);
+      }
+      this._buffered -= read.length;
+      read.func.call(this, data);
+    };
+    ChunkStream.prototype._process = function() {
+      try {
+        while (this._buffered > 0 && this._reads && this._reads.length > 0) {
+          let read = this._reads[0];
+          if (read.allowLess) {
+            this._processReadAllowingLess(read);
+          } else if (this._buffered >= read.length) {
+            this._processRead(read);
+          } else {
+            break;
+          }
+        }
+        if (this._buffers && !this.writable) {
+          this._end();
+        }
+      } catch (ex) {
+        this.emit("error", ex);
+      }
+    };
+  }
+});
+
+// node_modules/pngjs/lib/interlace.js
+var require_interlace = __commonJS({
+  "node_modules/pngjs/lib/interlace.js"(exports) {
+    "use strict";
+    var imagePasses = [
+      {
+        // pass 1 - 1px
+        x: [0],
+        y: [0]
+      },
+      {
+        // pass 2 - 1px
+        x: [4],
+        y: [0]
+      },
+      {
+        // pass 3 - 2px
+        x: [0, 4],
+        y: [4]
+      },
+      {
+        // pass 4 - 4px
+        x: [2, 6],
+        y: [0, 4]
+      },
+      {
+        // pass 5 - 8px
+        x: [0, 2, 4, 6],
+        y: [2, 6]
+      },
+      {
+        // pass 6 - 16px
+        x: [1, 3, 5, 7],
+        y: [0, 2, 4, 6]
+      },
+      {
+        // pass 7 - 32px
+        x: [0, 1, 2, 3, 4, 5, 6, 7],
+        y: [1, 3, 5, 7]
+      }
+    ];
+    exports.getImagePasses = function(width, height) {
+      let images = [];
+      let xLeftOver = width % 8;
+      let yLeftOver = height % 8;
+      let xRepeats = (width - xLeftOver) / 8;
+      let yRepeats = (height - yLeftOver) / 8;
+      for (let i = 0; i < imagePasses.length; i++) {
+        let pass = imagePasses[i];
+        let passWidth = xRepeats * pass.x.length;
+        let passHeight = yRepeats * pass.y.length;
+        for (let j = 0; j < pass.x.length; j++) {
+          if (pass.x[j] < xLeftOver) {
+            passWidth++;
+          } else {
+            break;
+          }
+        }
+        for (let j = 0; j < pass.y.length; j++) {
+          if (pass.y[j] < yLeftOver) {
+            passHeight++;
+          } else {
+            break;
+          }
+        }
+        if (passWidth > 0 && passHeight > 0) {
+          images.push({ width: passWidth, height: passHeight, index: i });
+        }
+      }
+      return images;
+    };
+    exports.getInterlaceIterator = function(width) {
+      return function(x, y, pass) {
+        let outerXLeftOver = x % imagePasses[pass].x.length;
+        let outerX = (x - outerXLeftOver) / imagePasses[pass].x.length * 8 + imagePasses[pass].x[outerXLeftOver];
+        let outerYLeftOver = y % imagePasses[pass].y.length;
+        let outerY = (y - outerYLeftOver) / imagePasses[pass].y.length * 8 + imagePasses[pass].y[outerYLeftOver];
+        return outerX * 4 + outerY * width * 4;
+      };
+    };
+  }
+});
+
+// node_modules/pngjs/lib/paeth-predictor.js
+var require_paeth_predictor = __commonJS({
+  "node_modules/pngjs/lib/paeth-predictor.js"(exports, module) {
+    "use strict";
+    module.exports = function paethPredictor(left2, above, upLeft) {
+      let paeth = left2 + above - upLeft;
+      let pLeft = Math.abs(paeth - left2);
+      let pAbove = Math.abs(paeth - above);
+      let pUpLeft = Math.abs(paeth - upLeft);
+      if (pLeft <= pAbove && pLeft <= pUpLeft) {
+        return left2;
+      }
+      if (pAbove <= pUpLeft) {
+        return above;
+      }
+      return upLeft;
+    };
+  }
+});
+
+// node_modules/pngjs/lib/filter-parse.js
+var require_filter_parse = __commonJS({
+  "node_modules/pngjs/lib/filter-parse.js"(exports, module) {
+    "use strict";
+    var interlaceUtils = require_interlace();
+    var paethPredictor = require_paeth_predictor();
+    function getByteWidth(width, bpp, depth) {
+      let byteWidth = width * bpp;
+      if (depth !== 8) {
+        byteWidth = Math.ceil(byteWidth / (8 / depth));
+      }
+      return byteWidth;
+    }
+    var Filter = module.exports = function(bitmapInfo, dependencies) {
+      let width = bitmapInfo.width;
+      let height = bitmapInfo.height;
+      let interlace = bitmapInfo.interlace;
+      let bpp = bitmapInfo.bpp;
+      let depth = bitmapInfo.depth;
+      this.read = dependencies.read;
+      this.write = dependencies.write;
+      this.complete = dependencies.complete;
+      this._imageIndex = 0;
+      this._images = [];
+      if (interlace) {
+        let passes = interlaceUtils.getImagePasses(width, height);
+        for (let i = 0; i < passes.length; i++) {
+          this._images.push({
+            byteWidth: getByteWidth(passes[i].width, bpp, depth),
+            height: passes[i].height,
+            lineIndex: 0
+          });
+        }
+      } else {
+        this._images.push({
+          byteWidth: getByteWidth(width, bpp, depth),
+          height,
+          lineIndex: 0
+        });
+      }
+      if (depth === 8) {
+        this._xComparison = bpp;
+      } else if (depth === 16) {
+        this._xComparison = bpp * 2;
+      } else {
+        this._xComparison = 1;
+      }
+    };
+    Filter.prototype.start = function() {
+      this.read(
+        this._images[this._imageIndex].byteWidth + 1,
+        this._reverseFilterLine.bind(this)
+      );
+    };
+    Filter.prototype._unFilterType1 = function(rawData, unfilteredLine, byteWidth) {
+      let xComparison = this._xComparison;
+      let xBiggerThan = xComparison - 1;
+      for (let x = 0; x < byteWidth; x++) {
+        let rawByte = rawData[1 + x];
+        let f1Left = x > xBiggerThan ? unfilteredLine[x - xComparison] : 0;
+        unfilteredLine[x] = rawByte + f1Left;
+      }
+    };
+    Filter.prototype._unFilterType2 = function(rawData, unfilteredLine, byteWidth) {
+      let lastLine = this._lastLine;
+      for (let x = 0; x < byteWidth; x++) {
+        let rawByte = rawData[1 + x];
+        let f2Up = lastLine ? lastLine[x] : 0;
+        unfilteredLine[x] = rawByte + f2Up;
+      }
+    };
+    Filter.prototype._unFilterType3 = function(rawData, unfilteredLine, byteWidth) {
+      let xComparison = this._xComparison;
+      let xBiggerThan = xComparison - 1;
+      let lastLine = this._lastLine;
+      for (let x = 0; x < byteWidth; x++) {
+        let rawByte = rawData[1 + x];
+        let f3Up = lastLine ? lastLine[x] : 0;
+        let f3Left = x > xBiggerThan ? unfilteredLine[x - xComparison] : 0;
+        let f3Add = Math.floor((f3Left + f3Up) / 2);
+        unfilteredLine[x] = rawByte + f3Add;
+      }
+    };
+    Filter.prototype._unFilterType4 = function(rawData, unfilteredLine, byteWidth) {
+      let xComparison = this._xComparison;
+      let xBiggerThan = xComparison - 1;
+      let lastLine = this._lastLine;
+      for (let x = 0; x < byteWidth; x++) {
+        let rawByte = rawData[1 + x];
+        let f4Up = lastLine ? lastLine[x] : 0;
+        let f4Left = x > xBiggerThan ? unfilteredLine[x - xComparison] : 0;
+        let f4UpLeft = x > xBiggerThan && lastLine ? lastLine[x - xComparison] : 0;
+        let f4Add = paethPredictor(f4Left, f4Up, f4UpLeft);
+        unfilteredLine[x] = rawByte + f4Add;
+      }
+    };
+    Filter.prototype._reverseFilterLine = function(rawData) {
+      let filter = rawData[0];
+      let unfilteredLine;
+      let currentImage = this._images[this._imageIndex];
+      let byteWidth = currentImage.byteWidth;
+      if (filter === 0) {
+        unfilteredLine = rawData.slice(1, byteWidth + 1);
+      } else {
+        unfilteredLine = Buffer.alloc(byteWidth);
+        switch (filter) {
+          case 1:
+            this._unFilterType1(rawData, unfilteredLine, byteWidth);
+            break;
+          case 2:
+            this._unFilterType2(rawData, unfilteredLine, byteWidth);
+            break;
+          case 3:
+            this._unFilterType3(rawData, unfilteredLine, byteWidth);
+            break;
+          case 4:
+            this._unFilterType4(rawData, unfilteredLine, byteWidth);
+            break;
+          default:
+            throw new Error("Unrecognised filter type - " + filter);
+        }
+      }
+      this.write(unfilteredLine);
+      currentImage.lineIndex++;
+      if (currentImage.lineIndex >= currentImage.height) {
+        this._lastLine = null;
+        this._imageIndex++;
+        currentImage = this._images[this._imageIndex];
+      } else {
+        this._lastLine = unfilteredLine;
+      }
+      if (currentImage) {
+        this.read(currentImage.byteWidth + 1, this._reverseFilterLine.bind(this));
+      } else {
+        this._lastLine = null;
+        this.complete();
+      }
+    };
+  }
+});
+
+// node_modules/pngjs/lib/filter-parse-async.js
+var require_filter_parse_async = __commonJS({
+  "node_modules/pngjs/lib/filter-parse-async.js"(exports, module) {
+    "use strict";
+    var util = __require("util");
+    var ChunkStream = require_chunkstream();
+    var Filter = require_filter_parse();
+    var FilterAsync = module.exports = function(bitmapInfo) {
+      ChunkStream.call(this);
+      let buffers = [];
+      let that = this;
+      this._filter = new Filter(bitmapInfo, {
+        read: this.read.bind(this),
+        write: function(buffer) {
+          buffers.push(buffer);
+        },
+        complete: function() {
+          that.emit("complete", Buffer.concat(buffers));
+        }
+      });
+      this._filter.start();
+    };
+    util.inherits(FilterAsync, ChunkStream);
+  }
+});
+
+// node_modules/pngjs/lib/constants.js
+var require_constants = __commonJS({
+  "node_modules/pngjs/lib/constants.js"(exports, module) {
+    "use strict";
+    module.exports = {
+      PNG_SIGNATURE: [137, 80, 78, 71, 13, 10, 26, 10],
+      TYPE_IHDR: 1229472850,
+      TYPE_IEND: 1229278788,
+      TYPE_IDAT: 1229209940,
+      TYPE_PLTE: 1347179589,
+      TYPE_tRNS: 1951551059,
+      // eslint-disable-line camelcase
+      TYPE_gAMA: 1732332865,
+      // eslint-disable-line camelcase
+      // color-type bits
+      COLORTYPE_GRAYSCALE: 0,
+      COLORTYPE_PALETTE: 1,
+      COLORTYPE_COLOR: 2,
+      COLORTYPE_ALPHA: 4,
+      // e.g. grayscale and alpha
+      // color-type combinations
+      COLORTYPE_PALETTE_COLOR: 3,
+      COLORTYPE_COLOR_ALPHA: 6,
+      COLORTYPE_TO_BPP_MAP: {
+        0: 1,
+        2: 3,
+        3: 1,
+        4: 2,
+        6: 4
+      },
+      GAMMA_DIVISION: 1e5
+    };
+  }
+});
+
+// node_modules/pngjs/lib/crc.js
+var require_crc = __commonJS({
+  "node_modules/pngjs/lib/crc.js"(exports, module) {
+    "use strict";
+    var crcTable = [];
+    (function() {
+      for (let i = 0; i < 256; i++) {
+        let currentCrc = i;
+        for (let j = 0; j < 8; j++) {
+          if (currentCrc & 1) {
+            currentCrc = 3988292384 ^ currentCrc >>> 1;
+          } else {
+            currentCrc = currentCrc >>> 1;
+          }
+        }
+        crcTable[i] = currentCrc;
+      }
+    })();
+    var CrcCalculator = module.exports = function() {
+      this._crc = -1;
+    };
+    CrcCalculator.prototype.write = function(data) {
+      for (let i = 0; i < data.length; i++) {
+        this._crc = crcTable[(this._crc ^ data[i]) & 255] ^ this._crc >>> 8;
+      }
+      return true;
+    };
+    CrcCalculator.prototype.crc32 = function() {
+      return this._crc ^ -1;
+    };
+    CrcCalculator.crc32 = function(buf) {
+      let crc = -1;
+      for (let i = 0; i < buf.length; i++) {
+        crc = crcTable[(crc ^ buf[i]) & 255] ^ crc >>> 8;
+      }
+      return crc ^ -1;
+    };
+  }
+});
+
+// node_modules/pngjs/lib/parser.js
+var require_parser = __commonJS({
+  "node_modules/pngjs/lib/parser.js"(exports, module) {
+    "use strict";
+    var constants = require_constants();
+    var CrcCalculator = require_crc();
+    var Parser2 = module.exports = function(options, dependencies) {
+      this._options = options;
+      options.checkCRC = options.checkCRC !== false;
+      this._hasIHDR = false;
+      this._hasIEND = false;
+      this._emittedHeadersFinished = false;
+      this._palette = [];
+      this._colorType = 0;
+      this._chunks = {};
+      this._chunks[constants.TYPE_IHDR] = this._handleIHDR.bind(this);
+      this._chunks[constants.TYPE_IEND] = this._handleIEND.bind(this);
+      this._chunks[constants.TYPE_IDAT] = this._handleIDAT.bind(this);
+      this._chunks[constants.TYPE_PLTE] = this._handlePLTE.bind(this);
+      this._chunks[constants.TYPE_tRNS] = this._handleTRNS.bind(this);
+      this._chunks[constants.TYPE_gAMA] = this._handleGAMA.bind(this);
+      this.read = dependencies.read;
+      this.error = dependencies.error;
+      this.metadata = dependencies.metadata;
+      this.gamma = dependencies.gamma;
+      this.transColor = dependencies.transColor;
+      this.palette = dependencies.palette;
+      this.parsed = dependencies.parsed;
+      this.inflateData = dependencies.inflateData;
+      this.finished = dependencies.finished;
+      this.simpleTransparency = dependencies.simpleTransparency;
+      this.headersFinished = dependencies.headersFinished || function() {
+      };
+    };
+    Parser2.prototype.start = function() {
+      this.read(constants.PNG_SIGNATURE.length, this._parseSignature.bind(this));
+    };
+    Parser2.prototype._parseSignature = function(data) {
+      let signature = constants.PNG_SIGNATURE;
+      for (let i = 0; i < signature.length; i++) {
+        if (data[i] !== signature[i]) {
+          this.error(new Error("Invalid file signature"));
+          return;
+        }
+      }
+      this.read(8, this._parseChunkBegin.bind(this));
+    };
+    Parser2.prototype._parseChunkBegin = function(data) {
+      let length = data.readUInt32BE(0);
+      let type = data.readUInt32BE(4);
+      let name = "";
+      for (let i = 4; i < 8; i++) {
+        name += String.fromCharCode(data[i]);
+      }
+      let ancillary = Boolean(data[4] & 32);
+      if (!this._hasIHDR && type !== constants.TYPE_IHDR) {
+        this.error(new Error("Expected IHDR on beggining"));
+        return;
+      }
+      this._crc = new CrcCalculator();
+      this._crc.write(Buffer.from(name));
+      if (this._chunks[type]) {
+        return this._chunks[type](length);
+      }
+      if (!ancillary) {
+        this.error(new Error("Unsupported critical chunk type " + name));
+        return;
+      }
+      this.read(length + 4, this._skipChunk.bind(this));
+    };
+    Parser2.prototype._skipChunk = function() {
+      this.read(8, this._parseChunkBegin.bind(this));
+    };
+    Parser2.prototype._handleChunkEnd = function() {
+      this.read(4, this._parseChunkEnd.bind(this));
+    };
+    Parser2.prototype._parseChunkEnd = function(data) {
+      let fileCrc = data.readInt32BE(0);
+      let calcCrc = this._crc.crc32();
+      if (this._options.checkCRC && calcCrc !== fileCrc) {
+        this.error(new Error("Crc error - " + fileCrc + " - " + calcCrc));
+        return;
+      }
+      if (!this._hasIEND) {
+        this.read(8, this._parseChunkBegin.bind(this));
+      }
+    };
+    Parser2.prototype._handleIHDR = function(length) {
+      this.read(length, this._parseIHDR.bind(this));
+    };
+    Parser2.prototype._parseIHDR = function(data) {
+      this._crc.write(data);
+      let width = data.readUInt32BE(0);
+      let height = data.readUInt32BE(4);
+      let depth = data[8];
+      let colorType = data[9];
+      let compr = data[10];
+      let filter = data[11];
+      let interlace = data[12];
+      if (depth !== 8 && depth !== 4 && depth !== 2 && depth !== 1 && depth !== 16) {
+        this.error(new Error("Unsupported bit depth " + depth));
+        return;
+      }
+      if (!(colorType in constants.COLORTYPE_TO_BPP_MAP)) {
+        this.error(new Error("Unsupported color type"));
+        return;
+      }
+      if (compr !== 0) {
+        this.error(new Error("Unsupported compression method"));
+        return;
+      }
+      if (filter !== 0) {
+        this.error(new Error("Unsupported filter method"));
+        return;
+      }
+      if (interlace !== 0 && interlace !== 1) {
+        this.error(new Error("Unsupported interlace method"));
+        return;
+      }
+      this._colorType = colorType;
+      let bpp = constants.COLORTYPE_TO_BPP_MAP[this._colorType];
+      this._hasIHDR = true;
+      this.metadata({
+        width,
+        height,
+        depth,
+        interlace: Boolean(interlace),
+        palette: Boolean(colorType & constants.COLORTYPE_PALETTE),
+        color: Boolean(colorType & constants.COLORTYPE_COLOR),
+        alpha: Boolean(colorType & constants.COLORTYPE_ALPHA),
+        bpp,
+        colorType
+      });
+      this._handleChunkEnd();
+    };
+    Parser2.prototype._handlePLTE = function(length) {
+      this.read(length, this._parsePLTE.bind(this));
+    };
+    Parser2.prototype._parsePLTE = function(data) {
+      this._crc.write(data);
+      let entries = Math.floor(data.length / 3);
+      for (let i = 0; i < entries; i++) {
+        this._palette.push([data[i * 3], data[i * 3 + 1], data[i * 3 + 2], 255]);
+      }
+      this.palette(this._palette);
+      this._handleChunkEnd();
+    };
+    Parser2.prototype._handleTRNS = function(length) {
+      this.simpleTransparency();
+      this.read(length, this._parseTRNS.bind(this));
+    };
+    Parser2.prototype._parseTRNS = function(data) {
+      this._crc.write(data);
+      if (this._colorType === constants.COLORTYPE_PALETTE_COLOR) {
+        if (this._palette.length === 0) {
+          this.error(new Error("Transparency chunk must be after palette"));
+          return;
+        }
+        if (data.length > this._palette.length) {
+          this.error(new Error("More transparent colors than palette size"));
+          return;
+        }
+        for (let i = 0; i < data.length; i++) {
+          this._palette[i][3] = data[i];
+        }
+        this.palette(this._palette);
+      }
+      if (this._colorType === constants.COLORTYPE_GRAYSCALE) {
+        this.transColor([data.readUInt16BE(0)]);
+      }
+      if (this._colorType === constants.COLORTYPE_COLOR) {
+        this.transColor([
+          data.readUInt16BE(0),
+          data.readUInt16BE(2),
+          data.readUInt16BE(4)
+        ]);
+      }
+      this._handleChunkEnd();
+    };
+    Parser2.prototype._handleGAMA = function(length) {
+      this.read(length, this._parseGAMA.bind(this));
+    };
+    Parser2.prototype._parseGAMA = function(data) {
+      this._crc.write(data);
+      this.gamma(data.readUInt32BE(0) / constants.GAMMA_DIVISION);
+      this._handleChunkEnd();
+    };
+    Parser2.prototype._handleIDAT = function(length) {
+      if (!this._emittedHeadersFinished) {
+        this._emittedHeadersFinished = true;
+        this.headersFinished();
+      }
+      this.read(-length, this._parseIDAT.bind(this, length));
+    };
+    Parser2.prototype._parseIDAT = function(length, data) {
+      this._crc.write(data);
+      if (this._colorType === constants.COLORTYPE_PALETTE_COLOR && this._palette.length === 0) {
+        throw new Error("Expected palette not found");
+      }
+      this.inflateData(data);
+      let leftOverLength = length - data.length;
+      if (leftOverLength > 0) {
+        this._handleIDAT(leftOverLength);
+      } else {
+        this._handleChunkEnd();
+      }
+    };
+    Parser2.prototype._handleIEND = function(length) {
+      this.read(length, this._parseIEND.bind(this));
+    };
+    Parser2.prototype._parseIEND = function(data) {
+      this._crc.write(data);
+      this._hasIEND = true;
+      this._handleChunkEnd();
+      if (this.finished) {
+        this.finished();
+      }
+    };
+  }
+});
+
+// node_modules/pngjs/lib/bitmapper.js
+var require_bitmapper = __commonJS({
+  "node_modules/pngjs/lib/bitmapper.js"(exports) {
+    "use strict";
+    var interlaceUtils = require_interlace();
+    var pixelBppMapper = [
+      // 0 - dummy entry
+      function() {
+      },
+      // 1 - L
+      // 0: 0, 1: 0, 2: 0, 3: 0xff
+      function(pxData, data, pxPos, rawPos) {
+        if (rawPos === data.length) {
+          throw new Error("Ran out of data");
+        }
+        let pixel = data[rawPos];
+        pxData[pxPos] = pixel;
+        pxData[pxPos + 1] = pixel;
+        pxData[pxPos + 2] = pixel;
+        pxData[pxPos + 3] = 255;
+      },
+      // 2 - LA
+      // 0: 0, 1: 0, 2: 0, 3: 1
+      function(pxData, data, pxPos, rawPos) {
+        if (rawPos + 1 >= data.length) {
+          throw new Error("Ran out of data");
+        }
+        let pixel = data[rawPos];
+        pxData[pxPos] = pixel;
+        pxData[pxPos + 1] = pixel;
+        pxData[pxPos + 2] = pixel;
+        pxData[pxPos + 3] = data[rawPos + 1];
+      },
+      // 3 - RGB
+      // 0: 0, 1: 1, 2: 2, 3: 0xff
+      function(pxData, data, pxPos, rawPos) {
+        if (rawPos + 2 >= data.length) {
+          throw new Error("Ran out of data");
+        }
+        pxData[pxPos] = data[rawPos];
+        pxData[pxPos + 1] = data[rawPos + 1];
+        pxData[pxPos + 2] = data[rawPos + 2];
+        pxData[pxPos + 3] = 255;
+      },
+      // 4 - RGBA
+      // 0: 0, 1: 1, 2: 2, 3: 3
+      function(pxData, data, pxPos, rawPos) {
+        if (rawPos + 3 >= data.length) {
+          throw new Error("Ran out of data");
+        }
+        pxData[pxPos] = data[rawPos];
+        pxData[pxPos + 1] = data[rawPos + 1];
+        pxData[pxPos + 2] = data[rawPos + 2];
+        pxData[pxPos + 3] = data[rawPos + 3];
+      }
+    ];
+    var pixelBppCustomMapper = [
+      // 0 - dummy entry
+      function() {
+      },
+      // 1 - L
+      // 0: 0, 1: 0, 2: 0, 3: 0xff
+      function(pxData, pixelData, pxPos, maxBit) {
+        let pixel = pixelData[0];
+        pxData[pxPos] = pixel;
+        pxData[pxPos + 1] = pixel;
+        pxData[pxPos + 2] = pixel;
+        pxData[pxPos + 3] = maxBit;
+      },
+      // 2 - LA
+      // 0: 0, 1: 0, 2: 0, 3: 1
+      function(pxData, pixelData, pxPos) {
+        let pixel = pixelData[0];
+        pxData[pxPos] = pixel;
+        pxData[pxPos + 1] = pixel;
+        pxData[pxPos + 2] = pixel;
+        pxData[pxPos + 3] = pixelData[1];
+      },
+      // 3 - RGB
+      // 0: 0, 1: 1, 2: 2, 3: 0xff
+      function(pxData, pixelData, pxPos, maxBit) {
+        pxData[pxPos] = pixelData[0];
+        pxData[pxPos + 1] = pixelData[1];
+        pxData[pxPos + 2] = pixelData[2];
+        pxData[pxPos + 3] = maxBit;
+      },
+      // 4 - RGBA
+      // 0: 0, 1: 1, 2: 2, 3: 3
+      function(pxData, pixelData, pxPos) {
+        pxData[pxPos] = pixelData[0];
+        pxData[pxPos + 1] = pixelData[1];
+        pxData[pxPos + 2] = pixelData[2];
+        pxData[pxPos + 3] = pixelData[3];
+      }
+    ];
+    function bitRetriever(data, depth) {
+      let leftOver = [];
+      let i = 0;
+      function split() {
+        if (i === data.length) {
+          throw new Error("Ran out of data");
+        }
+        let byte = data[i];
+        i++;
+        let byte8, byte7, byte6, byte5, byte4, byte3, byte2, byte1;
+        switch (depth) {
+          default:
+            throw new Error("unrecognised depth");
+          case 16:
+            byte2 = data[i];
+            i++;
+            leftOver.push((byte << 8) + byte2);
+            break;
+          case 4:
+            byte2 = byte & 15;
+            byte1 = byte >> 4;
+            leftOver.push(byte1, byte2);
+            break;
+          case 2:
+            byte4 = byte & 3;
+            byte3 = byte >> 2 & 3;
+            byte2 = byte >> 4 & 3;
+            byte1 = byte >> 6 & 3;
+            leftOver.push(byte1, byte2, byte3, byte4);
+            break;
+          case 1:
+            byte8 = byte & 1;
+            byte7 = byte >> 1 & 1;
+            byte6 = byte >> 2 & 1;
+            byte5 = byte >> 3 & 1;
+            byte4 = byte >> 4 & 1;
+            byte3 = byte >> 5 & 1;
+            byte2 = byte >> 6 & 1;
+            byte1 = byte >> 7 & 1;
+            leftOver.push(byte1, byte2, byte3, byte4, byte5, byte6, byte7, byte8);
+            break;
+        }
+      }
+      return {
+        get: function(count) {
+          while (leftOver.length < count) {
+            split();
+          }
+          let returner = leftOver.slice(0, count);
+          leftOver = leftOver.slice(count);
+          return returner;
+        },
+        resetAfterLine: function() {
+          leftOver.length = 0;
+        },
+        end: function() {
+          if (i !== data.length) {
+            throw new Error("extra data found");
+          }
+        }
+      };
+    }
+    function mapImage8Bit(image, pxData, getPxPos, bpp, data, rawPos) {
+      let imageWidth = image.width;
+      let imageHeight = image.height;
+      let imagePass = image.index;
+      for (let y = 0; y < imageHeight; y++) {
+        for (let x = 0; x < imageWidth; x++) {
+          let pxPos = getPxPos(x, y, imagePass);
+          pixelBppMapper[bpp](pxData, data, pxPos, rawPos);
+          rawPos += bpp;
+        }
+      }
+      return rawPos;
+    }
+    function mapImageCustomBit(image, pxData, getPxPos, bpp, bits, maxBit) {
+      let imageWidth = image.width;
+      let imageHeight = image.height;
+      let imagePass = image.index;
+      for (let y = 0; y < imageHeight; y++) {
+        for (let x = 0; x < imageWidth; x++) {
+          let pixelData = bits.get(bpp);
+          let pxPos = getPxPos(x, y, imagePass);
+          pixelBppCustomMapper[bpp](pxData, pixelData, pxPos, maxBit);
+        }
+        bits.resetAfterLine();
+      }
+    }
+    exports.dataToBitMap = function(data, bitmapInfo) {
+      let width = bitmapInfo.width;
+      let height = bitmapInfo.height;
+      let depth = bitmapInfo.depth;
+      let bpp = bitmapInfo.bpp;
+      let interlace = bitmapInfo.interlace;
+      let bits;
+      if (depth !== 8) {
+        bits = bitRetriever(data, depth);
+      }
+      let pxData;
+      if (depth <= 8) {
+        pxData = Buffer.alloc(width * height * 4);
+      } else {
+        pxData = new Uint16Array(width * height * 4);
+      }
+      let maxBit = Math.pow(2, depth) - 1;
+      let rawPos = 0;
+      let images;
+      let getPxPos;
+      if (interlace) {
+        images = interlaceUtils.getImagePasses(width, height);
+        getPxPos = interlaceUtils.getInterlaceIterator(width, height);
+      } else {
+        let nonInterlacedPxPos = 0;
+        getPxPos = function() {
+          let returner = nonInterlacedPxPos;
+          nonInterlacedPxPos += 4;
+          return returner;
+        };
+        images = [{ width, height }];
+      }
+      for (let imageIndex = 0; imageIndex < images.length; imageIndex++) {
+        if (depth === 8) {
+          rawPos = mapImage8Bit(
+            images[imageIndex],
+            pxData,
+            getPxPos,
+            bpp,
+            data,
+            rawPos
+          );
+        } else {
+          mapImageCustomBit(
+            images[imageIndex],
+            pxData,
+            getPxPos,
+            bpp,
+            bits,
+            maxBit
+          );
+        }
+      }
+      if (depth === 8) {
+        if (rawPos !== data.length) {
+          throw new Error("extra data found");
+        }
+      } else {
+        bits.end();
+      }
+      return pxData;
+    };
+  }
+});
+
+// node_modules/pngjs/lib/format-normaliser.js
+var require_format_normaliser = __commonJS({
+  "node_modules/pngjs/lib/format-normaliser.js"(exports, module) {
+    "use strict";
+    function dePalette(indata, outdata, width, height, palette) {
+      let pxPos = 0;
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          let color = palette[indata[pxPos]];
+          if (!color) {
+            throw new Error("index " + indata[pxPos] + " not in palette");
+          }
+          for (let i = 0; i < 4; i++) {
+            outdata[pxPos + i] = color[i];
+          }
+          pxPos += 4;
+        }
+      }
+    }
+    function replaceTransparentColor(indata, outdata, width, height, transColor) {
+      let pxPos = 0;
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          let makeTrans = false;
+          if (transColor.length === 1) {
+            if (transColor[0] === indata[pxPos]) {
+              makeTrans = true;
+            }
+          } else if (transColor[0] === indata[pxPos] && transColor[1] === indata[pxPos + 1] && transColor[2] === indata[pxPos + 2]) {
+            makeTrans = true;
+          }
+          if (makeTrans) {
+            for (let i = 0; i < 4; i++) {
+              outdata[pxPos + i] = 0;
+            }
+          }
+          pxPos += 4;
+        }
+      }
+    }
+    function scaleDepth(indata, outdata, width, height, depth) {
+      let maxOutSample = 255;
+      let maxInSample = Math.pow(2, depth) - 1;
+      let pxPos = 0;
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          for (let i = 0; i < 4; i++) {
+            outdata[pxPos + i] = Math.floor(
+              indata[pxPos + i] * maxOutSample / maxInSample + 0.5
+            );
+          }
+          pxPos += 4;
+        }
+      }
+    }
+    module.exports = function(indata, imageData, skipRescale = false) {
+      let depth = imageData.depth;
+      let width = imageData.width;
+      let height = imageData.height;
+      let colorType = imageData.colorType;
+      let transColor = imageData.transColor;
+      let palette = imageData.palette;
+      let outdata = indata;
+      if (colorType === 3) {
+        dePalette(indata, outdata, width, height, palette);
+      } else {
+        if (transColor) {
+          replaceTransparentColor(indata, outdata, width, height, transColor);
+        }
+        if (depth !== 8 && !skipRescale) {
+          if (depth === 16) {
+            outdata = Buffer.alloc(width * height * 4);
+          }
+          scaleDepth(indata, outdata, width, height, depth);
+        }
+      }
+      return outdata;
+    };
+  }
+});
+
+// node_modules/pngjs/lib/parser-async.js
+var require_parser_async = __commonJS({
+  "node_modules/pngjs/lib/parser-async.js"(exports, module) {
+    "use strict";
+    var util = __require("util");
+    var zlib = __require("zlib");
+    var ChunkStream = require_chunkstream();
+    var FilterAsync = require_filter_parse_async();
+    var Parser2 = require_parser();
+    var bitmapper = require_bitmapper();
+    var formatNormaliser = require_format_normaliser();
+    var ParserAsync = module.exports = function(options) {
+      ChunkStream.call(this);
+      this._parser = new Parser2(options, {
+        read: this.read.bind(this),
+        error: this._handleError.bind(this),
+        metadata: this._handleMetaData.bind(this),
+        gamma: this.emit.bind(this, "gamma"),
+        palette: this._handlePalette.bind(this),
+        transColor: this._handleTransColor.bind(this),
+        finished: this._finished.bind(this),
+        inflateData: this._inflateData.bind(this),
+        simpleTransparency: this._simpleTransparency.bind(this),
+        headersFinished: this._headersFinished.bind(this)
+      });
+      this._options = options;
+      this.writable = true;
+      this._parser.start();
+    };
+    util.inherits(ParserAsync, ChunkStream);
+    ParserAsync.prototype._handleError = function(err) {
+      this.emit("error", err);
+      this.writable = false;
+      this.destroy();
+      if (this._inflate && this._inflate.destroy) {
+        this._inflate.destroy();
+      }
+      if (this._filter) {
+        this._filter.destroy();
+        this._filter.on("error", function() {
+        });
+      }
+      this.errord = true;
+    };
+    ParserAsync.prototype._inflateData = function(data) {
+      if (!this._inflate) {
+        if (this._bitmapInfo.interlace) {
+          this._inflate = zlib.createInflate();
+          this._inflate.on("error", this.emit.bind(this, "error"));
+          this._filter.on("complete", this._complete.bind(this));
+          this._inflate.pipe(this._filter);
+        } else {
+          let rowSize = (this._bitmapInfo.width * this._bitmapInfo.bpp * this._bitmapInfo.depth + 7 >> 3) + 1;
+          let imageSize = rowSize * this._bitmapInfo.height;
+          let chunkSize = Math.max(imageSize, zlib.Z_MIN_CHUNK);
+          this._inflate = zlib.createInflate({ chunkSize });
+          let leftToInflate = imageSize;
+          let emitError = this.emit.bind(this, "error");
+          this._inflate.on("error", function(err) {
+            if (!leftToInflate) {
+              return;
+            }
+            emitError(err);
+          });
+          this._filter.on("complete", this._complete.bind(this));
+          let filterWrite = this._filter.write.bind(this._filter);
+          this._inflate.on("data", function(chunk) {
+            if (!leftToInflate) {
+              return;
+            }
+            if (chunk.length > leftToInflate) {
+              chunk = chunk.slice(0, leftToInflate);
+            }
+            leftToInflate -= chunk.length;
+            filterWrite(chunk);
+          });
+          this._inflate.on("end", this._filter.end.bind(this._filter));
+        }
+      }
+      this._inflate.write(data);
+    };
+    ParserAsync.prototype._handleMetaData = function(metaData) {
+      this._metaData = metaData;
+      this._bitmapInfo = Object.create(metaData);
+      this._filter = new FilterAsync(this._bitmapInfo);
+    };
+    ParserAsync.prototype._handleTransColor = function(transColor) {
+      this._bitmapInfo.transColor = transColor;
+    };
+    ParserAsync.prototype._handlePalette = function(palette) {
+      this._bitmapInfo.palette = palette;
+    };
+    ParserAsync.prototype._simpleTransparency = function() {
+      this._metaData.alpha = true;
+    };
+    ParserAsync.prototype._headersFinished = function() {
+      this.emit("metadata", this._metaData);
+    };
+    ParserAsync.prototype._finished = function() {
+      if (this.errord) {
+        return;
+      }
+      if (!this._inflate) {
+        this.emit("error", "No Inflate block");
+      } else {
+        this._inflate.end();
+      }
+    };
+    ParserAsync.prototype._complete = function(filteredData) {
+      if (this.errord) {
+        return;
+      }
+      let normalisedBitmapData;
+      try {
+        let bitmapData = bitmapper.dataToBitMap(filteredData, this._bitmapInfo);
+        normalisedBitmapData = formatNormaliser(
+          bitmapData,
+          this._bitmapInfo,
+          this._options.skipRescale
+        );
+        bitmapData = null;
+      } catch (ex) {
+        this._handleError(ex);
+        return;
+      }
+      this.emit("parsed", normalisedBitmapData);
+    };
+  }
+});
+
+// node_modules/pngjs/lib/bitpacker.js
+var require_bitpacker = __commonJS({
+  "node_modules/pngjs/lib/bitpacker.js"(exports, module) {
+    "use strict";
+    var constants = require_constants();
+    module.exports = function(dataIn, width, height, options) {
+      let outHasAlpha = [constants.COLORTYPE_COLOR_ALPHA, constants.COLORTYPE_ALPHA].indexOf(
+        options.colorType
+      ) !== -1;
+      if (options.colorType === options.inputColorType) {
+        let bigEndian = (function() {
+          let buffer = new ArrayBuffer(2);
+          new DataView(buffer).setInt16(
+            0,
+            256,
+            true
+            /* littleEndian */
+          );
+          return new Int16Array(buffer)[0] !== 256;
+        })();
+        if (options.bitDepth === 8 || options.bitDepth === 16 && bigEndian) {
+          return dataIn;
+        }
+      }
+      let data = options.bitDepth !== 16 ? dataIn : new Uint16Array(dataIn.buffer);
+      let maxValue = 255;
+      let inBpp = constants.COLORTYPE_TO_BPP_MAP[options.inputColorType];
+      if (inBpp === 4 && !options.inputHasAlpha) {
+        inBpp = 3;
+      }
+      let outBpp = constants.COLORTYPE_TO_BPP_MAP[options.colorType];
+      if (options.bitDepth === 16) {
+        maxValue = 65535;
+        outBpp *= 2;
+      }
+      let outData = Buffer.alloc(width * height * outBpp);
+      let inIndex = 0;
+      let outIndex = 0;
+      let bgColor = options.bgColor || {};
+      if (bgColor.red === void 0) {
+        bgColor.red = maxValue;
+      }
+      if (bgColor.green === void 0) {
+        bgColor.green = maxValue;
+      }
+      if (bgColor.blue === void 0) {
+        bgColor.blue = maxValue;
+      }
+      function getRGBA() {
+        let red;
+        let green;
+        let blue;
+        let alpha = maxValue;
+        switch (options.inputColorType) {
+          case constants.COLORTYPE_COLOR_ALPHA:
+            alpha = data[inIndex + 3];
+            red = data[inIndex];
+            green = data[inIndex + 1];
+            blue = data[inIndex + 2];
+            break;
+          case constants.COLORTYPE_COLOR:
+            red = data[inIndex];
+            green = data[inIndex + 1];
+            blue = data[inIndex + 2];
+            break;
+          case constants.COLORTYPE_ALPHA:
+            alpha = data[inIndex + 1];
+            red = data[inIndex];
+            green = red;
+            blue = red;
+            break;
+          case constants.COLORTYPE_GRAYSCALE:
+            red = data[inIndex];
+            green = red;
+            blue = red;
+            break;
+          default:
+            throw new Error(
+              "input color type:" + options.inputColorType + " is not supported at present"
+            );
+        }
+        if (options.inputHasAlpha) {
+          if (!outHasAlpha) {
+            alpha /= maxValue;
+            red = Math.min(
+              Math.max(Math.round((1 - alpha) * bgColor.red + alpha * red), 0),
+              maxValue
+            );
+            green = Math.min(
+              Math.max(Math.round((1 - alpha) * bgColor.green + alpha * green), 0),
+              maxValue
+            );
+            blue = Math.min(
+              Math.max(Math.round((1 - alpha) * bgColor.blue + alpha * blue), 0),
+              maxValue
+            );
+          }
+        }
+        return { red, green, blue, alpha };
+      }
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          let rgba = getRGBA(data, inIndex);
+          switch (options.colorType) {
+            case constants.COLORTYPE_COLOR_ALPHA:
+            case constants.COLORTYPE_COLOR:
+              if (options.bitDepth === 8) {
+                outData[outIndex] = rgba.red;
+                outData[outIndex + 1] = rgba.green;
+                outData[outIndex + 2] = rgba.blue;
+                if (outHasAlpha) {
+                  outData[outIndex + 3] = rgba.alpha;
+                }
+              } else {
+                outData.writeUInt16BE(rgba.red, outIndex);
+                outData.writeUInt16BE(rgba.green, outIndex + 2);
+                outData.writeUInt16BE(rgba.blue, outIndex + 4);
+                if (outHasAlpha) {
+                  outData.writeUInt16BE(rgba.alpha, outIndex + 6);
+                }
+              }
+              break;
+            case constants.COLORTYPE_ALPHA:
+            case constants.COLORTYPE_GRAYSCALE: {
+              let grayscale = (rgba.red + rgba.green + rgba.blue) / 3;
+              if (options.bitDepth === 8) {
+                outData[outIndex] = grayscale;
+                if (outHasAlpha) {
+                  outData[outIndex + 1] = rgba.alpha;
+                }
+              } else {
+                outData.writeUInt16BE(grayscale, outIndex);
+                if (outHasAlpha) {
+                  outData.writeUInt16BE(rgba.alpha, outIndex + 2);
+                }
+              }
+              break;
+            }
+            default:
+              throw new Error("unrecognised color Type " + options.colorType);
+          }
+          inIndex += inBpp;
+          outIndex += outBpp;
+        }
+      }
+      return outData;
+    };
+  }
+});
+
+// node_modules/pngjs/lib/filter-pack.js
+var require_filter_pack = __commonJS({
+  "node_modules/pngjs/lib/filter-pack.js"(exports, module) {
+    "use strict";
+    var paethPredictor = require_paeth_predictor();
+    function filterNone(pxData, pxPos, byteWidth, rawData, rawPos) {
+      for (let x = 0; x < byteWidth; x++) {
+        rawData[rawPos + x] = pxData[pxPos + x];
+      }
+    }
+    function filterSumNone(pxData, pxPos, byteWidth) {
+      let sum = 0;
+      let length = pxPos + byteWidth;
+      for (let i = pxPos; i < length; i++) {
+        sum += Math.abs(pxData[i]);
+      }
+      return sum;
+    }
+    function filterSub(pxData, pxPos, byteWidth, rawData, rawPos, bpp) {
+      for (let x = 0; x < byteWidth; x++) {
+        let left2 = x >= bpp ? pxData[pxPos + x - bpp] : 0;
+        let val = pxData[pxPos + x] - left2;
+        rawData[rawPos + x] = val;
+      }
+    }
+    function filterSumSub(pxData, pxPos, byteWidth, bpp) {
+      let sum = 0;
+      for (let x = 0; x < byteWidth; x++) {
+        let left2 = x >= bpp ? pxData[pxPos + x - bpp] : 0;
+        let val = pxData[pxPos + x] - left2;
+        sum += Math.abs(val);
+      }
+      return sum;
+    }
+    function filterUp(pxData, pxPos, byteWidth, rawData, rawPos) {
+      for (let x = 0; x < byteWidth; x++) {
+        let up = pxPos > 0 ? pxData[pxPos + x - byteWidth] : 0;
+        let val = pxData[pxPos + x] - up;
+        rawData[rawPos + x] = val;
+      }
+    }
+    function filterSumUp(pxData, pxPos, byteWidth) {
+      let sum = 0;
+      let length = pxPos + byteWidth;
+      for (let x = pxPos; x < length; x++) {
+        let up = pxPos > 0 ? pxData[x - byteWidth] : 0;
+        let val = pxData[x] - up;
+        sum += Math.abs(val);
+      }
+      return sum;
+    }
+    function filterAvg(pxData, pxPos, byteWidth, rawData, rawPos, bpp) {
+      for (let x = 0; x < byteWidth; x++) {
+        let left2 = x >= bpp ? pxData[pxPos + x - bpp] : 0;
+        let up = pxPos > 0 ? pxData[pxPos + x - byteWidth] : 0;
+        let val = pxData[pxPos + x] - (left2 + up >> 1);
+        rawData[rawPos + x] = val;
+      }
+    }
+    function filterSumAvg(pxData, pxPos, byteWidth, bpp) {
+      let sum = 0;
+      for (let x = 0; x < byteWidth; x++) {
+        let left2 = x >= bpp ? pxData[pxPos + x - bpp] : 0;
+        let up = pxPos > 0 ? pxData[pxPos + x - byteWidth] : 0;
+        let val = pxData[pxPos + x] - (left2 + up >> 1);
+        sum += Math.abs(val);
+      }
+      return sum;
+    }
+    function filterPaeth(pxData, pxPos, byteWidth, rawData, rawPos, bpp) {
+      for (let x = 0; x < byteWidth; x++) {
+        let left2 = x >= bpp ? pxData[pxPos + x - bpp] : 0;
+        let up = pxPos > 0 ? pxData[pxPos + x - byteWidth] : 0;
+        let upleft = pxPos > 0 && x >= bpp ? pxData[pxPos + x - (byteWidth + bpp)] : 0;
+        let val = pxData[pxPos + x] - paethPredictor(left2, up, upleft);
+        rawData[rawPos + x] = val;
+      }
+    }
+    function filterSumPaeth(pxData, pxPos, byteWidth, bpp) {
+      let sum = 0;
+      for (let x = 0; x < byteWidth; x++) {
+        let left2 = x >= bpp ? pxData[pxPos + x - bpp] : 0;
+        let up = pxPos > 0 ? pxData[pxPos + x - byteWidth] : 0;
+        let upleft = pxPos > 0 && x >= bpp ? pxData[pxPos + x - (byteWidth + bpp)] : 0;
+        let val = pxData[pxPos + x] - paethPredictor(left2, up, upleft);
+        sum += Math.abs(val);
+      }
+      return sum;
+    }
+    var filters = {
+      0: filterNone,
+      1: filterSub,
+      2: filterUp,
+      3: filterAvg,
+      4: filterPaeth
+    };
+    var filterSums = {
+      0: filterSumNone,
+      1: filterSumSub,
+      2: filterSumUp,
+      3: filterSumAvg,
+      4: filterSumPaeth
+    };
+    module.exports = function(pxData, width, height, options, bpp) {
+      let filterTypes;
+      if (!("filterType" in options) || options.filterType === -1) {
+        filterTypes = [0, 1, 2, 3, 4];
+      } else if (typeof options.filterType === "number") {
+        filterTypes = [options.filterType];
+      } else {
+        throw new Error("unrecognised filter types");
+      }
+      if (options.bitDepth === 16) {
+        bpp *= 2;
+      }
+      let byteWidth = width * bpp;
+      let rawPos = 0;
+      let pxPos = 0;
+      let rawData = Buffer.alloc((byteWidth + 1) * height);
+      let sel = filterTypes[0];
+      for (let y = 0; y < height; y++) {
+        if (filterTypes.length > 1) {
+          let min = Infinity;
+          for (let i = 0; i < filterTypes.length; i++) {
+            let sum = filterSums[filterTypes[i]](pxData, pxPos, byteWidth, bpp);
+            if (sum < min) {
+              sel = filterTypes[i];
+              min = sum;
+            }
+          }
+        }
+        rawData[rawPos] = sel;
+        rawPos++;
+        filters[sel](pxData, pxPos, byteWidth, rawData, rawPos, bpp);
+        rawPos += byteWidth;
+        pxPos += byteWidth;
+      }
+      return rawData;
+    };
+  }
+});
+
+// node_modules/pngjs/lib/packer.js
+var require_packer = __commonJS({
+  "node_modules/pngjs/lib/packer.js"(exports, module) {
+    "use strict";
+    var constants = require_constants();
+    var CrcStream = require_crc();
+    var bitPacker = require_bitpacker();
+    var filter = require_filter_pack();
+    var zlib = __require("zlib");
+    var Packer = module.exports = function(options) {
+      this._options = options;
+      options.deflateChunkSize = options.deflateChunkSize || 32 * 1024;
+      options.deflateLevel = options.deflateLevel != null ? options.deflateLevel : 9;
+      options.deflateStrategy = options.deflateStrategy != null ? options.deflateStrategy : 3;
+      options.inputHasAlpha = options.inputHasAlpha != null ? options.inputHasAlpha : true;
+      options.deflateFactory = options.deflateFactory || zlib.createDeflate;
+      options.bitDepth = options.bitDepth || 8;
+      options.colorType = typeof options.colorType === "number" ? options.colorType : constants.COLORTYPE_COLOR_ALPHA;
+      options.inputColorType = typeof options.inputColorType === "number" ? options.inputColorType : constants.COLORTYPE_COLOR_ALPHA;
+      if ([
+        constants.COLORTYPE_GRAYSCALE,
+        constants.COLORTYPE_COLOR,
+        constants.COLORTYPE_COLOR_ALPHA,
+        constants.COLORTYPE_ALPHA
+      ].indexOf(options.colorType) === -1) {
+        throw new Error(
+          "option color type:" + options.colorType + " is not supported at present"
+        );
+      }
+      if ([
+        constants.COLORTYPE_GRAYSCALE,
+        constants.COLORTYPE_COLOR,
+        constants.COLORTYPE_COLOR_ALPHA,
+        constants.COLORTYPE_ALPHA
+      ].indexOf(options.inputColorType) === -1) {
+        throw new Error(
+          "option input color type:" + options.inputColorType + " is not supported at present"
+        );
+      }
+      if (options.bitDepth !== 8 && options.bitDepth !== 16) {
+        throw new Error(
+          "option bit depth:" + options.bitDepth + " is not supported at present"
+        );
+      }
+    };
+    Packer.prototype.getDeflateOptions = function() {
+      return {
+        chunkSize: this._options.deflateChunkSize,
+        level: this._options.deflateLevel,
+        strategy: this._options.deflateStrategy
+      };
+    };
+    Packer.prototype.createDeflate = function() {
+      return this._options.deflateFactory(this.getDeflateOptions());
+    };
+    Packer.prototype.filterData = function(data, width, height) {
+      let packedData = bitPacker(data, width, height, this._options);
+      let bpp = constants.COLORTYPE_TO_BPP_MAP[this._options.colorType];
+      let filteredData = filter(packedData, width, height, this._options, bpp);
+      return filteredData;
+    };
+    Packer.prototype._packChunk = function(type, data) {
+      let len = data ? data.length : 0;
+      let buf = Buffer.alloc(len + 12);
+      buf.writeUInt32BE(len, 0);
+      buf.writeUInt32BE(type, 4);
+      if (data) {
+        data.copy(buf, 8);
+      }
+      buf.writeInt32BE(
+        CrcStream.crc32(buf.slice(4, buf.length - 4)),
+        buf.length - 4
+      );
+      return buf;
+    };
+    Packer.prototype.packGAMA = function(gamma) {
+      let buf = Buffer.alloc(4);
+      buf.writeUInt32BE(Math.floor(gamma * constants.GAMMA_DIVISION), 0);
+      return this._packChunk(constants.TYPE_gAMA, buf);
+    };
+    Packer.prototype.packIHDR = function(width, height) {
+      let buf = Buffer.alloc(13);
+      buf.writeUInt32BE(width, 0);
+      buf.writeUInt32BE(height, 4);
+      buf[8] = this._options.bitDepth;
+      buf[9] = this._options.colorType;
+      buf[10] = 0;
+      buf[11] = 0;
+      buf[12] = 0;
+      return this._packChunk(constants.TYPE_IHDR, buf);
+    };
+    Packer.prototype.packIDAT = function(data) {
+      return this._packChunk(constants.TYPE_IDAT, data);
+    };
+    Packer.prototype.packIEND = function() {
+      return this._packChunk(constants.TYPE_IEND, null);
+    };
+  }
+});
+
+// node_modules/pngjs/lib/packer-async.js
+var require_packer_async = __commonJS({
+  "node_modules/pngjs/lib/packer-async.js"(exports, module) {
+    "use strict";
+    var util = __require("util");
+    var Stream = __require("stream");
+    var constants = require_constants();
+    var Packer = require_packer();
+    var PackerAsync = module.exports = function(opt) {
+      Stream.call(this);
+      let options = opt || {};
+      this._packer = new Packer(options);
+      this._deflate = this._packer.createDeflate();
+      this.readable = true;
+    };
+    util.inherits(PackerAsync, Stream);
+    PackerAsync.prototype.pack = function(data, width, height, gamma) {
+      this.emit("data", Buffer.from(constants.PNG_SIGNATURE));
+      this.emit("data", this._packer.packIHDR(width, height));
+      if (gamma) {
+        this.emit("data", this._packer.packGAMA(gamma));
+      }
+      let filteredData = this._packer.filterData(data, width, height);
+      this._deflate.on("error", this.emit.bind(this, "error"));
+      this._deflate.on(
+        "data",
+        function(compressedData) {
+          this.emit("data", this._packer.packIDAT(compressedData));
+        }.bind(this)
+      );
+      this._deflate.on(
+        "end",
+        function() {
+          this.emit("data", this._packer.packIEND());
+          this.emit("end");
+        }.bind(this)
+      );
+      this._deflate.end(filteredData);
+    };
+  }
+});
+
+// node_modules/pngjs/lib/sync-inflate.js
+var require_sync_inflate = __commonJS({
+  "node_modules/pngjs/lib/sync-inflate.js"(exports, module) {
+    "use strict";
+    var assert = __require("assert").ok;
+    var zlib = __require("zlib");
+    var util = __require("util");
+    var kMaxLength = __require("buffer").kMaxLength;
+    function Inflate(opts) {
+      if (!(this instanceof Inflate)) {
+        return new Inflate(opts);
+      }
+      if (opts && opts.chunkSize < zlib.Z_MIN_CHUNK) {
+        opts.chunkSize = zlib.Z_MIN_CHUNK;
+      }
+      zlib.Inflate.call(this, opts);
+      this._offset = this._offset === void 0 ? this._outOffset : this._offset;
+      this._buffer = this._buffer || this._outBuffer;
+      if (opts && opts.maxLength != null) {
+        this._maxLength = opts.maxLength;
+      }
+    }
+    function createInflate(opts) {
+      return new Inflate(opts);
+    }
+    function _close(engine, callback) {
+      if (callback) {
+        process.nextTick(callback);
+      }
+      if (!engine._handle) {
+        return;
+      }
+      engine._handle.close();
+      engine._handle = null;
+    }
+    Inflate.prototype._processChunk = function(chunk, flushFlag, asyncCb) {
+      if (typeof asyncCb === "function") {
+        return zlib.Inflate._processChunk.call(this, chunk, flushFlag, asyncCb);
+      }
+      let self = this;
+      let availInBefore = chunk && chunk.length;
+      let availOutBefore = this._chunkSize - this._offset;
+      let leftToInflate = this._maxLength;
+      let inOff = 0;
+      let buffers = [];
+      let nread = 0;
+      let error;
+      this.on("error", function(err) {
+        error = err;
+      });
+      function handleChunk(availInAfter, availOutAfter) {
+        if (self._hadError) {
+          return;
+        }
+        let have = availOutBefore - availOutAfter;
+        assert(have >= 0, "have should not go down");
+        if (have > 0) {
+          let out = self._buffer.slice(self._offset, self._offset + have);
+          self._offset += have;
+          if (out.length > leftToInflate) {
+            out = out.slice(0, leftToInflate);
+          }
+          buffers.push(out);
+          nread += out.length;
+          leftToInflate -= out.length;
+          if (leftToInflate === 0) {
+            return false;
+          }
+        }
+        if (availOutAfter === 0 || self._offset >= self._chunkSize) {
+          availOutBefore = self._chunkSize;
+          self._offset = 0;
+          self._buffer = Buffer.allocUnsafe(self._chunkSize);
+        }
+        if (availOutAfter === 0) {
+          inOff += availInBefore - availInAfter;
+          availInBefore = availInAfter;
+          return true;
+        }
+        return false;
+      }
+      assert(this._handle, "zlib binding closed");
+      let res;
+      do {
+        res = this._handle.writeSync(
+          flushFlag,
+          chunk,
+          // in
+          inOff,
+          // in_off
+          availInBefore,
+          // in_len
+          this._buffer,
+          // out
+          this._offset,
+          //out_off
+          availOutBefore
+        );
+        res = res || this._writeState;
+      } while (!this._hadError && handleChunk(res[0], res[1]));
+      if (this._hadError) {
+        throw error;
+      }
+      if (nread >= kMaxLength) {
+        _close(this);
+        throw new RangeError(
+          "Cannot create final Buffer. It would be larger than 0x" + kMaxLength.toString(16) + " bytes"
+        );
+      }
+      let buf = Buffer.concat(buffers, nread);
+      _close(this);
+      return buf;
+    };
+    util.inherits(Inflate, zlib.Inflate);
+    function zlibBufferSync(engine, buffer) {
+      if (typeof buffer === "string") {
+        buffer = Buffer.from(buffer);
+      }
+      if (!(buffer instanceof Buffer)) {
+        throw new TypeError("Not a string or buffer");
+      }
+      let flushFlag = engine._finishFlushFlag;
+      if (flushFlag == null) {
+        flushFlag = zlib.Z_FINISH;
+      }
+      return engine._processChunk(buffer, flushFlag);
+    }
+    function inflateSync(buffer, opts) {
+      return zlibBufferSync(new Inflate(opts), buffer);
+    }
+    module.exports = exports = inflateSync;
+    exports.Inflate = Inflate;
+    exports.createInflate = createInflate;
+    exports.inflateSync = inflateSync;
+  }
+});
+
+// node_modules/pngjs/lib/sync-reader.js
+var require_sync_reader = __commonJS({
+  "node_modules/pngjs/lib/sync-reader.js"(exports, module) {
+    "use strict";
+    var SyncReader = module.exports = function(buffer) {
+      this._buffer = buffer;
+      this._reads = [];
+    };
+    SyncReader.prototype.read = function(length, callback) {
+      this._reads.push({
+        length: Math.abs(length),
+        // if length < 0 then at most this length
+        allowLess: length < 0,
+        func: callback
+      });
+    };
+    SyncReader.prototype.process = function() {
+      while (this._reads.length > 0 && this._buffer.length) {
+        let read = this._reads[0];
+        if (this._buffer.length && (this._buffer.length >= read.length || read.allowLess)) {
+          this._reads.shift();
+          let buf = this._buffer;
+          this._buffer = buf.slice(read.length);
+          read.func.call(this, buf.slice(0, read.length));
+        } else {
+          break;
+        }
+      }
+      if (this._reads.length > 0) {
+        throw new Error("There are some read requests waitng on finished stream");
+      }
+      if (this._buffer.length > 0) {
+        throw new Error("unrecognised content at end of stream");
+      }
+    };
+  }
+});
+
+// node_modules/pngjs/lib/filter-parse-sync.js
+var require_filter_parse_sync = __commonJS({
+  "node_modules/pngjs/lib/filter-parse-sync.js"(exports) {
+    "use strict";
+    var SyncReader = require_sync_reader();
+    var Filter = require_filter_parse();
+    exports.process = function(inBuffer, bitmapInfo) {
+      let outBuffers = [];
+      let reader = new SyncReader(inBuffer);
+      let filter = new Filter(bitmapInfo, {
+        read: reader.read.bind(reader),
+        write: function(bufferPart) {
+          outBuffers.push(bufferPart);
+        },
+        complete: function() {
+        }
+      });
+      filter.start();
+      reader.process();
+      return Buffer.concat(outBuffers);
+    };
+  }
+});
+
+// node_modules/pngjs/lib/parser-sync.js
+var require_parser_sync = __commonJS({
+  "node_modules/pngjs/lib/parser-sync.js"(exports, module) {
+    "use strict";
+    var hasSyncZlib = true;
+    var zlib = __require("zlib");
+    var inflateSync = require_sync_inflate();
+    if (!zlib.deflateSync) {
+      hasSyncZlib = false;
+    }
+    var SyncReader = require_sync_reader();
+    var FilterSync = require_filter_parse_sync();
+    var Parser2 = require_parser();
+    var bitmapper = require_bitmapper();
+    var formatNormaliser = require_format_normaliser();
+    module.exports = function(buffer, options) {
+      if (!hasSyncZlib) {
+        throw new Error(
+          "To use the sync capability of this library in old node versions, please pin pngjs to v2.3.0"
+        );
+      }
+      let err;
+      function handleError(_err_) {
+        err = _err_;
+      }
+      let metaData;
+      function handleMetaData(_metaData_) {
+        metaData = _metaData_;
+      }
+      function handleTransColor(transColor) {
+        metaData.transColor = transColor;
+      }
+      function handlePalette(palette) {
+        metaData.palette = palette;
+      }
+      function handleSimpleTransparency() {
+        metaData.alpha = true;
+      }
+      let gamma;
+      function handleGamma(_gamma_) {
+        gamma = _gamma_;
+      }
+      let inflateDataList = [];
+      function handleInflateData(inflatedData2) {
+        inflateDataList.push(inflatedData2);
+      }
+      let reader = new SyncReader(buffer);
+      let parser2 = new Parser2(options, {
+        read: reader.read.bind(reader),
+        error: handleError,
+        metadata: handleMetaData,
+        gamma: handleGamma,
+        palette: handlePalette,
+        transColor: handleTransColor,
+        inflateData: handleInflateData,
+        simpleTransparency: handleSimpleTransparency
+      });
+      parser2.start();
+      reader.process();
+      if (err) {
+        throw err;
+      }
+      let inflateData = Buffer.concat(inflateDataList);
+      inflateDataList.length = 0;
+      let inflatedData;
+      if (metaData.interlace) {
+        inflatedData = zlib.inflateSync(inflateData);
+      } else {
+        let rowSize = (metaData.width * metaData.bpp * metaData.depth + 7 >> 3) + 1;
+        let imageSize = rowSize * metaData.height;
+        inflatedData = inflateSync(inflateData, {
+          chunkSize: imageSize,
+          maxLength: imageSize
+        });
+      }
+      inflateData = null;
+      if (!inflatedData || !inflatedData.length) {
+        throw new Error("bad png - invalid inflate data response");
+      }
+      let unfilteredData = FilterSync.process(inflatedData, metaData);
+      inflateData = null;
+      let bitmapData = bitmapper.dataToBitMap(unfilteredData, metaData);
+      unfilteredData = null;
+      let normalisedBitmapData = formatNormaliser(
+        bitmapData,
+        metaData,
+        options.skipRescale
+      );
+      metaData.data = normalisedBitmapData;
+      metaData.gamma = gamma || 0;
+      return metaData;
+    };
+  }
+});
+
+// node_modules/pngjs/lib/packer-sync.js
+var require_packer_sync = __commonJS({
+  "node_modules/pngjs/lib/packer-sync.js"(exports, module) {
+    "use strict";
+    var hasSyncZlib = true;
+    var zlib = __require("zlib");
+    if (!zlib.deflateSync) {
+      hasSyncZlib = false;
+    }
+    var constants = require_constants();
+    var Packer = require_packer();
+    module.exports = function(metaData, opt) {
+      if (!hasSyncZlib) {
+        throw new Error(
+          "To use the sync capability of this library in old node versions, please pin pngjs to v2.3.0"
+        );
+      }
+      let options = opt || {};
+      let packer = new Packer(options);
+      let chunks = [];
+      chunks.push(Buffer.from(constants.PNG_SIGNATURE));
+      chunks.push(packer.packIHDR(metaData.width, metaData.height));
+      if (metaData.gamma) {
+        chunks.push(packer.packGAMA(metaData.gamma));
+      }
+      let filteredData = packer.filterData(
+        metaData.data,
+        metaData.width,
+        metaData.height
+      );
+      let compressedData = zlib.deflateSync(
+        filteredData,
+        packer.getDeflateOptions()
+      );
+      filteredData = null;
+      if (!compressedData || !compressedData.length) {
+        throw new Error("bad png - invalid compressed data response");
+      }
+      chunks.push(packer.packIDAT(compressedData));
+      chunks.push(packer.packIEND());
+      return Buffer.concat(chunks);
+    };
+  }
+});
+
+// node_modules/pngjs/lib/png-sync.js
+var require_png_sync = __commonJS({
+  "node_modules/pngjs/lib/png-sync.js"(exports) {
+    "use strict";
+    var parse = require_parser_sync();
+    var pack = require_packer_sync();
+    exports.read = function(buffer, options) {
+      return parse(buffer, options || {});
+    };
+    exports.write = function(png, options) {
+      return pack(png, options);
+    };
+  }
+});
+
+// node_modules/pngjs/lib/png.js
+var require_png = __commonJS({
+  "node_modules/pngjs/lib/png.js"(exports) {
+    "use strict";
+    var util = __require("util");
+    var Stream = __require("stream");
+    var Parser2 = require_parser_async();
+    var Packer = require_packer_async();
+    var PNGSync = require_png_sync();
+    var PNG2 = exports.PNG = function(options) {
+      Stream.call(this);
+      options = options || {};
+      this.width = options.width | 0;
+      this.height = options.height | 0;
+      this.data = this.width > 0 && this.height > 0 ? Buffer.alloc(4 * this.width * this.height) : null;
+      if (options.fill && this.data) {
+        this.data.fill(0);
+      }
+      this.gamma = 0;
+      this.readable = this.writable = true;
+      this._parser = new Parser2(options);
+      this._parser.on("error", this.emit.bind(this, "error"));
+      this._parser.on("close", this._handleClose.bind(this));
+      this._parser.on("metadata", this._metadata.bind(this));
+      this._parser.on("gamma", this._gamma.bind(this));
+      this._parser.on(
+        "parsed",
+        function(data) {
+          this.data = data;
+          this.emit("parsed", data);
+        }.bind(this)
+      );
+      this._packer = new Packer(options);
+      this._packer.on("data", this.emit.bind(this, "data"));
+      this._packer.on("end", this.emit.bind(this, "end"));
+      this._parser.on("close", this._handleClose.bind(this));
+      this._packer.on("error", this.emit.bind(this, "error"));
+    };
+    util.inherits(PNG2, Stream);
+    PNG2.sync = PNGSync;
+    PNG2.prototype.pack = function() {
+      if (!this.data || !this.data.length) {
+        this.emit("error", "No data provided");
+        return this;
+      }
+      process.nextTick(
+        function() {
+          this._packer.pack(this.data, this.width, this.height, this.gamma);
+        }.bind(this)
+      );
+      return this;
+    };
+    PNG2.prototype.parse = function(data, callback) {
+      if (callback) {
+        let onParsed, onError;
+        onParsed = function(parsedData) {
+          this.removeListener("error", onError);
+          this.data = parsedData;
+          callback(null, this);
+        }.bind(this);
+        onError = function(err) {
+          this.removeListener("parsed", onParsed);
+          callback(err, null);
+        }.bind(this);
+        this.once("parsed", onParsed);
+        this.once("error", onError);
+      }
+      this.end(data);
+      return this;
+    };
+    PNG2.prototype.write = function(data) {
+      this._parser.write(data);
+      return true;
+    };
+    PNG2.prototype.end = function(data) {
+      this._parser.end(data);
+    };
+    PNG2.prototype._metadata = function(metadata) {
+      this.width = metadata.width;
+      this.height = metadata.height;
+      this.emit("metadata", metadata);
+    };
+    PNG2.prototype._gamma = function(gamma) {
+      this.gamma = gamma;
+    };
+    PNG2.prototype._handleClose = function() {
+      if (!this._parser.writable && !this._packer.readable) {
+        this.emit("close");
+      }
+    };
+    PNG2.bitblt = function(src, dst, srcX, srcY, width, height, deltaX, deltaY) {
+      srcX |= 0;
+      srcY |= 0;
+      width |= 0;
+      height |= 0;
+      deltaX |= 0;
+      deltaY |= 0;
+      if (srcX > src.width || srcY > src.height || srcX + width > src.width || srcY + height > src.height) {
+        throw new Error("bitblt reading outside image");
+      }
+      if (deltaX > dst.width || deltaY > dst.height || deltaX + width > dst.width || deltaY + height > dst.height) {
+        throw new Error("bitblt writing outside image");
+      }
+      for (let y = 0; y < height; y++) {
+        src.data.copy(
+          dst.data,
+          (deltaY + y) * dst.width + deltaX << 2,
+          (srcY + y) * src.width + srcX << 2,
+          (srcY + y) * src.width + srcX + width << 2
+        );
+      }
+    };
+    PNG2.prototype.bitblt = function(dst, srcX, srcY, width, height, deltaX, deltaY) {
+      PNG2.bitblt(this, dst, srcX, srcY, width, height, deltaX, deltaY);
+      return this;
+    };
+    PNG2.adjustGamma = function(src) {
+      if (src.gamma) {
+        for (let y = 0; y < src.height; y++) {
+          for (let x = 0; x < src.width; x++) {
+            let idx = src.width * y + x << 2;
+            for (let i = 0; i < 3; i++) {
+              let sample = src.data[idx + i] / 255;
+              sample = Math.pow(sample, 1 / 2.2 / src.gamma);
+              src.data[idx + i] = Math.round(sample * 255);
+            }
+          }
+        }
+        src.gamma = 0;
+      }
+    };
+    PNG2.prototype.adjustGamma = function() {
+      PNG2.adjustGamma(this);
+    };
+  }
+});
+
 // build/index.js
-import { readFileSync as readFileSync4 } from "fs";
+import { readFileSync as readFileSync5 } from "fs";
 import { fileURLToPath as fileURLToPath3 } from "url";
-import { dirname as dirname4, join as join3 } from "path";
+import { dirname as dirname4, join as join4 } from "path";
 
 // node_modules/yargs/lib/platform-shims/esm.mjs
 import { notStrictEqual, strictEqual } from "assert";
@@ -5640,6 +7736,105 @@ Use 'cdp-cli list-pages' to see all pages.`;
     });
   }
   /**
+   * Check if a JavaScript dialog (alert/confirm/prompt) is currently open
+   * Uses multiple strategies since dialog events only fire at open time
+   */
+  async checkForDialog(ws) {
+    const eventBasedCheck = new Promise((resolve5) => {
+      let dialogInfo = null;
+      let resolved = false;
+      const messageHandler = (data) => {
+        const message = JSON.parse(data.toString());
+        if (message.method === "Page.javascriptDialogOpening") {
+          dialogInfo = {
+            type: message.params.type,
+            message: message.params.message,
+            url: message.params.url,
+            defaultPrompt: message.params.defaultPrompt
+          };
+          if (!resolved) {
+            resolved = true;
+            ws.off("message", messageHandler);
+            resolve5(dialogInfo);
+          }
+        }
+      };
+      ws.on("message", messageHandler);
+      const enableTimeout = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          ws.off("message", messageHandler);
+          resolve5(dialogInfo);
+        }
+      }, 300);
+      this.sendCommand(ws, "Page.enable", {}).then(() => {
+        clearTimeout(enableTimeout);
+        setTimeout(() => {
+          if (!resolved) {
+            resolved = true;
+            ws.off("message", messageHandler);
+            resolve5(dialogInfo);
+          }
+        }, 50);
+      }).catch(() => {
+        clearTimeout(enableTimeout);
+        if (!resolved) {
+          resolved = true;
+          ws.off("message", messageHandler);
+          resolve5(dialogInfo);
+        }
+      });
+    });
+    const result = await eventBasedCheck;
+    if (result)
+      return result;
+    try {
+      const evalPromise = this.sendCommand(ws, "Runtime.evaluate", {
+        expression: "1",
+        timeout: 200
+      });
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 300));
+      await Promise.race([evalPromise, timeoutPromise]);
+      return null;
+    } catch {
+      return {
+        type: "alert",
+        message: "(dialog blocking page - dismiss manually or restart page)",
+        url: "",
+        defaultPrompt: void 0
+      };
+    }
+  }
+  /**
+   * Dismiss or accept a JavaScript dialog
+   */
+  async handleDialog(ws, accept, promptText) {
+    try {
+      await Promise.race([
+        this.sendCommand(ws, "Page.enable", {}),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 500))
+      ]);
+    } catch {
+    }
+    await this.sendCommand(ws, "Page.handleJavaScriptDialog", {
+      accept,
+      promptText
+    });
+  }
+  /**
+   * Assert no dialog is open, throw descriptive error if one is
+   */
+  async assertNoDialog(ws) {
+    const dialog2 = await this.checkForDialog(ws);
+    if (dialog2) {
+      const typeLabel = dialog2.type.charAt(0).toUpperCase() + dialog2.type.slice(1);
+      const canDismiss = !dialog2.message.includes("dismiss manually");
+      const hint = canDismiss ? `Use 'cdp-cli dialog <page> --dismiss' to dismiss it, or '--accept' to accept.` : `Dismiss the dialog manually in the browser, or close and reopen the page.`;
+      throw new Error(`${typeLabel} dialog is blocking the page: "${dialog2.message}"
+${hint}`);
+    }
+  }
+  /**
    * Setup console message collection
    */
   setupConsoleCollection(ws, onMessage) {
@@ -5794,6 +7989,135 @@ Use 'cdp-cli list-pages' to see all pages.`;
     }
     return await response.json();
   }
+  /**
+   * Get frame tree for a page
+   */
+  async getFrameTree(ws) {
+    await this.sendCommand(ws, "Page.enable");
+    const result = await this.sendCommand(ws, "Page.getFrameTree");
+    const frames = [];
+    const collectFrames = (node, parentId) => {
+      const frame = node.frame;
+      frames.push({
+        id: frame.id,
+        parentId,
+        url: frame.url,
+        name: frame.name || void 0,
+        securityOrigin: frame.securityOrigin
+      });
+      if (node.childFrames) {
+        for (const child of node.childFrames) {
+          collectFrames(child, frame.id);
+        }
+      }
+    };
+    collectFrames(result.frameTree);
+    return frames;
+  }
+  /**
+   * Get execution contexts (one per frame)
+   */
+  async getExecutionContexts(ws) {
+    const contexts = [];
+    return new Promise((resolve5) => {
+      const messageHandler = (data) => {
+        const message = JSON.parse(data.toString());
+        if (message.method === "Runtime.executionContextCreated") {
+          const ctx = message.params.context;
+          contexts.push({
+            id: ctx.id,
+            frameId: ctx.auxData?.frameId || "",
+            origin: ctx.origin,
+            name: ctx.name
+          });
+        }
+      };
+      ws.on("message", messageHandler);
+      this.sendCommand(ws, "Runtime.disable").then(() => this.sendCommand(ws, "Runtime.enable")).then(() => {
+        setTimeout(() => {
+          ws.off("message", messageHandler);
+          resolve5(contexts);
+        }, 100);
+      });
+    });
+  }
+  /**
+   * Resolve frame specification to execution context ID
+   * @param ws WebSocket connection
+   * @param frameSpec Frame specification: selector (e.g. "#iframe"), index (e.g. "1"), or "auto"
+   * @returns contextId for Runtime.evaluate, or undefined for top frame
+   */
+  async resolveFrameContext(ws, frameSpec) {
+    if (!frameSpec || frameSpec === "0") {
+      return void 0;
+    }
+    const frames = await this.getFrameTree(ws);
+    const contexts = await this.getExecutionContexts(ws);
+    const getContextForFrame = (frameId) => {
+      const ctx = contexts.find((c) => c.frameId === frameId);
+      return ctx?.id;
+    };
+    if (/^\d+$/.test(frameSpec)) {
+      const index = parseInt(frameSpec, 10);
+      if (index === 0)
+        return void 0;
+      if (index > 0 && index <= frames.length - 1) {
+        const frameId = frames[index]?.id;
+        if (frameId) {
+          const contextId2 = getContextForFrame(frameId);
+          if (contextId2 === void 0) {
+            throw new Error(`No execution context found for frame ${index} (${frames[index]?.url ?? "unknown url"}). The frame may still be loading.`);
+          }
+          return contextId2;
+        }
+      }
+      throw new Error(`Frame index ${index} not found. Available: 0-${frames.length - 1}`);
+    }
+    await this.sendCommand(ws, "Runtime.enable");
+    const iframeInfo = await this.sendCommand(ws, "Runtime.evaluate", {
+      expression: `(() => {
+        const iframe = document.querySelector(${JSON.stringify(frameSpec)});
+        if (!iframe || iframe.tagName !== 'IFRAME') return null;
+        return {
+          src: iframe.src,
+          name: iframe.name || iframe.id || '',
+          contentWindow: !!iframe.contentWindow
+        };
+      })()`,
+      returnByValue: true
+    });
+    if (!iframeInfo.result?.value) {
+      throw new Error(`No iframe found matching selector: ${frameSpec}`);
+    }
+    const { src, name } = iframeInfo.result.value;
+    const matchingFrame = frames.find((f) => f.parentId && // Must be a child frame
+    (f.url === src || f.name === name || name && f.url.includes(name)));
+    if (!matchingFrame) {
+      const availableFrames = frames.filter((f) => f.parentId).map((f, i) => `  ${i + 1}. ${f.name || "(unnamed)"} - ${f.url}`).join("\n");
+      throw new Error(`Could not find frame context for: ${frameSpec}
+
+Available frames:
+${availableFrames}`);
+    }
+    const contextId = getContextForFrame(matchingFrame.id);
+    if (!contextId) {
+      throw new Error(`No execution context found for frame: ${matchingFrame.url}`);
+    }
+    return contextId;
+  }
+  /**
+   * Evaluate expression in a specific frame
+   */
+  async evaluateInFrame(ws, expression, frameSpec, options = {}) {
+    const contextId = await this.resolveFrameContext(ws, frameSpec);
+    await this.sendCommand(ws, "Runtime.enable");
+    return this.sendCommand(ws, "Runtime.evaluate", {
+      expression,
+      contextId,
+      returnByValue: options.returnByValue ?? true,
+      awaitPromise: options.awaitPromise ?? false
+    });
+  }
 };
 
 // build/output.js
@@ -5806,32 +8130,16 @@ function outputLines(data, options = {}) {
     outputLine(item, options);
   }
 }
-function formatDetails(details) {
-  const lines = [];
-  for (const [key, value] of Object.entries(details)) {
-    if (value === void 0 || value === null)
-      continue;
-    if (Array.isArray(value)) {
-      lines.push(`${key}:`);
-      for (const item of value) {
-        lines.push(`  ${item}`);
-      }
-    } else if (typeof value === "object") {
-      lines.push(`${key}: ${JSON.stringify(value)}`);
-    } else {
-      lines.push(`${key}: ${value}`);
-    }
-  }
-  return lines.join("\n");
-}
 function outputError(message, code, details) {
-  const codeStr = code || "ERROR";
-  let output = `${codeStr}: ${message}`;
+  const errorObj = {
+    error: true,
+    message,
+    code: code || "ERROR"
+  };
   if (details) {
-    output += `
-${formatDetails(details)}`;
+    errorObj.details = details;
   }
-  console.error(output);
+  console.log(JSON.stringify(errorObj));
 }
 function outputSuccess(message, data) {
   outputLine({
@@ -5876,10 +8184,14 @@ var DaemonClient = class {
     if (await this.isRunning()) {
       return { started: false };
     }
-    const __filename = fileURLToPath2(import.meta.url);
-    const __dirname3 = dirname3(__filename);
-    const daemonScript = join2(__dirname3, "daemon-entry.js");
-    const args = [daemonScript];
+    const args = [];
+    if (typeof CDP_CLI_EXE_MODE !== "undefined") {
+      args.push("--__daemon");
+    } else {
+      const __filename = fileURLToPath2(import.meta.url);
+      const __dirname3 = dirname3(__filename);
+      args.push(join2(__dirname3, "daemon-entry.js"));
+    }
     if (options.cdpUrl) {
       args.push("--cdp-url", options.cdpUrl);
     }
@@ -6071,6 +8383,117 @@ var DaemonClient = class {
   }
 };
 
+// build/commands/wait.js
+async function waitForSelector(context, ws, selector, timeout, contextId) {
+  const start = Date.now();
+  const pollInterval = 100;
+  while (Date.now() - start < timeout) {
+    const result = await context.sendCommand(ws, "Runtime.evaluate", {
+      expression: `document.querySelector(${JSON.stringify(selector)}) !== null`,
+      returnByValue: true,
+      contextId
+    });
+    if (result.result?.value === true) {
+      return;
+    }
+    await new Promise((r) => setTimeout(r, pollInterval));
+  }
+  throw new Error(`Timeout waiting for selector: ${selector}`);
+}
+async function waitForText(context, ws, text, timeout, contextId) {
+  const start = Date.now();
+  const pollInterval = 100;
+  while (Date.now() - start < timeout) {
+    const result = await context.sendCommand(ws, "Runtime.evaluate", {
+      expression: `document.body.innerText.includes(${JSON.stringify(text)})`,
+      returnByValue: true,
+      contextId
+    });
+    if (result.result?.value === true) {
+      return;
+    }
+    await new Promise((r) => setTimeout(r, pollInterval));
+  }
+  throw new Error(`Timeout waiting for text: ${text}`);
+}
+async function waitForIdle(context, ws, timeout) {
+  await context.sendCommand(ws, "Network.enable");
+  const start = Date.now();
+  let pendingRequests = 0;
+  let lastActivity = Date.now();
+  const idleThreshold = 500;
+  const requestHandler = () => {
+    pendingRequests++;
+    lastActivity = Date.now();
+  };
+  const responseHandler = () => {
+    pendingRequests = Math.max(0, pendingRequests - 1);
+    lastActivity = Date.now();
+  };
+  const messageHandler = (data) => {
+    try {
+      const msg = JSON.parse(data.toString());
+      if (msg.method === "Network.requestWillBeSent")
+        requestHandler();
+      if (msg.method === "Network.loadingFinished" || msg.method === "Network.loadingFailed")
+        responseHandler();
+    } catch {
+    }
+  };
+  ws.on("message", messageHandler);
+  try {
+    while (Date.now() - start < timeout) {
+      const docReady = await context.sendCommand(ws, "Runtime.evaluate", {
+        expression: `document.readyState === 'complete'`,
+        returnByValue: true
+      });
+      const isDocReady = docReady.result?.value === true;
+      const isNetworkIdle = pendingRequests === 0 && Date.now() - lastActivity >= idleThreshold;
+      if (isDocReady && isNetworkIdle) {
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 100));
+    }
+  } finally {
+    ws.off("message", messageHandler);
+  }
+  throw new Error("Timeout waiting for idle state");
+}
+async function handleWaitOptions(context, ws, options) {
+  const timeout = options.timeout ?? 1e4;
+  const hasWait = options.waitFor || options.waitForText || options.waitForIdle;
+  if (!hasWait)
+    return;
+  if (options.waitForIdle) {
+    await waitForIdle(context, ws, timeout);
+  }
+  let waitContextId;
+  if (options.waitForFrame && (options.waitFor || options.waitForText)) {
+    const frameStart = Date.now();
+    let frameResolved = false;
+    let lastError;
+    while (Date.now() - frameStart < timeout) {
+      try {
+        waitContextId = await context.resolveFrameContext(ws, options.waitForFrame);
+        frameResolved = true;
+        break;
+      } catch (e) {
+        lastError = e;
+        await new Promise((r) => setTimeout(r, 200));
+      }
+    }
+    if (!frameResolved) {
+      throw new Error(`Timeout waiting for frame: ${options.waitForFrame}. Last error: ${lastError?.message}`);
+    }
+  }
+  if (options.waitFor) {
+    await waitForSelector(context, ws, options.waitFor, timeout, waitContextId);
+  }
+  if (options.waitForText) {
+    await waitForText(context, ws, options.waitForText, timeout, waitContextId);
+  }
+}
+
 // build/commands/pages.js
 async function listPages(context) {
   try {
@@ -6110,13 +8533,14 @@ async function newPage(context, url) {
     process.exit(1);
   }
 }
-async function navigate(context, action, pageIdOrTitle) {
+async function navigate(context, action, pageIdOrTitle, options = {}) {
   let ws;
   try {
     const page = await context.findPage(pageIdOrTitle);
     await context.assertNoDevTools(page.id);
     ws = await context.connect(page);
     await context.sendCommand(ws, "Page.enable");
+    await context.sendCommand(ws, "Runtime.enable");
     if (action === "back") {
       const history = await context.sendCommand(ws, "Page.getNavigationHistory");
       if (history.currentIndex > 0) {
@@ -6140,9 +8564,14 @@ async function navigate(context, action, pageIdOrTitle) {
     } else {
       await context.sendCommand(ws, "Page.navigate", { url: action });
     }
+    await handleWaitOptions(context, ws, options);
     outputSuccess("Navigation complete", {
       action,
-      page: page.id
+      page: page.id,
+      ...options.waitFor && { waitedFor: options.waitFor },
+      ...options.waitForText && { waitedForText: options.waitForText },
+      ...options.waitForIdle && { waitedForIdle: true },
+      ...options.waitForFrame && { waitedInFrame: options.waitForFrame }
     });
   } catch (error) {
     outputError(error.message, "NAVIGATE_FAILED", { action, page: pageIdOrTitle });
@@ -6202,12 +8631,17 @@ async function resizeWindow(context, idOrTitle, options) {
       windowId,
       bounds
     });
+    const applied = await context.sendCommand(ws, "Browser.getWindowForTarget", {
+      targetId: page.id
+    });
+    const actual = applied?.bounds ?? {};
     outputSuccess("Window resized", {
       page: page.id,
       windowId,
-      width: bounds.width,
-      height: bounds.height,
-      state: bounds.windowState
+      width: actual.width ?? bounds.width,
+      height: actual.height ?? bounds.height,
+      state: actual.windowState ?? bounds.windowState,
+      requested: { width: bounds.width, height: bounds.height, state: bounds.windowState }
     });
   } catch (error) {
     outputError(error.message, "RESIZE_WINDOW_FAILED", {
@@ -6225,19 +8659,74 @@ async function resizeWindow(context, idOrTitle, options) {
 }
 
 // build/commands/debug.js
-import { writeFileSync } from "fs";
+import { readFileSync as readFileSync4, writeFileSync } from "fs";
 import { extname as extname2 } from "node:path";
-import sharp from "sharp";
+
+// build/resize.js
+var import_pngjs = __toESM(require_png(), 1);
+function areaAverageResize(src, srcW, srcH, dstW, dstH) {
+  const dst = Buffer.alloc(dstW * dstH * 4);
+  const xRatio = srcW / dstW;
+  const yRatio = srcH / dstH;
+  for (let y = 0; y < dstH; y++) {
+    const srcY0 = y * yRatio;
+    const srcY1 = (y + 1) * yRatio;
+    const yStart = Math.floor(srcY0);
+    const yEnd = Math.min(Math.ceil(srcY1), srcH);
+    for (let x = 0; x < dstW; x++) {
+      const srcX0 = x * xRatio;
+      const srcX1 = (x + 1) * xRatio;
+      const xStart = Math.floor(srcX0);
+      const xEnd = Math.min(Math.ceil(srcX1), srcW);
+      let r = 0, g = 0, b = 0, a = 0;
+      let totalWeight = 0;
+      for (let sy = yStart; sy < yEnd; sy++) {
+        const wy = Math.min(sy + 1, srcY1) - Math.max(sy, srcY0);
+        for (let sx = xStart; sx < xEnd; sx++) {
+          const wx = Math.min(sx + 1, srcX1) - Math.max(sx, srcX0);
+          const w = wx * wy;
+          const off = (sy * srcW + sx) * 4;
+          r += src[off] * w;
+          g += src[off + 1] * w;
+          b += src[off + 2] * w;
+          a += src[off + 3] * w;
+          totalWeight += w;
+        }
+      }
+      const dstOff = (y * dstW + x) * 4;
+      dst[dstOff] = Math.round(r / totalWeight);
+      dst[dstOff + 1] = Math.round(g / totalWeight);
+      dst[dstOff + 2] = Math.round(b / totalWeight);
+      dst[dstOff + 3] = Math.round(a / totalWeight);
+    }
+  }
+  return dst;
+}
+async function resizePngBuffer(buffer, scale) {
+  return new Promise((resolve5, reject) => {
+    const png = new import_pngjs.PNG();
+    png.parse(buffer, (err, parsed) => {
+      if (err)
+        return reject(err);
+      const srcW = parsed.width;
+      const srcH = parsed.height;
+      const dstW = Math.round(srcW * scale);
+      const dstH = Math.round(srcH * scale);
+      const resizedData = areaAverageResize(parsed.data, srcW, srcH, dstW, dstH);
+      const out = new import_pngjs.PNG({ width: dstW, height: dstH });
+      resizedData.copy(out.data);
+      const chunks = [];
+      out.pack().on("data", (chunk) => chunks.push(chunk)).on("end", () => resolve5(Buffer.concat(chunks))).on("error", reject);
+    });
+  });
+}
 
 // build/daemon/exec.js
 async function createExecSessionByPageRef(context, pageIdOrTitle) {
   const daemon = new DaemonClient();
   try {
     const sessions = await daemon.listSessions();
-    let session = sessions.find((s) => s.pageId === pageIdOrTitle && s.connected);
-    if (!session && sessions.length === 1 && sessions[0].connected) {
-      session = sessions[0];
-    }
+    const session = sessions.find((s) => s.pageId === pageIdOrTitle && s.connected);
     if (session) {
       const sessionPageId = session.pageId;
       return {
@@ -6248,6 +8737,9 @@ async function createExecSessionByPageRef(context, pageIdOrTitle) {
         assertNoDevTools: async () => {
         },
         // Daemon handles its own connection - no check needed
+        assertNoDialog: async () => {
+        },
+        // TODO: Add daemon dialog check support
         close: () => {
         }
       };
@@ -6269,80 +8761,15 @@ async function createExecSessionByPageRef(context, pageIdOrTitle) {
     exec: (method, params) => context.sendCommand(ws, method, params),
     assertNoDevTools: daemonConnectedToPage ? async () => {
     } : () => context.assertNoDevTools(page.id),
+    assertNoDialog: () => context.assertNoDialog(ws),
     close: () => ws.close()
   };
 }
 
 // build/commands/debug.js
-async function listConsole(context, options) {
-  let ws;
-  const duration = options.duration ?? 0;
-  try {
-    const page = await context.findPage(options.page);
-    await context.assertNoDevTools(page.id);
-    ws = await context.connect(page);
-    context.setupConsoleCollection(ws, (message) => {
-      if (options.type && message.type !== options.type) {
-        return;
-      }
-      outputLine({
-        type: message.type,
-        timestamp: message.timestamp,
-        text: message.text,
-        source: message.source,
-        ...message.line !== void 0 && { line: message.line },
-        ...message.url && { url: message.url }
-      });
-    });
-    await context.sendCommand(ws, "Runtime.enable");
-    if (duration > 0) {
-      await new Promise((resolve5) => setTimeout(resolve5, duration * 1e3));
-    } else {
-      await new Promise((resolve5) => {
-        function cleanup() {
-          process.off("SIGINT", onSigint);
-          process.off("SIGTERM", onSigterm);
-        }
-        function onSigint() {
-          process.exitCode = 130;
-          cleanup();
-          resolve5();
-        }
-        function onSigterm() {
-          process.exitCode = 143;
-          cleanup();
-          resolve5();
-        }
-        process.on("SIGINT", onSigint);
-        process.on("SIGTERM", onSigterm);
-      });
-    }
-  } catch (error) {
-    outputError(error.message, "LIST_CONSOLE_FAILED");
-    process.exit(1);
-  } finally {
-    if (ws) {
-      ws.close();
-    }
-  }
-}
-async function snapshot(context, options) {
-  let session;
-  try {
-    session = await createExecSessionByPageRef(context, options.page);
-    await session.assertNoDevTools();
-    const format3 = options.format || "ax";
-    if (format3 === "text") {
-      await session.exec("Runtime.enable");
-      const result = await session.exec("Runtime.evaluate", {
-        expression: "document.body.innerText",
-        returnByValue: true
-      });
-      outputRaw(result.result?.value || "");
-    } else if (format3 === "ax") {
-      await session.exec("Runtime.enable");
-      const result = await session.exec("Runtime.evaluate", {
-        expression: `
+import { fetch as undiciFetch3 } from "undici";
+function getAxSnapshotScript() {
+  return `
 (() => {
   const results = [];
   const seen = new Set();
@@ -6505,26 +8932,124 @@ async function snapshot(context, options) {
 
   return results;
 })()
-        `,
+  `;
+}
+function formatAxElements(elements) {
+  const lines = elements.map((el) => {
+    let line = `[${el.role}]`;
+    if (el.label)
+      line += ` "${el.label}"`;
+    if (el.name)
+      line += ` name=${el.name}`;
+    if (el.value)
+      line += ` value="${el.value}"`;
+    if (el.checked !== void 0)
+      line += el.checked ? " \u2713" : " \u25CB";
+    if (el.options)
+      line += ` options=[${el.options.map((o) => `"${o}"`).join(",")}]`;
+    line += ` \u2192 ${el.selector}`;
+    return line;
+  });
+  return lines.join("\n");
+}
+async function listConsole(context, options) {
+  let ws;
+  const duration = options.duration ?? 0;
+  try {
+    const page = await context.findPage(options.page);
+    await context.assertNoDevTools(page.id);
+    ws = await context.connect(page);
+    context.setupConsoleCollection(ws, (message) => {
+      if (options.type && message.type !== options.type) {
+        return;
+      }
+      outputLine({
+        type: message.type,
+        timestamp: message.timestamp,
+        text: message.text,
+        source: message.source,
+        ...message.line !== void 0 && { line: message.line },
+        ...message.url && { url: message.url }
+      });
+    });
+    await context.sendCommand(ws, "Runtime.enable");
+    if (duration > 0) {
+      await new Promise((resolve5) => setTimeout(resolve5, duration * 1e3));
+    } else {
+      await new Promise((resolve5) => {
+        function cleanup() {
+          process.off("SIGINT", onSigint);
+          process.off("SIGTERM", onSigterm);
+        }
+        function onSigint() {
+          process.exitCode = 130;
+          cleanup();
+          resolve5();
+        }
+        function onSigterm() {
+          process.exitCode = 143;
+          cleanup();
+          resolve5();
+        }
+        process.on("SIGINT", onSigint);
+        process.on("SIGTERM", onSigterm);
+      });
+    }
+  } catch (error) {
+    outputError(error.message, "LIST_CONSOLE_FAILED");
+    process.exit(1);
+  } finally {
+    if (ws) {
+      ws.close();
+    }
+  }
+}
+async function snapshot(context, options) {
+  let session;
+  let directWs;
+  try {
+    const format3 = options.format || "ax";
+    if (options.frame) {
+      const page = await context.findPage(options.page);
+      directWs = await context.connect(page);
+      const contextId = await context.resolveFrameContext(directWs, options.frame);
+      if (format3 === "text") {
+        const result = await context.sendCommand(directWs, "Runtime.evaluate", {
+          expression: "document.body.innerText",
+          contextId,
+          returnByValue: true
+        });
+        outputRaw(result.result?.value || "");
+      } else if (format3 === "ax") {
+        const result = await context.sendCommand(directWs, "Runtime.evaluate", {
+          expression: getAxSnapshotScript(),
+          contextId,
+          returnByValue: true
+        });
+        const elements = result.result?.value || [];
+        outputRaw(formatAxElements(elements));
+      } else {
+        throw new Error(`Unknown snapshot format: ${format3}`);
+      }
+      return;
+    }
+    session = await createExecSessionByPageRef(context, options.page);
+    await session.assertNoDevTools();
+    await session.assertNoDialog();
+    if (format3 === "text") {
+      await session.exec("Runtime.enable");
+      const result = await session.exec("Runtime.evaluate", {
+        expression: "document.body.innerText",
         returnByValue: true
       });
-      const elements = result.result?.value || [];
-      const lines = elements.map((el) => {
-        let line = `[${el.role}]`;
-        if (el.label)
-          line += ` "${el.label}"`;
-        if (el.name)
-          line += ` name=${el.name}`;
-        if (el.value)
-          line += ` value="${el.value}"`;
-        if (el.checked !== void 0)
-          line += el.checked ? " \u2713" : " \u25CB";
-        if (el.options)
-          line += ` options=[${el.options.map((o) => `"${o}"`).join(",")}]`;
-        line += ` \u2192 ${el.selector}`;
-        return line;
+      outputRaw(result.result?.value || "");
+    } else if (format3 === "ax") {
+      await session.exec("Runtime.enable");
+      const result = await session.exec("Runtime.evaluate", {
+        expression: getAxSnapshotScript(),
+        returnByValue: true
       });
-      outputRaw(lines.join("\n"));
+      outputRaw(formatAxElements(result.result?.value || []));
     } else {
       throw new Error(`Unknown snapshot format: ${format3}`);
     }
@@ -6533,33 +9058,71 @@ async function snapshot(context, options) {
     process.exit(1);
   } finally {
     session?.close();
+    directWs?.close();
   }
 }
 async function evaluate(context, expression, options) {
   let session;
+  let directWs;
   try {
-    session = await createExecSessionByPageRef(context, options.page);
-    await session.assertNoDevTools();
-    await session.exec("Runtime.enable");
-    const result = await session.exec("Runtime.evaluate", {
-      expression,
-      returnByValue: true,
-      awaitPromise: true
-    });
-    if (result.exceptionDetails) {
-      outputError(result.exceptionDetails.text, "EVAL_EXCEPTION", result.exceptionDetails);
-      process.exit(1);
+    let code = expression;
+    if (options.file) {
+      code = readFileSync4(options.file, "utf-8");
+    } else if (options.stdin) {
+      code = readFileSync4(0, "utf-8");
     }
-    outputLine({
-      success: true,
-      value: result.result?.value,
-      type: result.result?.type
-    });
+    if (options.async) {
+      code = `(async () => { ${code} })()`;
+    }
+    let contextId;
+    if (options.frame) {
+      const page = await context.findPage(options.page);
+      directWs = await context.connect(page);
+      contextId = await context.resolveFrameContext(directWs, options.frame);
+      const result = await context.sendCommand(directWs, "Runtime.evaluate", {
+        expression: code,
+        contextId,
+        returnByValue: true,
+        awaitPromise: true
+      });
+      if (result.exceptionDetails) {
+        outputError(result.exceptionDetails.text, "EVAL_EXCEPTION", result.exceptionDetails);
+        process.exit(1);
+      }
+      outputLine({
+        success: true,
+        value: result.result?.value,
+        type: result.result?.type,
+        frame: options.frame
+      });
+    } else {
+      session = await createExecSessionByPageRef(context, options.page);
+      await session.assertNoDevTools();
+      await session.assertNoDialog();
+      await session.exec("Runtime.enable");
+      const result = await session.exec("Runtime.evaluate", {
+        expression: code,
+        returnByValue: true,
+        awaitPromise: true
+      });
+      if (result.exceptionDetails) {
+        outputError(result.exceptionDetails.text, "EVAL_EXCEPTION", result.exceptionDetails);
+        process.exit(1);
+      }
+      outputLine({
+        success: true,
+        value: result.result?.value,
+        type: result.result?.type
+      });
+    }
   } catch (error) {
-    outputError(error.message, "EVAL_FAILED", { expression });
+    outputError(error.message, "EVAL_FAILED", { expression, frame: options.frame });
     process.exit(1);
   } finally {
     session?.close();
+    if (directWs) {
+      directWs.close();
+    }
   }
 }
 async function screenshot(context, options) {
@@ -6568,6 +9131,7 @@ async function screenshot(context, options) {
     const page = await context.findPage(options.page);
     await context.assertNoDevTools(page.id);
     ws = await context.connect(page);
+    await context.assertNoDialog(ws);
     const validFormats = ["jpeg", "png", "webp"];
     const detectedFormat = (() => {
       const explicitFormat = options.format?.toLowerCase();
@@ -6590,28 +9154,63 @@ async function screenshot(context, options) {
       }
       return void 0;
     })();
-    const format3 = detectedFormat ?? "jpeg";
-    if (!validFormats.includes(format3)) {
-      throw new Error(`Invalid format: ${format3}. Must be one of: ${validFormats.join(", ")}`);
-    }
-    const quality = options.quality || 90;
     const scale = options.scale ?? 1;
     if (scale <= 0 || scale > 1) {
       throw new Error(`Invalid scale: ${scale}. Must be between 0 (exclusive) and 1 (inclusive).`);
     }
+    if (scale !== 1 && detectedFormat && detectedFormat !== "png") {
+      throw new Error(`--scale re-encodes to PNG and cannot produce ${detectedFormat}. Use --format png (and a .png output path), or drop --scale.`);
+    }
+    const format3 = detectedFormat ?? (scale !== 1 ? "png" : "jpeg");
+    if (!validFormats.includes(format3)) {
+      throw new Error(`Invalid format: ${format3}. Must be one of: ${validFormats.join(", ")}`);
+    }
+    const quality = options.quality || 90;
     const captureParams = {
       format: format3,
       quality: format3 === "jpeg" ? quality : void 0
     };
+    if (options.selector) {
+      await context.sendCommand(ws, "Runtime.enable");
+      const boundsResult = await context.sendCommand(ws, "Runtime.evaluate", {
+        expression: `(() => {
+          const el = document.querySelector(${JSON.stringify(options.selector)});
+          if (!el) return null;
+          el.scrollIntoView({ block: 'center', behavior: 'instant' });
+          const rect = el.getBoundingClientRect();
+          // Page.captureScreenshot clips in document coordinates, not viewport
+          // coordinates, so the scroll offset has to be added back in.
+          return {
+            x: rect.x + window.scrollX,
+            y: rect.y + window.scrollY,
+            width: rect.width,
+            height: rect.height
+          };
+        })()`,
+        returnByValue: true,
+        awaitPromise: false
+      });
+      const bounds = boundsResult.result?.value;
+      if (!bounds) {
+        throw new Error(`Element not found: ${options.selector}`);
+      }
+      if (bounds.width === 0 && bounds.height === 0) {
+        throw new Error(`Element has no visible area to capture: ${options.selector}`);
+      }
+      const padding = 10;
+      captureParams.clip = {
+        x: Math.max(0, bounds.x - padding),
+        y: Math.max(0, bounds.y - padding),
+        width: bounds.width + padding * 2,
+        height: bounds.height + padding * 2,
+        scale: 1
+      };
+      captureParams.captureBeyondViewport = true;
+    }
     const result = await context.sendCommand(ws, "Page.captureScreenshot", captureParams);
     let buffer = Buffer.from(result.data, "base64");
     if (scale !== 1) {
-      const image = sharp(buffer);
-      const metadata = await image.metadata();
-      if (metadata.width && metadata.height) {
-        const newWidth = Math.round(metadata.width * scale);
-        buffer = Buffer.from(await image.resize(newWidth).toBuffer());
-      }
+      buffer = Buffer.from(await resizePngBuffer(buffer, scale));
     }
     if (options.output) {
       writeFileSync(options.output, buffer);
@@ -6634,6 +9233,420 @@ async function screenshot(context, options) {
     if (ws) {
       ws.close();
     }
+  }
+}
+async function dialog(context, options) {
+  let ws;
+  try {
+    const page = await context.findPage(options.page);
+    ws = await context.connect(page);
+    const dialogInfo = await context.checkForDialog(ws);
+    if (!dialogInfo) {
+      outputLine({
+        success: true,
+        dialog: null,
+        message: "No dialog present"
+      });
+      return;
+    }
+    if (options.dismiss || options.accept) {
+      const action = options.accept ? "accept" : "dismiss";
+      await context.handleDialog(ws, options.accept ?? false, options.promptText);
+      outputSuccess(`Dialog ${action}ed`, {
+        type: dialogInfo.type,
+        message: dialogInfo.message,
+        action,
+        promptText: options.promptText
+      });
+    } else {
+      outputLine({
+        success: true,
+        dialog: {
+          type: dialogInfo.type,
+          message: dialogInfo.message,
+          url: dialogInfo.url,
+          defaultPrompt: dialogInfo.defaultPrompt
+        },
+        hint: "Use --dismiss or --accept to handle the dialog"
+      });
+    }
+  } catch (error) {
+    outputError(error.message, "DIALOG_FAILED", {});
+    process.exit(1);
+  } finally {
+    if (ws) {
+      ws.close();
+    }
+  }
+}
+async function status(context) {
+  try {
+    const client = new DaemonClient();
+    const daemonStatus2 = await client.getStatus();
+    let chromeStatus = { running: false };
+    try {
+      const res = await (globalThis.fetch ?? undiciFetch3)(`http://localhost:9222/json/version`, {
+        signal: AbortSignal.timeout(1e3)
+      });
+      if (res.ok) {
+        const version = await res.json();
+        const pages = await context.getPages();
+        chromeStatus = {
+          running: true,
+          version: version.Browser,
+          pages: pages.length
+        };
+      }
+    } catch {
+    }
+    outputLine({
+      daemon: {
+        running: daemonStatus2.running,
+        sessions: daemonStatus2.sessions
+      },
+      chrome: chromeStatus
+    });
+  } catch (error) {
+    outputError(error.message, "STATUS_FAILED", {});
+    process.exit(1);
+  }
+}
+async function query(context, selector, options) {
+  let session;
+  let directWs;
+  try {
+    const hasFlags = options.text || options.html || options.attrs || options.styles;
+    const wantText = options.text || !hasFlags;
+    const wantAttrs = options.attrs || !hasFlags;
+    const wantHtml = options.html || false;
+    const styleProps = options.styles ? options.styles.split(",").map((s) => s.trim()) : [];
+    const jsExpression = `(() => {
+      const selector = ${JSON.stringify(selector)};
+      const all = ${options.all ? "true" : "false"};
+      const wantText = ${wantText};
+      const wantHtml = ${wantHtml};
+      const wantAttrs = ${wantAttrs};
+      const styleProps = ${JSON.stringify(styleProps)};
+
+      const els = all
+        ? Array.from(document.querySelectorAll(selector))
+        : (() => { const el = document.querySelector(selector); return el ? [el] : []; })();
+
+      if (els.length === 0) {
+        return [{ type: 'query', selector, exists: false }];
+      }
+
+      return els.map(el => {
+        const rect = el.getBoundingClientRect();
+        const result = {
+          type: 'query',
+          selector,
+          exists: true,
+          visible: rect.width > 0 && rect.height > 0 && getComputedStyle(el).visibility !== 'hidden'
+        };
+
+        if (wantText) {
+          result.text = (el.textContent || '').trim();
+        }
+        if (wantHtml) {
+          const html = (el.innerHTML || '').trim();
+          result.html = html.length > 2000 ? html.slice(0, 2000) + '...' : html;
+        }
+        if (wantAttrs) {
+          const attrs = {};
+          for (const attr of el.attributes) {
+            attrs[attr.name] = attr.value;
+          }
+          result.attrs = attrs;
+        }
+        if (styleProps.length > 0) {
+          const computed = getComputedStyle(el);
+          const styles = {};
+          for (const prop of styleProps) {
+            const cssProp = prop.replace(/[A-Z]/g, m => '-' + m.toLowerCase());
+            styles[prop] = computed.getPropertyValue(cssProp);
+          }
+          result.styles = styles;
+        }
+        return result;
+      });
+    })()`;
+    let evalResult;
+    if (options.frame) {
+      const page = await context.findPage(options.page);
+      directWs = await context.connect(page);
+      const contextId = await context.resolveFrameContext(directWs, options.frame);
+      const result = await context.sendCommand(directWs, "Runtime.evaluate", {
+        expression: jsExpression,
+        contextId,
+        returnByValue: true
+      });
+      evalResult = result;
+    } else {
+      session = await createExecSessionByPageRef(context, options.page);
+      await session.assertNoDevTools();
+      await session.assertNoDialog();
+      await session.exec("Runtime.enable");
+      evalResult = await session.exec("Runtime.evaluate", {
+        expression: jsExpression,
+        returnByValue: true
+      });
+    }
+    if (evalResult.exceptionDetails) {
+      outputError(evalResult.exceptionDetails.text || "Query evaluation failed", "QUERY_EXCEPTION", evalResult.exceptionDetails);
+      process.exit(1);
+    }
+    const elements = evalResult.result?.value || [];
+    for (const el of elements) {
+      outputLine(el);
+    }
+  } catch (error) {
+    outputError(error.message, "QUERY_FAILED", { selector });
+    process.exit(1);
+  } finally {
+    session?.close();
+    directWs?.close();
+  }
+}
+async function styles2(context, selector, options) {
+  let session;
+  let directWs;
+  try {
+    const defaultProps = ["color", "fontSize", "fontWeight", "textAlign", "margin", "padding", "lineHeight", "display"];
+    const styleProps = options.props ? options.props.split(",").map((s) => s.trim()) : defaultProps;
+    const compareSiblings = options.compareSiblings || false;
+    const jsExpression = `(() => {
+      const selector = ${JSON.stringify(selector)};
+      const props = ${JSON.stringify(styleProps)};
+      const compareSiblings = ${compareSiblings};
+
+      function extractStyles(el) {
+        const computed = getComputedStyle(el);
+        const result = {
+          tag: el.tagName,
+          class: el.className || undefined
+        };
+        for (const prop of props) {
+          const cssProp = prop.replace(/[A-Z]/g, m => '-' + m.toLowerCase());
+          result[prop] = computed.getPropertyValue(cssProp);
+        }
+        return result;
+      }
+
+      const el = document.querySelector(selector);
+      if (!el) {
+        return { type: 'styles', selector, exists: false };
+      }
+
+      const result = {
+        type: 'styles',
+        selector,
+        element: extractStyles(el)
+      };
+
+      if (compareSiblings) {
+        const parent = el.parentElement;
+        if (parent) {
+          result.parent = extractStyles(parent);
+          result.siblings = Array.from(parent.children)
+            .filter(c => c !== el && c.nodeType === 1)
+            .slice(0, 10)
+            .map(c => extractStyles(c));
+        }
+      }
+
+      return result;
+    })()`;
+    let evalResult;
+    if (options.frame) {
+      const page = await context.findPage(options.page);
+      directWs = await context.connect(page);
+      const contextId = await context.resolveFrameContext(directWs, options.frame);
+      const result = await context.sendCommand(directWs, "Runtime.evaluate", {
+        expression: jsExpression,
+        contextId,
+        returnByValue: true
+      });
+      evalResult = result;
+    } else {
+      session = await createExecSessionByPageRef(context, options.page);
+      await session.assertNoDevTools();
+      await session.assertNoDialog();
+      await session.exec("Runtime.enable");
+      evalResult = await session.exec("Runtime.evaluate", {
+        expression: jsExpression,
+        returnByValue: true
+      });
+    }
+    if (evalResult.exceptionDetails) {
+      outputError(evalResult.exceptionDetails.text || "Styles evaluation failed", "STYLES_EXCEPTION", evalResult.exceptionDetails);
+      process.exit(1);
+    }
+    outputLine(evalResult.result?.value || { type: "styles", selector, exists: false });
+  } catch (error) {
+    outputError(error.message, "STYLES_FAILED", { selector });
+    process.exit(1);
+  } finally {
+    session?.close();
+    directWs?.close();
+  }
+}
+var DEVICE_PRESETS = {
+  ipad: {
+    width: 1024,
+    height: 1366,
+    scale: 2,
+    mobile: true,
+    touch: true,
+    ua: "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+  },
+  iphone: {
+    width: 390,
+    height: 844,
+    scale: 3,
+    mobile: true,
+    touch: true,
+    ua: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+  },
+  desktop: {
+    width: 0,
+    height: 0,
+    scale: 0,
+    mobile: false,
+    touch: false,
+    ua: ""
+  }
+};
+async function emulate(context, device, options) {
+  let session;
+  try {
+    session = await createExecSessionByPageRef(context, options.page);
+    const isDesktop = device === "desktop";
+    if (isDesktop) {
+      await session.exec("Emulation.clearDeviceMetricsOverride");
+      await session.exec("Emulation.setUserAgentOverride", { userAgent: "" });
+      await session.exec("Emulation.setTouchEmulationEnabled", { enabled: false });
+      outputSuccess("Emulation reset to desktop", {
+        device: "desktop",
+        persistent: session.useDaemon
+      });
+      return;
+    }
+    const preset = DEVICE_PRESETS[device];
+    if (!preset && !options.width) {
+      throw new Error(`Unknown device "${device}". Use: ipad, iphone, desktop, or provide --width/--height`);
+    }
+    const width = options.width ?? preset?.width ?? 1024;
+    const height = options.height ?? preset?.height ?? 768;
+    const scale = options.scale ?? preset?.scale ?? 1;
+    const mobile = preset?.mobile ?? true;
+    const touch = options.touch ?? preset?.touch ?? false;
+    const ua = options.ua ?? preset?.ua ?? "";
+    await session.exec("Emulation.setDeviceMetricsOverride", {
+      width,
+      height,
+      deviceScaleFactor: scale,
+      mobile
+    });
+    if (ua) {
+      await session.exec("Emulation.setUserAgentOverride", { userAgent: ua });
+    }
+    if (touch) {
+      await session.exec("Emulation.setTouchEmulationEnabled", {
+        enabled: true,
+        maxTouchPoints: 5
+      });
+    }
+    const applied = await session.exec("Runtime.evaluate", {
+      expression: `JSON.stringify({ width: innerWidth, height: innerHeight, ua: navigator.userAgent })`,
+      returnByValue: true
+    });
+    let appliedUa;
+    try {
+      appliedUa = JSON.parse(applied.result?.value ?? "{}").ua;
+    } catch {
+    }
+    const uaApplied = !ua || appliedUa === ua;
+    outputSuccess(`Emulating ${preset ? device : "custom device"}`, {
+      device: preset ? device : "custom",
+      width,
+      height,
+      scale,
+      mobile,
+      touch,
+      ua: ua || void 0,
+      uaApplied,
+      persistent: session.useDaemon,
+      ...uaApplied ? {} : {
+        warning: "The user-agent override did not stick. Emulation is bound to the CDP session, so start the daemon (cdp-cli daemon start) to keep it alive."
+      }
+    });
+  } catch (error) {
+    outputError(error.message, "EMULATE_FAILED", { device });
+    process.exit(1);
+  } finally {
+    session?.close();
+  }
+}
+async function dismissOverlays(context, options) {
+  let session;
+  let directWs;
+  try {
+    const jsExpression = `(() => {
+      const selectors = [
+        'button.notify-hide',
+        '.toast-close',
+        '.notification-dismiss',
+        '[data-dismiss]',
+        '.close-btn',
+        '.modal .close',
+        'button[aria-label="Close"]',
+        'button[aria-label="Dismiss"]'
+      ];
+      const dismissed = [];
+      for (const sel of selectors) {
+        const els = document.querySelectorAll(sel);
+        for (const el of els) {
+          const rect = el.getBoundingClientRect();
+          if (rect.width === 0 && rect.height === 0) continue;
+          const text = (el.textContent || '').trim().slice(0, 40);
+          el.click();
+          dismissed.push({ selector: sel, text });
+        }
+      }
+      return { type: 'dismiss-overlays', dismissed, count: dismissed.length };
+    })()`;
+    let evalResult;
+    if (options.frame) {
+      const page = await context.findPage(options.page);
+      directWs = await context.connect(page);
+      const contextId = await context.resolveFrameContext(directWs, options.frame);
+      evalResult = await context.sendCommand(directWs, "Runtime.evaluate", {
+        expression: jsExpression,
+        contextId,
+        returnByValue: true
+      });
+    } else {
+      session = await createExecSessionByPageRef(context, options.page);
+      await session.assertNoDevTools();
+      await session.assertNoDialog();
+      await session.exec("Runtime.enable");
+      evalResult = await session.exec("Runtime.evaluate", {
+        expression: jsExpression,
+        returnByValue: true
+      });
+    }
+    if (evalResult.exceptionDetails) {
+      outputError(evalResult.exceptionDetails.text || "Dismiss overlays failed", "DISMISS_OVERLAYS_EXCEPTION", evalResult.exceptionDetails);
+      process.exit(1);
+    }
+    outputLine(evalResult.result?.value || { type: "dismiss-overlays", dismissed: [], count: 0 });
+  } catch (error) {
+    outputError(error.message, "DISMISS_OVERLAYS_FAILED", {});
+    process.exit(1);
+  } finally {
+    session?.close();
+    directWs?.close();
   }
 }
 
@@ -6690,6 +9703,129 @@ async function listNetwork(context, options) {
       ws.close();
     }
   }
+}
+
+// build/keys.js
+var NAMED_KEYS = {
+  enter: { key: "Enter", code: "Enter", keyCode: 13, text: "\r" },
+  tab: { key: "Tab", code: "Tab", keyCode: 9 },
+  escape: { key: "Escape", code: "Escape", keyCode: 27 },
+  backspace: { key: "Backspace", code: "Backspace", keyCode: 8 },
+  delete: { key: "Delete", code: "Delete", keyCode: 46 },
+  insert: { key: "Insert", code: "Insert", keyCode: 45 },
+  space: { key: " ", code: "Space", keyCode: 32, text: " " },
+  arrowup: { key: "ArrowUp", code: "ArrowUp", keyCode: 38 },
+  arrowdown: { key: "ArrowDown", code: "ArrowDown", keyCode: 40 },
+  arrowleft: { key: "ArrowLeft", code: "ArrowLeft", keyCode: 37 },
+  arrowright: { key: "ArrowRight", code: "ArrowRight", keyCode: 39 },
+  home: { key: "Home", code: "Home", keyCode: 36 },
+  end: { key: "End", code: "End", keyCode: 35 },
+  pageup: { key: "PageUp", code: "PageUp", keyCode: 33 },
+  pagedown: { key: "PageDown", code: "PageDown", keyCode: 34 }
+};
+var ALIASES = {
+  esc: "escape",
+  del: "delete",
+  return: "enter",
+  up: "arrowup",
+  down: "arrowdown",
+  left: "arrowleft",
+  right: "arrowright",
+  spacebar: "space",
+  " ": "space"
+};
+var SHIFTED_SYMBOLS = {
+  "!": { code: "Digit1", keyCode: 49 },
+  "@": { code: "Digit2", keyCode: 50 },
+  "#": { code: "Digit3", keyCode: 51 },
+  $: { code: "Digit4", keyCode: 52 },
+  "%": { code: "Digit5", keyCode: 53 },
+  "^": { code: "Digit6", keyCode: 54 },
+  "&": { code: "Digit7", keyCode: 55 },
+  "*": { code: "Digit8", keyCode: 56 },
+  "(": { code: "Digit9", keyCode: 57 },
+  ")": { code: "Digit0", keyCode: 48 },
+  _: { code: "Minus", keyCode: 189 },
+  "+": { code: "Equal", keyCode: 187 },
+  "{": { code: "BracketLeft", keyCode: 219 },
+  "}": { code: "BracketRight", keyCode: 221 },
+  "|": { code: "Backslash", keyCode: 220 },
+  ":": { code: "Semicolon", keyCode: 186 },
+  '"': { code: "Quote", keyCode: 222 },
+  "<": { code: "Comma", keyCode: 188 },
+  ">": { code: "Period", keyCode: 190 },
+  "?": { code: "Slash", keyCode: 191 },
+  "~": { code: "Backquote", keyCode: 192 }
+};
+var UNSHIFTED_SYMBOLS = {
+  "-": { code: "Minus", keyCode: 189 },
+  "=": { code: "Equal", keyCode: 187 },
+  "[": { code: "BracketLeft", keyCode: 219 },
+  "]": { code: "BracketRight", keyCode: 221 },
+  "\\": { code: "Backslash", keyCode: 220 },
+  ";": { code: "Semicolon", keyCode: 186 },
+  "'": { code: "Quote", keyCode: 222 },
+  ",": { code: "Comma", keyCode: 188 },
+  ".": { code: "Period", keyCode: 190 },
+  "/": { code: "Slash", keyCode: 191 },
+  "`": { code: "Backquote", keyCode: 192 }
+};
+function describeChar(char) {
+  if (char === "\n" || char === "\r") {
+    return NAMED_KEYS.enter;
+  }
+  if (char === "	") {
+    return NAMED_KEYS.tab;
+  }
+  if (char === " ") {
+    return NAMED_KEYS.space;
+  }
+  if (/^[a-z]$/.test(char)) {
+    return {
+      key: char,
+      code: `Key${char.toUpperCase()}`,
+      keyCode: char.toUpperCase().charCodeAt(0),
+      text: char
+    };
+  }
+  if (/^[A-Z]$/.test(char)) {
+    return {
+      key: char,
+      code: `Key${char}`,
+      keyCode: char.charCodeAt(0),
+      text: char
+    };
+  }
+  if (/^[0-9]$/.test(char)) {
+    return {
+      key: char,
+      code: `Digit${char}`,
+      keyCode: char.charCodeAt(0),
+      text: char
+    };
+  }
+  const symbol = SHIFTED_SYMBOLS[char] ?? UNSHIFTED_SYMBOLS[char];
+  if (symbol) {
+    return { key: char, code: symbol.code, keyCode: symbol.keyCode, text: char };
+  }
+  return { key: char, code: "", keyCode: 0, text: char };
+}
+function describeKey(name) {
+  const lower = name.toLowerCase();
+  const resolved = ALIASES[lower] ?? lower;
+  const named = NAMED_KEYS[resolved];
+  if (named) {
+    return named;
+  }
+  const functionKey = /^f([1-9]|1[0-2])$/.exec(resolved);
+  if (functionKey) {
+    const number = Number(functionKey[1]);
+    return { key: `F${number}`, code: `F${number}`, keyCode: 111 + number };
+  }
+  if (name.length === 1) {
+    return describeChar(name);
+  }
+  throw new Error(`Unknown key: ${name}. Use a single character, a named key (${Object.keys(NAMED_KEYS).join(", ")}), or F1-F12.`);
 }
 
 // build/commands/input.js
@@ -6764,6 +9900,24 @@ function delay(ms) {
     setTimeout(resolve5, ms);
   });
 }
+async function dispatchKey(context, ws, descriptor) {
+  const base = {
+    key: descriptor.key,
+    code: descriptor.code,
+    windowsVirtualKeyCode: descriptor.keyCode,
+    nativeVirtualKeyCode: descriptor.keyCode
+  };
+  await context.sendCommand(ws, "Input.dispatchKeyEvent", {
+    ...base,
+    // keyDown carries the inserted text; a bare rawKeyDown would type nothing.
+    type: descriptor.text ? "keyDown" : "rawKeyDown",
+    ...descriptor.text ? { text: descriptor.text, unmodifiedText: descriptor.text } : {}
+  });
+  await context.sendCommand(ws, "Input.dispatchKeyEvent", {
+    ...base,
+    type: "keyUp"
+  });
+}
 async function safeReleaseObject(context, ws, objectId) {
   if (!objectId) {
     return;
@@ -6773,7 +9927,7 @@ async function safeReleaseObject(context, ws, objectId) {
   } catch {
   }
 }
-async function getElementMetadataFromObjectId(context, ws, objectId) {
+async function getElementMetadataFromObjectId(context, ws, objectId, release = true) {
   try {
     const callResult = await context.sendCommand(ws, "Runtime.callFunctionOn", {
       objectId,
@@ -6800,8 +9954,127 @@ async function getElementMetadataFromObjectId(context, ws, objectId) {
     });
     return normalizeMetadata(callResult.result?.value);
   } finally {
-    await safeReleaseObject(context, ws, objectId);
+    if (release) {
+      await safeReleaseObject(context, ws, objectId);
+    }
   }
+}
+async function getClickPoint(context, ws, objectId, priorRect, scroll = true) {
+  let scrollError;
+  if (scroll) {
+    try {
+      await context.sendCommand(ws, "DOM.scrollIntoViewIfNeeded", { objectId });
+    } catch (error) {
+      scrollError = error.message;
+    }
+  }
+  const callResult = await context.sendCommand(ws, "Runtime.callFunctionOn", {
+    objectId,
+    functionDeclaration: `
+      function() {
+        const el = this;
+        if (!el.isConnected) {
+          return { detached: true };
+        }
+
+        const rect = el.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        const inViewport =
+          cx >= 0 && cy >= 0 && cx <= window.innerWidth && cy <= window.innerHeight;
+
+        let hit = inViewport ? document.elementFromPoint(cx, cy) : null;
+        while (hit && hit.shadowRoot) {
+          const deeper = hit.shadowRoot.elementFromPoint(cx, cy);
+          if (!deeper || deeper === hit) break;
+          hit = deeper;
+        }
+
+        // The click counts as landing on the target if the hit node is the
+        // element itself or anything nested inside it.
+        let node = hit;
+        let hitOk = false;
+        while (node) {
+          if (node === el) {
+            hitOk = true;
+            break;
+          }
+          const root = node.getRootNode();
+          node = node.parentElement ||
+            (root && root.host ? root.host : null);
+        }
+
+        const describe = (n) => {
+          if (!n) return null;
+          let out = (n.tagName || '').toLowerCase();
+          if (n.id) out += '#' + n.id;
+          if (n.classList && n.classList.length) {
+            out += '.' + Array.from(n.classList).join('.');
+          }
+          return out;
+        };
+
+        return {
+          rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+          inViewport,
+          hitOk,
+          hit: describe(hit)
+        };
+      }
+    `,
+    returnByValue: true
+  });
+  const value = callResult.result?.value;
+  if (!value) {
+    throw new ClickError("Could not measure the element before clicking", "CLICK_MEASURE_FAILED", {});
+  }
+  if (value.detached) {
+    throw new ClickError("Element was removed from the document before the click", "CLICK_DETACHED", {});
+  }
+  const rect = normalizeMetadata({ rect: value.rect }).rect;
+  if (scrollError && !value.hitOk) {
+    throw new ClickError(`Element could not be scrolled into view: ${scrollError}`, "CLICK_OFFSCREEN", { rect: roundRect(rect) });
+  }
+  return {
+    rect,
+    scrolled: rect.x !== priorRect.x || rect.y !== priorRect.y,
+    inViewport: Boolean(value.inViewport),
+    hitOk: Boolean(value.hitOk),
+    hit: typeof value.hit === "string" ? value.hit : null
+  };
+}
+async function matchesFromArrayHandle(context, ws, arrayObjectId) {
+  const matches = [];
+  try {
+    const props = await context.sendCommand(ws, "Runtime.getProperties", {
+      objectId: arrayObjectId,
+      ownProperties: true
+    });
+    for (const descriptor of props.result ?? []) {
+      if (!/^\d+$/.test(descriptor.name)) {
+        continue;
+      }
+      const objectId = descriptor.value?.objectId;
+      if (!objectId) {
+        continue;
+      }
+      let nodeId = -1;
+      try {
+        const requested = await context.sendCommand(ws, "DOM.requestNode", {
+          objectId
+        });
+        if (typeof requested?.nodeId === "number") {
+          nodeId = requested.nodeId;
+        }
+      } catch {
+      }
+      const metadata = await getElementMetadataFromObjectId(context, ws, objectId, false);
+      matches.push({ nodeId, objectId, metadata });
+    }
+  } finally {
+    await safeReleaseObject(context, ws, arrayObjectId);
+  }
+  return matches;
 }
 async function getElementMetadataForNode(context, ws, nodeId) {
   const resolved = await context.sendCommand(ws, "DOM.resolveNode", { nodeId });
@@ -6817,20 +10090,25 @@ async function getElementMetadataForNode(context, ws, nodeId) {
     for (let i = 0; i < attributes.length; i += 2) {
       attrMap[attributes[i]] = attributes[i + 1];
     }
-    return normalizeMetadata({
-      tagName: typeof described.node?.nodeName === "string" ? described.node.nodeName.toLowerCase() : "",
-      id: attrMap.id ?? null,
-      classes: (attrMap.class || "").split(/\s+/).filter(Boolean),
-      text: "",
-      rect: {
-        x: 0,
-        y: 0,
-        width: 0,
-        height: 0
-      }
-    });
+    return {
+      metadata: normalizeMetadata({
+        tagName: typeof described.node?.nodeName === "string" ? described.node.nodeName.toLowerCase() : "",
+        id: attrMap.id ?? null,
+        classes: (attrMap.class || "").split(/\s+/).filter(Boolean),
+        text: "",
+        rect: {
+          x: 0,
+          y: 0,
+          width: 0,
+          height: 0
+        }
+      })
+    };
   }
-  return getElementMetadataFromObjectId(context, ws, objectId);
+  return {
+    metadata: await getElementMetadataFromObjectId(context, ws, objectId, false),
+    objectId
+  };
 }
 async function resolveBySelector(context, ws, selector, within) {
   const doc = await context.sendCommand(ws, "DOM.getDocument");
@@ -6852,8 +10130,8 @@ async function resolveBySelector(context, ws, selector, within) {
   const nodeIds = Array.isArray(result.nodeIds) ? result.nodeIds : typeof result.nodeId === "number" ? [result.nodeId] : [];
   const matches = [];
   for (const nodeId of nodeIds) {
-    const metadata = await getElementMetadataForNode(context, ws, nodeId);
-    matches.push({ nodeId, metadata });
+    const { metadata, objectId } = await getElementMetadataForNode(context, ws, nodeId);
+    matches.push({ nodeId, objectId, metadata });
   }
   return matches;
 }
@@ -7025,37 +10303,7 @@ async function resolveByText(context, ws, target) {
   if (!matchesObjectId) {
     return [];
   }
-  const matches = [];
-  try {
-    const matchesProps = await context.sendCommand(ws, "Runtime.getProperties", {
-      objectId: matchesObjectId,
-      ownProperties: true
-    });
-    for (const descriptor of matchesProps.result ?? []) {
-      if (!/^\d+$/.test(descriptor.name)) {
-        continue;
-      }
-      const remote = descriptor.value;
-      if (!remote?.objectId) {
-        continue;
-      }
-      const objId = remote.objectId;
-      const requested = await context.sendCommand(ws, "DOM.requestNode", {
-        objectId: objId
-      });
-      if (typeof requested?.nodeId !== "number") {
-        await safeReleaseObject(context, ws, objId);
-        continue;
-      }
-      const metadata = await getElementMetadataFromObjectId(context, ws, objId);
-      matches.push({
-        nodeId: requested.nodeId,
-        metadata
-      });
-    }
-  } finally {
-    await safeReleaseObject(context, ws, matchesObjectId);
-  }
+  const matches = await matchesFromArrayHandle(context, ws, matchesObjectId);
   const unique = [];
   const seenKeys = /* @__PURE__ */ new Set();
   for (const match of matches) {
@@ -7088,6 +10336,107 @@ async function resolveClickCandidates(context, ws, target) {
     return resolveByText(context, ws, target);
   }
   return [];
+}
+async function getIframeRect(context, ws, frameSpec) {
+  const result = await context.sendCommand(ws, "Runtime.evaluate", {
+    expression: `(() => {
+      const iframe = document.querySelector(${JSON.stringify(frameSpec)});
+      if (!iframe || iframe.tagName !== 'IFRAME') return null;
+      let rect = iframe.getBoundingClientRect();
+      // Frame-local coordinates are offset by this rect, so the iframe itself
+      // has to be on screen before anything inside it can be clicked.
+      if (rect.top < 0 || rect.left < 0 ||
+          rect.bottom > window.innerHeight || rect.right > window.innerWidth) {
+        iframe.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
+        rect = iframe.getBoundingClientRect();
+      }
+      return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+    })()`,
+    returnByValue: true
+  });
+  if (!result.result?.value) {
+    throw new Error(`Iframe not found: ${frameSpec}`);
+  }
+  return result.result.value;
+}
+async function resolveClickCandidatesInFrame(context, ws, target, contextId) {
+  let searchExpr;
+  if (target.selector) {
+    const selectorJson = JSON.stringify(target.selector);
+    const withinJson = target.within ? JSON.stringify(target.within) : "null";
+    searchExpr = `(() => {
+      let root = document.body || document.documentElement;
+      if (${withinJson}) {
+        const container = document.querySelector(${withinJson});
+        if (!container) return [];
+        root = container;
+      }
+      return Array.from(root.querySelectorAll(${selectorJson}));
+    })()`;
+  } else if (target.text) {
+    const textJson = JSON.stringify(target.text);
+    const matchJson = JSON.stringify(target.match || "exact");
+    const caseSensitive = target.caseSensitive ? "true" : "false";
+    const withinJson = target.within ? JSON.stringify(target.within) : "null";
+    searchExpr = `(() => {
+      const pattern = ${textJson};
+      const mode = ${matchJson};
+      const caseSensitive = ${caseSensitive};
+      const withinSelector = ${withinJson};
+      const results = [];
+      const seen = new Set();
+      let regex = null;
+      let normalizedPattern = pattern;
+      const actionableSelector = 'button,[role="button"],li.item,[class*="-btn"],input[type="submit"],input[type="button"],input[type="reset"],input[type="checkbox"],input[type="radio"],a[href],textarea,select,label,summary';
+
+      if (mode === 'regex') {
+        try { regex = new RegExp(pattern, caseSensitive ? '' : 'i'); }
+        catch { return []; }
+      } else if (!caseSensitive) {
+        normalizedPattern = pattern.toLowerCase();
+      }
+
+      let root = document.body || document.documentElement;
+      if (withinSelector) {
+        const container = document.querySelector(withinSelector);
+        if (!container) return [];
+        root = container;
+      }
+
+      const elements = root.querySelectorAll(actionableSelector);
+      for (const el of elements) {
+        if (seen.has(el)) continue;
+        const elText = (el.innerText || '').trim();
+        let matched = false;
+
+        if (mode === 'exact') {
+          matched = caseSensitive ? elText === pattern : elText.toLowerCase() === normalizedPattern;
+        } else if (mode === 'contains') {
+          matched = caseSensitive ? elText.includes(pattern) : elText.toLowerCase().includes(normalizedPattern);
+        } else if (regex) {
+          matched = regex.test(elText);
+        }
+
+        if (matched) {
+          seen.add(el);
+          results.push(el);
+        }
+      }
+      return results;
+    })()`;
+  } else {
+    return [];
+  }
+  const result = await context.sendCommand(ws, "Runtime.evaluate", {
+    expression: searchExpr,
+    contextId,
+    returnByValue: false
+  });
+  const arrayObjectId = result.result?.objectId;
+  if (!arrayObjectId) {
+    return [];
+  }
+  return matchesFromArrayHandle(context, ws, arrayObjectId);
 }
 async function click(context, targetInput, optionsInput) {
   let ws;
@@ -7125,15 +10474,31 @@ async function click(context, targetInput, optionsInput) {
     }
     await context.assertNoDevTools(page.id);
     ws = await context.connect(page);
+    await context.assertNoDialog(ws);
     await context.sendCommand(ws, "DOM.enable");
     await context.sendCommand(ws, "Runtime.enable");
-    const matches = await resolveClickCandidates(context, ws, target);
+    let frameOffsetX = 0;
+    let frameOffsetY = 0;
+    let matches;
+    if (options.frame) {
+      const iframeRect = await getIframeRect(context, ws, options.frame);
+      frameOffsetX = iframeRect.x;
+      frameOffsetY = iframeRect.y;
+      const contextId = await context.resolveFrameContext(ws, options.frame);
+      if (contextId === void 0) {
+        throw new ClickError(`Could not resolve frame context: ${options.frame}`, "CLICK_FRAME_ERROR", { frame: options.frame });
+      }
+      matches = await resolveClickCandidatesInFrame(context, ws, target, contextId);
+    } else {
+      matches = await resolveClickCandidates(context, ws, target);
+    }
     if (matches.length === 0) {
       throw new ClickError(target.selector ? `Element not found: ${target.selector}` : `No element matched text "${target.text}"`, "CLICK_NOT_FOUND", {
         selector: target.selector,
         text: target.text,
         match: target.selector ? void 0 : target.match ?? "exact",
-        caseSensitive: target.caseSensitive ?? false
+        caseSensitive: target.caseSensitive ?? false,
+        frame: options.frame
       });
     }
     let selectedIndex = 0;
@@ -7159,7 +10524,7 @@ async function click(context, targetInput, optionsInput) {
       });
     }
     const chosen = matches[selectedIndex];
-    const rect = chosen.metadata.rect;
+    let rect = chosen.metadata.rect;
     if (!Number.isFinite(rect.x) || !Number.isFinite(rect.y)) {
       throw new ClickError("Matched element has invalid layout coordinates", "CLICK_NO_LAYOUT", {
         selector: target.selector,
@@ -7169,9 +10534,7 @@ async function click(context, targetInput, optionsInput) {
         rect: roundRect(rect)
       });
     }
-    const width = Number.isFinite(rect.width) ? rect.width : 0;
-    const height = Number.isFinite(rect.height) ? rect.height : 0;
-    if (width === 0 && height === 0) {
+    if (rect.width === 0 && rect.height === 0) {
       throw new ClickError("Matched element has no visible area to click", "CLICK_NO_HITBOX", {
         selector: target.selector,
         text: target.text,
@@ -7180,8 +10543,35 @@ async function click(context, targetInput, optionsInput) {
         rect: roundRect(rect)
       });
     }
-    const x = rect.x + width / 2;
-    const y = rect.y + height / 2;
+    let scrolled = false;
+    let occludedBy = null;
+    if (chosen.objectId) {
+      const point = await getClickPoint(context, ws, chosen.objectId, rect);
+      rect = point.rect;
+      scrolled = point.scrolled;
+      occludedBy = point.hitOk ? null : point.hit;
+      if (!point.inViewport) {
+        throw new ClickError("Element could not be scrolled into the viewport", "CLICK_OFFSCREEN", {
+          selector: target.selector,
+          text: target.text,
+          frame: options.frame,
+          rect: roundRect(rect)
+        });
+      }
+      if (!point.hitOk && !options.force) {
+        throw new ClickError(`Click point is covered by ${point.hit ?? "another element"}; the click would not reach the target. Use --force to click anyway.`, "CLICK_OCCLUDED", {
+          selector: target.selector,
+          text: target.text,
+          frame: options.frame,
+          occludedBy: point.hit,
+          rect: roundRect(rect)
+        });
+      }
+    }
+    const width = rect.width;
+    const height = rect.height;
+    const x = frameOffsetX + rect.x + width / 2;
+    const y = frameOffsetY + rect.y + height / 2;
     const xRounded = Math.round(x);
     const yRounded = Math.round(y);
     const roundedRect = roundRect(rect);
@@ -7245,6 +10635,13 @@ async function click(context, targetInput, optionsInput) {
         });
       }
     }
+    await handleWaitOptions(context, ws, {
+      waitFor: options.waitFor,
+      waitForText: options.waitForText,
+      waitForIdle: options.waitForIdle,
+      waitForFrame: options.waitForFrame,
+      timeout: options.timeout
+    });
     outputSuccess("Click performed", {
       strategy: target.selector ? "css" : "text",
       selector: target.selector ?? null,
@@ -7252,6 +10649,7 @@ async function click(context, targetInput, optionsInput) {
       match: target.selector ? void 0 : target.match ?? "exact",
       caseSensitive: target.caseSensitive ?? false,
       within: target.within ?? null,
+      frame: options.frame ?? null,
       index: selectedIndex + 1,
       totalMatches: matches.length,
       x: xRounded,
@@ -7259,7 +10657,13 @@ async function click(context, targetInput, optionsInput) {
       rect: roundedRect,
       double: options.double || false,
       longpress: longpressSeconds,
-      touch: options.touch || false
+      touch: options.touch || false,
+      scrolled,
+      occludedBy,
+      ...options.waitFor && { waitedFor: options.waitFor },
+      ...options.waitForText && { waitedForText: options.waitForText },
+      ...options.waitForIdle && { waitedForIdle: true },
+      ...options.waitForFrame && { waitedInFrame: options.waitForFrame }
     });
   } catch (error) {
     if (error instanceof ClickError) {
@@ -7279,16 +10683,89 @@ async function click(context, targetInput, optionsInput) {
     }
   }
 }
+async function focusAndClearField(context, ws, objectId, selector) {
+  try {
+    await context.sendCommand(ws, "DOM.scrollIntoViewIfNeeded", { objectId });
+  } catch {
+  }
+  const callResult = await context.sendCommand(ws, "Runtime.callFunctionOn", {
+    objectId,
+    functionDeclaration: `
+      function() {
+        const el = this;
+        if (!el.isConnected) {
+          return { error: 'Element was removed from the document' };
+        }
+
+        const tagName = (el.tagName || '').toLowerCase();
+        const editable = el.isContentEditable === true;
+        const isField = tagName === 'input' || tagName === 'textarea';
+
+        if (tagName === 'select') {
+          return { error: 'Cannot type into a <select>; click the option instead' };
+        }
+        if (!isField && !editable) {
+          return { error: 'Element is not a text field (<' + tagName + '>)' };
+        }
+        if (el.disabled === true) {
+          return { error: 'Field is disabled' };
+        }
+        if (el.readOnly === true) {
+          return { error: 'Field is read-only' };
+        }
+
+        el.focus();
+        if (document.activeElement !== el) {
+          return { error: 'Field could not be focused' };
+        }
+
+        const cleared = editable ? (el.textContent || '') : (el.value || '');
+        if (editable) {
+          el.textContent = '';
+        } else {
+          el.value = '';
+        }
+        // Let frameworks observe the clear before the keystrokes arrive.
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+
+        return { tagName, cleared };
+      }
+    `,
+    returnByValue: true
+  });
+  const value = callResult.result?.value;
+  if (!value) {
+    throw new Error(`Could not prepare field for typing: ${selector}`);
+  }
+  if (value.error) {
+    throw new Error(`${value.error}: ${selector}`);
+  }
+  return {
+    tagName: typeof value.tagName === "string" ? value.tagName : "",
+    cleared: typeof value.cleared === "string" ? value.cleared : ""
+  };
+}
 async function fill(context, selector, value, options) {
   let ws;
   try {
     const page = await context.findPage(options.page);
     await context.assertNoDevTools(page.id);
     ws = await context.connect(page);
+    await context.assertNoDialog(ws);
     await context.sendCommand(ws, "DOM.enable");
-    const matches = await resolveBySelector(context, ws, selector, options.within);
+    await context.sendCommand(ws, "Runtime.enable");
+    let matches;
+    if (options.frame) {
+      const contextId = await context.resolveFrameContext(ws, options.frame);
+      if (contextId === void 0) {
+        throw new Error(`Could not resolve frame context: ${options.frame}`);
+      }
+      matches = await resolveClickCandidatesInFrame(context, ws, { selector, within: options.within }, contextId);
+    } else {
+      matches = await resolveBySelector(context, ws, selector, options.within);
+    }
     if (matches.length === 0) {
-      throw new Error(`Element not found: ${selector}`);
+      throw new Error(options.frame ? `Element not found in frame: ${selector}` : `Element not found: ${selector}`);
     }
     let selectedIndex = 0;
     if (typeof options.nth === "number") {
@@ -7301,30 +10778,44 @@ ${summarizeMatches(matches).join("\n")}`);
       throw new Error(`Multiple elements matched. Use --nth to choose one.
 ${summarizeMatches(matches).join("\n")}`);
     }
-    const { nodeId } = matches[selectedIndex];
-    await context.sendCommand(ws, "DOM.focus", { nodeId });
-    await context.sendCommand(ws, "DOM.setAttributeValue", {
-      nodeId,
-      name: "value",
-      value: ""
-    });
-    for (const char of value) {
-      await context.sendCommand(ws, "Input.dispatchKeyEvent", {
-        type: "keyDown",
-        text: char
-      });
-      await context.sendCommand(ws, "Input.dispatchKeyEvent", {
-        type: "keyUp",
-        text: char
-      });
+    const chosen = matches[selectedIndex];
+    if (!chosen.objectId) {
+      throw new Error(`Could not resolve an element handle for: ${selector}`);
     }
+    const field = await focusAndClearField(context, ws, chosen.objectId, selector);
+    for (const char of value) {
+      await dispatchKey(context, ws, describeChar(char));
+    }
+    await context.sendCommand(ws, "Runtime.callFunctionOn", {
+      objectId: chosen.objectId,
+      functionDeclaration: `
+        function() {
+          this.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      `,
+      returnByValue: true
+    });
+    await handleWaitOptions(context, ws, {
+      waitFor: options.waitFor,
+      waitForText: options.waitForText,
+      waitForIdle: options.waitForIdle,
+      waitForFrame: options.waitForFrame,
+      timeout: options.timeout
+    });
     outputSuccess("Fill performed", {
       selector,
       value,
-      within: options.within ?? null
+      within: options.within ?? null,
+      frame: options.frame ?? null,
+      tagName: field.tagName,
+      replaced: field.cleared,
+      ...options.waitFor && { waitedFor: options.waitFor },
+      ...options.waitForText && { waitedForText: options.waitForText },
+      ...options.waitForIdle && { waitedForIdle: true },
+      ...options.waitForFrame && { waitedInFrame: options.waitForFrame }
     });
   } catch (error) {
-    outputError(error.message, "FILL_FAILED", { selector, value });
+    outputError(error.message, "FILL_FAILED", { selector, value, frame: options.frame });
     process.exit(1);
   } finally {
     if (ws) {
@@ -7338,29 +10829,13 @@ async function pressKey(context, key, options) {
     const page = await context.findPage(options.page);
     await context.assertNoDevTools(page.id);
     ws = await context.connect(page);
-    const keyMap = {
-      "enter": "Enter",
-      "tab": "Tab",
-      "escape": "Escape",
-      "backspace": "Backspace",
-      "delete": "Delete",
-      "arrowup": "ArrowUp",
-      "arrowdown": "ArrowDown",
-      "arrowleft": "ArrowLeft",
-      "arrowright": "ArrowRight",
-      "space": " "
-    };
-    const keyValue = keyMap[key.toLowerCase()] || key;
-    await context.sendCommand(ws, "Input.dispatchKeyEvent", {
-      type: "keyDown",
-      key: keyValue
-    });
-    await context.sendCommand(ws, "Input.dispatchKeyEvent", {
-      type: "keyUp",
-      key: keyValue
-    });
+    await context.assertNoDialog(ws);
+    const descriptor = describeKey(key);
+    await dispatchKey(context, ws, descriptor);
     outputSuccess("Key pressed", {
-      key: keyValue
+      key: descriptor.key,
+      code: descriptor.code,
+      keyCode: descriptor.keyCode
     });
   } catch (error) {
     outputError(error.message, "PRESS_KEY_FAILED", { key });
@@ -7378,9 +10853,12 @@ var DragError = class extends Error {
     this.details = details;
   }
 };
-async function resolveDragTarget(context, ws, target, label) {
+async function resolveDragTarget(context, ws, target, label, frameOffset, contextId) {
   if (typeof target.x === "number" && typeof target.y === "number") {
-    return { x: target.x, y: target.y };
+    return {
+      x: target.x + (frameOffset?.x ?? 0),
+      y: target.y + (frameOffset?.y ?? 0)
+    };
   }
   const clickTarget = {
     selector: target.selector,
@@ -7390,7 +10868,7 @@ async function resolveDragTarget(context, ws, target, label) {
     nth: target.nth,
     within: target.within
   };
-  const matches = await resolveClickCandidates(context, ws, clickTarget);
+  const matches = contextId !== void 0 ? await resolveClickCandidatesInFrame(context, ws, clickTarget, contextId) : await resolveClickCandidates(context, ws, clickTarget);
   if (matches.length === 0) {
     throw new DragError(target.selector ? `${label} element not found: ${target.selector}` : `${label}: no element matched text "${target.text}"`, "DRAG_NOT_FOUND", { label, selector: target.selector, text: target.text });
   }
@@ -7415,13 +10893,19 @@ async function resolveDragTarget(context, ws, target, label) {
     });
   }
   const chosen = matches[selectedIndex];
-  const rect = chosen.metadata.rect;
-  const width = Number.isFinite(rect.width) ? rect.width : 0;
-  const height = Number.isFinite(rect.height) ? rect.height : 0;
+  let rect = chosen.metadata.rect;
+  if (chosen.objectId) {
+    const point = await getClickPoint(context, ws, chosen.objectId, rect);
+    rect = point.rect;
+    if (!point.inViewport) {
+      throw new DragError(`${label} could not be scrolled into the viewport`, "DRAG_OFFSCREEN", { label, selector: target.selector, text: target.text, rect: roundRect(rect) });
+    }
+  }
   return {
-    x: rect.x + width / 2,
-    y: rect.y + height / 2,
-    metadata: chosen.metadata
+    x: (frameOffset?.x ?? 0) + rect.x + rect.width / 2,
+    y: (frameOffset?.y ?? 0) + rect.y + rect.height / 2,
+    metadata: chosen.metadata,
+    objectId: chosen.objectId
   };
 }
 async function drag(context, from, to, options) {
@@ -7435,10 +10919,29 @@ async function drag(context, from, to, options) {
     const page = await context.findPage(options.page);
     await context.assertNoDevTools(page.id);
     ws = await context.connect(page);
+    await context.assertNoDialog(ws);
     await context.sendCommand(ws, "DOM.enable");
     await context.sendCommand(ws, "Runtime.enable");
-    const fromPos = await resolveDragTarget(context, ws, from, "Source");
-    const toPos = await resolveDragTarget(context, ws, to, "Destination");
+    let frameOffset;
+    let contextId;
+    if (options.frame) {
+      const iframeRect = await getIframeRect(context, ws, options.frame);
+      frameOffset = { x: iframeRect.x, y: iframeRect.y };
+      contextId = await context.resolveFrameContext(ws, options.frame);
+    }
+    const fromPos = await resolveDragTarget(context, ws, from, "Source", frameOffset, contextId);
+    const toPos = await resolveDragTarget(context, ws, to, "Destination", frameOffset, contextId);
+    for (const [label, pos] of [["Source", fromPos], ["Destination", toPos]]) {
+      if (!pos.objectId) {
+        continue;
+      }
+      const refreshed = await getClickPoint(context, ws, pos.objectId, pos.metadata.rect, false);
+      if (!refreshed.inViewport) {
+        throw new DragError(`${label} scrolled back out of view: the source and destination must be on screen at the same time`, "DRAG_OFFSCREEN", { label, rect: roundRect(refreshed.rect) });
+      }
+      pos.x = (frameOffset?.x ?? 0) + refreshed.rect.x + refreshed.rect.width / 2;
+      pos.y = (frameOffset?.y ?? 0) + refreshed.rect.y + refreshed.rect.height / 2;
+    }
     if (options.touch) {
       await context.sendCommand(ws, "Input.dispatchTouchEvent", {
         type: "touchStart",
@@ -7519,6 +11022,7 @@ async function drag(context, from, to, options) {
     }
     outputSuccess("Drag performed", {
       mode: options.touch ? "touch" : "mouse",
+      frame: options.frame ?? null,
       from: {
         x: Math.round(fromPos.x),
         y: Math.round(fromPos.y),
@@ -7584,8 +11088,8 @@ async function stopDaemon() {
 async function daemonStatus() {
   const client = new DaemonClient();
   try {
-    const status = await client.getStatus();
-    if (status.running) {
+    const status2 = await client.getStatus();
+    if (status2.running) {
       const sessions = await client.listSessions();
       outputSuccess("Daemon running", {
         sessions: sessions.length,
@@ -7711,9 +11215,119 @@ async function clearLogs(context, options) {
   }
 }
 
+// build/commands/lifecycle.js
+import { spawn as spawn2 } from "child_process";
+import { existsSync } from "fs";
+import { platform } from "os";
+import { join as join3 } from "path";
+import { fetch as undiciFetch4 } from "undici";
+function findChrome() {
+  const os = platform();
+  if (os === "win32") {
+    const paths = [
+      join3(process.env["ProgramFiles"] || "C:\\Program Files", "Google", "Chrome", "Application", "chrome.exe"),
+      join3(process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)", "Google", "Chrome", "Application", "chrome.exe"),
+      join3(process.env["LocalAppData"] || "", "Google", "Chrome", "Application", "chrome.exe")
+    ];
+    for (const p of paths) {
+      if (existsSync(p))
+        return p;
+    }
+  } else if (os === "darwin") {
+    const macPath = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+    if (existsSync(macPath))
+      return macPath;
+  } else {
+    return "google-chrome";
+  }
+  return null;
+}
+async function isChromeRunning(port) {
+  try {
+    const res = await (globalThis.fetch ?? undiciFetch4)(`http://localhost:${port}/json/version`, {
+      signal: AbortSignal.timeout(1e3)
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+async function getPages(port) {
+  const res = await (globalThis.fetch ?? undiciFetch4)(`http://localhost:${port}/json`);
+  if (!res.ok)
+    throw new Error("Failed to get pages");
+  const pages = await res.json();
+  return pages.filter((p) => p.type === "page");
+}
+function launchChrome(chromePath, profile, port) {
+  const args = [
+    `--remote-debugging-port=${port}`,
+    `--user-data-dir=${profile}`,
+    "--window-size=1024,728",
+    "--no-first-run",
+    "--no-default-browser-check",
+    "--disable-features=TranslateUI",
+    "--disable-extensions"
+  ];
+  const child = spawn2(chromePath, args, {
+    detached: true,
+    stdio: "ignore",
+    windowsHide: false
+  });
+  child.unref();
+  return child;
+}
+async function ready(options) {
+  const { profile, port, cdpUrl } = options;
+  try {
+    let chromeStarted = false;
+    if (!await isChromeRunning(port)) {
+      const chromePath = findChrome();
+      if (!chromePath) {
+        throw new Error("Chrome not found. Install Chrome or specify path.");
+      }
+      launchChrome(chromePath, profile, port);
+      chromeStarted = true;
+      const maxWait = 1e4;
+      const start = Date.now();
+      while (Date.now() - start < maxWait) {
+        if (await isChromeRunning(port))
+          break;
+        await new Promise((r) => setTimeout(r, 200));
+      }
+      if (!await isChromeRunning(port)) {
+        throw new Error("Chrome failed to start within timeout");
+      }
+    }
+    const client = new DaemonClient();
+    let daemonStarted = false;
+    if (!await client.isRunning()) {
+      await client.startDaemon({ cdpUrl });
+      daemonStarted = true;
+    }
+    const pages = await getPages(port);
+    for (const page of pages) {
+      outputLine({
+        id: page.id,
+        title: page.title,
+        url: page.url
+      });
+    }
+    outputSuccess("Ready", {
+      chromeStarted,
+      daemonStarted,
+      pages: pages.length
+    });
+  } catch (error) {
+    outputError(error.message, "READY_FAILED", {});
+    process.exit(1);
+  }
+}
+
 // build/index.js
+import { homedir } from "os";
 var __dirname2 = dirname4(fileURLToPath3(import.meta.url));
-var pkg = JSON.parse(readFileSync4(join3(__dirname2, "..", "package.json"), "utf-8"));
+var pkg = typeof CDP_CLI_VERSION !== "undefined" ? { version: CDP_CLI_VERSION } : JSON.parse(readFileSync5(join4(__dirname2, "..", "package.json"), "utf-8"));
 var DEFAULT_CDP_URL = "http://localhost:9222";
 process.on("uncaughtException", (error) => {
   outputError(error.message || "An unexpected error occurred", "UNCAUGHT_EXCEPTION", { stack: error.stack });
@@ -7729,7 +11343,15 @@ var cli = yargs_default(hideBin(process.argv)).scriptName("cdp-cli").version(pkg
   type: "string",
   description: "Chrome DevTools Protocol URL",
   default: DEFAULT_CDP_URL
-}).demandCommand(1).strict().help().alias("help", "h").alias("version", "v").fail((msg, err, yargs) => {
+}).demandCommand(1).strict().help().alias("help", "h").alias("version", "v").wrap(120).epilog(`Key Features:
+  --frame         Target iframes (click, fill, drag, snapshot, eval, navigate --wait-for)
+  --text/--nth    Click/drag by visible text with multi-match disambiguation
+  --within        Scope element search to a container
+  --wait-for      Wait for selector/text/idle after navigation
+  --touch         Touch events for mobile testing (click, drag)
+  --longpress     Hold before click/drag for mobile patterns
+
+Run "cdp-cli <command> --help" for command-specific options.`).fail((msg, err, yargs) => {
   if (msg === "Not enough non-option arguments: got 0, need at least 1") {
     yargs.showHelp();
     process.exit(0);
@@ -7754,13 +11376,32 @@ cli.command("new-page [url]", "Create a new page/tab", (yargs) => {
   const context = new CDPContext(argv["cdp-url"]);
   await newPage(context, argv.url);
 });
-cli.command("navigate <action> <page>", "Navigate page (URL, back, forward, reload)", (yargs) => {
+cli.command("navigate <action> <page>", "Navigate page (URL, back, forward, reload). Options: --wait-for, --wait-for-text, --wait-for-idle, --wait-for-frame, --timeout", (yargs) => {
   return yargs.positional("action", {
     describe: "URL or action (back, forward, reload)",
     type: "string"
   }).positional("page", {
     describe: "Page ID or title",
     type: "string"
+  }).option("wait-for", {
+    type: "string",
+    description: "Wait for CSS selector to appear after navigation",
+    alias: "w"
+  }).option("wait-for-text", {
+    type: "string",
+    description: "Wait for text to appear in page body"
+  }).option("wait-for-idle", {
+    type: "boolean",
+    description: "Wait for network idle and document ready",
+    default: false
+  }).option("timeout", {
+    type: "number",
+    description: "Timeout for wait operations in ms",
+    alias: "t",
+    default: 1e4
+  }).option("wait-for-frame", {
+    type: "string",
+    description: "Target iframe for --wait-for/--wait-for-text by selector or index"
   }).check((argv) => {
     const hint = validateNavigateParams(argv.action, argv.page);
     if (hint.likely) {
@@ -7770,7 +11411,13 @@ cli.command("navigate <action> <page>", "Navigate page (URL, back, forward, relo
   });
 }, async (argv) => {
   const context = new CDPContext(argv["cdp-url"]);
-  await navigate(context, argv.action, argv.page);
+  await navigate(context, argv.action, argv.page, {
+    waitFor: argv["wait-for"],
+    waitForText: argv["wait-for-text"],
+    waitForIdle: argv["wait-for-idle"],
+    timeout: argv.timeout,
+    waitForFrame: argv["wait-for-frame"]
+  });
 });
 cli.command("close-page <idOrTitle>", "Close a page", (yargs) => {
   return yargs.positional("idOrTitle", {
@@ -7840,7 +11487,7 @@ cli.command("list-console <page>", "List console messages", (yargs) => {
     duration: argv.duration
   });
 });
-cli.command("snapshot <page>", "Take a page snapshot", (yargs) => {
+cli.command("snapshot <page>", "Take a page snapshot. Options: --format (ax|text), --frame", (yargs) => {
   return yargs.positional("page", {
     describe: "Page ID or title",
     type: "string"
@@ -7849,32 +11496,58 @@ cli.command("snapshot <page>", "Take a page snapshot", (yargs) => {
     description: "Snapshot format (ax, text)",
     alias: "f",
     default: "ax"
+  }).option("frame", {
+    type: "string",
+    description: 'Target iframe by selector (e.g. "#myframe") or index (1 = first iframe)'
   });
 }, async (argv) => {
   const context = new CDPContext(argv["cdp-url"]);
   await snapshot(context, {
     format: argv.format,
-    page: argv.page
+    page: argv.page,
+    frame: argv.frame
   });
 });
-cli.command("eval <expression> <page>", "Evaluate JavaScript expression", (yargs) => {
+cli.command("eval <expression> <page>", "Evaluate JavaScript expression. Options: --file, --async, --frame", (yargs) => {
   return yargs.positional("expression", {
-    describe: "JavaScript expression to evaluate",
+    describe: "JavaScript expression (ignored when --file used)",
     type: "string"
   }).positional("page", {
     describe: "Page ID or title",
     type: "string"
+  }).option("file", {
+    alias: "f",
+    type: "string",
+    description: "Path to JS file to evaluate"
+  }).option("async", {
+    alias: "a",
+    type: "boolean",
+    description: "Wrap code in async IIFE for await support",
+    default: false
+  }).option("stdin", {
+    type: "boolean",
+    description: "Read JavaScript from stdin instead of expression argument",
+    default: false
+  }).option("frame", {
+    type: "string",
+    description: 'Target iframe by selector (e.g. "#myframe") or index (1 = first iframe)'
   }).check((argv) => {
-    const hint = validateEvalParams(argv.expression, argv.page);
-    if (hint.likely) {
-      throw new Error(buildErrorWithHint("Invalid parameter order", hint));
+    if (!argv.file && !argv.stdin) {
+      const hint = validateEvalParams(argv.expression, argv.page);
+      if (hint.likely) {
+        throw new Error(buildErrorWithHint("Invalid parameter order", hint));
+      }
     }
     return true;
   });
 }, async (argv) => {
   const context = new CDPContext(argv["cdp-url"]);
   await evaluate(context, argv.expression, {
-    page: argv.page
+    page: argv.page,
+    file: argv.file,
+    async: argv.async,
+    frame: argv.frame,
+    stdin: argv.stdin
   });
 });
 cli.command("screenshot <page>", "Take a screenshot", (yargs) => {
@@ -7898,6 +11571,9 @@ cli.command("screenshot <page>", "Take a screenshot", (yargs) => {
     type: "number",
     description: "Scale factor to resize the image (0 < scale <= 1)",
     alias: "s"
+  }).option("selector", {
+    type: "string",
+    description: "CSS selector to capture a specific element instead of the full page"
   });
 }, async (argv) => {
   const context = new CDPContext(argv["cdp-url"]);
@@ -7906,7 +11582,34 @@ cli.command("screenshot <page>", "Take a screenshot", (yargs) => {
     format: argv.format,
     quality: argv.quality,
     scale: argv.scale,
-    page: argv.page
+    page: argv.page,
+    selector: argv.selector
+  });
+});
+cli.command("dialog <page>", "Check for or handle JavaScript dialogs (alert/confirm/prompt)", (yargs) => {
+  return yargs.positional("page", {
+    describe: "Page ID or title",
+    type: "string"
+  }).option("dismiss", {
+    type: "boolean",
+    description: "Dismiss (cancel) the dialog",
+    alias: "d"
+  }).option("accept", {
+    type: "boolean",
+    description: "Accept (OK) the dialog",
+    alias: "a"
+  }).option("prompt-text", {
+    type: "string",
+    description: "Text to enter for prompt dialogs before accepting",
+    alias: "t"
+  });
+}, async (argv) => {
+  const context = new CDPContext(argv["cdp-url"]);
+  await dialog(context, {
+    page: argv.page,
+    dismiss: argv.dismiss,
+    accept: argv.accept,
+    promptText: argv["prompt-text"]
   });
 });
 cli.command("list-network <page>", "List network requests", (yargs) => {
@@ -7931,7 +11634,7 @@ cli.command("list-network <page>", "List network requests", (yargs) => {
     duration: argv.duration
   });
 });
-cli.command("click [selector] <page>", "Click an element", (yargs) => {
+cli.command("click [selector] <page>", "Click an element. Options: --text, --nth, --within, --frame, --double, --longpress, --touch, --force", (yargs) => {
   return yargs.positional("selector", {
     describe: "CSS selector",
     type: "string"
@@ -7994,6 +11697,29 @@ cli.command("click [selector] <page>", "Click an element", (yargs) => {
     type: "boolean",
     description: "Use touch events instead of mouse events",
     default: false
+  }).option("frame", {
+    type: "string",
+    description: 'Target iframe by selector (e.g. "#myframe") or index (1 = first iframe)'
+  }).option("force", {
+    type: "boolean",
+    description: "Click even when another element covers the click point",
+    default: false
+  }).option("wait-for", {
+    type: "string",
+    description: "CSS selector to wait for after click"
+  }).option("wait-for-text", {
+    type: "string",
+    description: "Text to wait for after click"
+  }).option("wait-for-idle", {
+    type: "boolean",
+    description: "Wait for network idle after click",
+    default: false
+  }).option("wait-for-frame", {
+    type: "string",
+    description: "Target iframe for wait checks (by selector or index)"
+  }).option("timeout", {
+    type: "number",
+    description: "Timeout for wait operations in ms (default: 10000)"
   }).check((argv) => {
     const hasSelector = typeof argv.selector === "string" && argv.selector.length > 0;
     const hasText = typeof argv.text === "string" && argv.text.length > 0;
@@ -8024,10 +11750,17 @@ cli.command("click [selector] <page>", "Click an element", (yargs) => {
     page: argv.page,
     double: argv.double,
     longpress: argv.longpress,
-    touch: argv.touch
+    touch: argv.touch,
+    frame: argv.frame,
+    force: argv.force,
+    waitFor: argv.waitFor,
+    waitForText: argv.waitForText,
+    waitForIdle: argv.waitForIdle,
+    waitForFrame: argv.waitForFrame,
+    timeout: argv.timeout
   });
 });
-cli.command("fill <selector> <value> <page>", "Fill an input element", (yargs) => {
+cli.command("fill <selector> <value> <page>", "Fill an input element. Options: --nth, --within, --frame", (yargs) => {
   return yargs.positional("selector", {
     describe: "CSS selector",
     type: "string"
@@ -8043,6 +11776,25 @@ cli.command("fill <selector> <value> <page>", "Fill an input element", (yargs) =
   }).option("within", {
     type: "string",
     description: "CSS selector to scope the search within a container"
+  }).option("frame", {
+    type: "string",
+    description: 'Target iframe by selector (e.g. "#myframe") or index (1 = first iframe)'
+  }).option("wait-for", {
+    type: "string",
+    description: "CSS selector to wait for after fill"
+  }).option("wait-for-text", {
+    type: "string",
+    description: "Text to wait for after fill"
+  }).option("wait-for-idle", {
+    type: "boolean",
+    description: "Wait for network idle after fill",
+    default: false
+  }).option("wait-for-frame", {
+    type: "string",
+    description: "Target iframe for wait checks (by selector or index)"
+  }).option("timeout", {
+    type: "number",
+    description: "Timeout for wait operations in ms (default: 10000)"
   }).check((argv) => {
     const hint = validateFillParams(argv.selector, argv.value, argv.page);
     if (hint.likely) {
@@ -8055,7 +11807,13 @@ cli.command("fill <selector> <value> <page>", "Fill an input element", (yargs) =
   await fill(context, argv.selector, argv.value, {
     page: argv.page,
     nth: argv.nth,
-    within: argv.within
+    within: argv.within,
+    frame: argv.frame,
+    waitFor: argv.waitFor,
+    waitForText: argv.waitForText,
+    waitForIdle: argv.waitForIdle,
+    waitForFrame: argv.waitForFrame,
+    timeout: argv.timeout
   });
 });
 cli.command("press-key <key> <page>", "Press a keyboard key", (yargs) => {
@@ -8078,7 +11836,7 @@ cli.command("press-key <key> <page>", "Press a keyboard key", (yargs) => {
     page: argv.page
   });
 });
-cli.command("drag <from> <to> <page>", "Drag from one element/position to another", (yargs) => {
+cli.command("drag <from> <to> <page>", "Drag from one element/position to another. Options: --touch, --longpress, --steps, --duration, --text, --to-text, --frame", (yargs) => {
   return yargs.positional("from", {
     describe: "Source: CSS selector or x,y coordinates",
     type: "string"
@@ -8141,6 +11899,9 @@ cli.command("drag <from> <to> <page>", "Drag from one element/position to anothe
   }).option("to-within", {
     type: "string",
     description: "CSS selector to scope destination search"
+  }).option("frame", {
+    type: "string",
+    description: 'Target iframe by selector (e.g. "#myframe") - applies to both source and destination'
   });
 }, async (argv) => {
   const context = new CDPContext(argv["cdp-url"]);
@@ -8169,7 +11930,8 @@ cli.command("drag <from> <to> <page>", "Drag from one element/position to anothe
     touch: argv.touch,
     longpress: argv.longpress,
     steps: argv.steps,
-    duration: argv.duration
+    duration: argv.duration,
+    frame: argv.frame
   });
 });
 cli.command("daemon <action>", "Manage the CDP daemon (start, stop, status)", (yargs) => {
@@ -8259,6 +12021,147 @@ cli.command("logs-detail <messageId> <page>", "Get console message details with 
   await getConsoleDetail(context, {
     page: argv.page,
     messageId: argv.messageId
+  });
+});
+cli.command("status", "Check daemon and Chrome connection status", () => {
+}, async (argv) => {
+  const context = new CDPContext(argv["cdp-url"]);
+  await status(context);
+});
+cli.command("ready", "Launch Chrome + start daemon + return pages", (yargs) => {
+  return yargs.option("profile", {
+    alias: "p",
+    type: "string",
+    description: "Chrome profile directory",
+    default: join4(homedir(), "cdp-cli-profile")
+  }).option("port", {
+    type: "number",
+    description: "CDP port",
+    default: 9222
+  });
+}, async (argv) => {
+  await ready({
+    profile: argv.profile,
+    port: argv.port,
+    cdpUrl: argv["cdp-url"]
+  });
+});
+cli.command("query <selector> <page>", "Query DOM elements. Options: --text, --html, --attrs, --styles, --all, --frame", (yargs) => {
+  return yargs.positional("selector", {
+    describe: "CSS selector",
+    type: "string"
+  }).positional("page", {
+    describe: "Page ID or title",
+    type: "string"
+  }).option("text", {
+    type: "boolean",
+    description: "Return textContent",
+    default: false
+  }).option("html", {
+    type: "boolean",
+    description: "Return innerHTML (trimmed, max 2000 chars)",
+    default: false
+  }).option("attrs", {
+    type: "boolean",
+    description: "Return all attributes as key-value pairs",
+    default: false
+  }).option("styles", {
+    type: "string",
+    description: "Return specified computed style properties (comma-separated, e.g. color,fontSize)"
+  }).option("all", {
+    type: "boolean",
+    description: "Query all matching elements (querySelectorAll)",
+    default: false
+  }).option("frame", {
+    type: "string",
+    description: "Target iframe by selector or index"
+  });
+}, async (argv) => {
+  const context = new CDPContext(argv["cdp-url"]);
+  await query(context, argv.selector, {
+    page: argv.page,
+    text: argv.text,
+    html: argv.html,
+    attrs: argv.attrs,
+    styles: argv.styles,
+    all: argv.all,
+    frame: argv.frame
+  });
+});
+cli.command("styles <selector> <page>", "Extract computed styles. Options: --compare-siblings, --props, --frame", (yargs) => {
+  return yargs.positional("selector", {
+    describe: "CSS selector",
+    type: "string"
+  }).positional("page", {
+    describe: "Page ID or title",
+    type: "string"
+  }).option("compare-siblings", {
+    type: "boolean",
+    description: "Include parent and sibling computed styles for comparison",
+    default: false
+  }).option("props", {
+    type: "string",
+    description: "CSS properties to extract (comma-separated, default: color,fontSize,fontWeight,textAlign,margin,padding,lineHeight,display)"
+  }).option("frame", {
+    type: "string",
+    description: "Target iframe by selector or index"
+  });
+}, async (argv) => {
+  const context = new CDPContext(argv["cdp-url"]);
+  await styles2(context, argv.selector, {
+    page: argv.page,
+    compareSiblings: argv["compare-siblings"],
+    props: argv.props,
+    frame: argv.frame
+  });
+});
+cli.command("emulate <device> <page>", "Emulate a device (ipad, iphone, desktop). Options: --width, --height, --scale, --ua, --touch", (yargs) => {
+  return yargs.positional("device", {
+    describe: "Device preset (ipad, iphone, desktop) or custom name with flags",
+    type: "string"
+  }).positional("page", {
+    describe: "Page ID or title",
+    type: "string"
+  }).option("width", {
+    type: "number",
+    description: "Override viewport width"
+  }).option("height", {
+    type: "number",
+    description: "Override viewport height"
+  }).option("scale", {
+    type: "number",
+    description: "Device scale factor (deviceScaleFactor)"
+  }).option("ua", {
+    type: "string",
+    description: "Custom user agent string"
+  }).option("touch", {
+    type: "boolean",
+    description: "Enable touch emulation"
+  });
+}, async (argv) => {
+  const context = new CDPContext(argv["cdp-url"]);
+  await emulate(context, argv.device, {
+    page: argv.page,
+    width: argv.width,
+    height: argv.height,
+    scale: argv.scale,
+    ua: argv.ua,
+    touch: argv.touch
+  });
+});
+cli.command("dismiss-overlays <page>", "Auto-dismiss toasts, notifications, and modal overlays", (yargs) => {
+  return yargs.positional("page", {
+    describe: "Page ID or title",
+    type: "string"
+  }).option("frame", {
+    type: "string",
+    description: "Target iframe by selector or index"
+  });
+}, async (argv) => {
+  const context = new CDPContext(argv["cdp-url"]);
+  await dismissOverlays(context, {
+    page: argv.page,
+    frame: argv.frame
   });
 });
 cli.parse();

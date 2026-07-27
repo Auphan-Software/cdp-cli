@@ -186,6 +186,191 @@ describe('Input Commands', () => {
       exitMock.restore();
     });
 
+    describe('viewport and hit testing', () => {
+      /**
+       * Intercepts the click-point probe so a test can control what the page
+       * reports back about scrolling and occlusion.
+       */
+      function stubClickPoint(
+        context: CDPContext,
+        value: Record<string, unknown>
+      ): { mouseEvents: any[]; probes: any[] } {
+        const mouseEvents: any[] = [];
+        const probes: any[] = [];
+        const originalConnect = context.connect.bind(context);
+
+        context.connect = async (page) => {
+          const ws = await originalConnect(page) as MockWebSocket;
+          const originalSend = ws.send.bind(ws);
+
+          ws.send = (data: string) => {
+            const msg = JSON.parse(data);
+
+            if (msg.method === 'Input.dispatchMouseEvent') {
+              mouseEvents.push(msg.params);
+            }
+
+            if (
+              msg.method === 'Runtime.callFunctionOn' &&
+              msg.params?.functionDeclaration?.includes('elementFromPoint')
+            ) {
+              probes.push(msg.params);
+              ws.sentMessages.push(msg);
+              setTimeout(() => {
+                ws.simulateMessage({ id: msg.id, result: { result: { value } } });
+              }, 5);
+              return;
+            }
+
+            originalSend(data);
+          };
+
+          return ws;
+        };
+
+        return { mouseEvents, probes };
+      }
+
+      it('should scroll a below-the-fold element into view and click its new position', async () => {
+        const capture = captureConsoleOutput();
+        const context = new CDPContext();
+
+        // Element starts at y=1505 (outside a 720px viewport); after scrolling
+        // it settles at y=338.
+        const { mouseEvents, probes } = stubClickPoint(context, {
+          rect: { x: 28, y: 338, width: 182, height: 46 },
+          scrolled: true,
+          inViewport: true,
+          hitOk: true,
+          hit: 'button#below'
+        });
+
+        await input.click(context, '#below', { page: 'page1' });
+
+        const logs = capture.getLogs();
+        capture.restore();
+
+        expect(probes).toHaveLength(1);
+
+        const result = JSON.parse(logs[0]);
+        expect(result.success).toBe(true);
+        expect(result.data.scrolled).toBe(true);
+        // Center of the post-scroll rect, not the stale pre-scroll rect
+        expect(result.data.x).toBe(119);
+        expect(result.data.y).toBe(361);
+
+        const pressed = mouseEvents.find(event => event.type === 'mousePressed');
+        expect(pressed.x).toBe(119);
+        expect(pressed.y).toBe(361);
+      });
+
+      it('should fail with CLICK_OCCLUDED when another element covers the click point', async () => {
+        const capture = captureConsoleOutput();
+        const exitMock = mockProcessExit();
+        const context = new CDPContext();
+
+        const { mouseEvents } = stubClickPoint(context, {
+          rect: { x: 28, y: 38, width: 129, height: 47 },
+          scrolled: false,
+          inViewport: true,
+          hitOk: false,
+          hit: 'div#overlay'
+        });
+
+        try {
+          await input.click(context, '#top', { page: 'page1' });
+        } catch {
+          // Expected process.exit
+        }
+
+        const logs = capture.getLogs();
+        capture.restore();
+        exitMock.restore();
+
+        expect(exitMock.exitCode).toBe(1);
+
+        const error = JSON.parse(logs[0]);
+        expect(error.error).toBe(true);
+        expect(error.code).toBe('CLICK_OCCLUDED');
+        expect(error.details.occludedBy).toBe('div#overlay');
+
+        // Must not pretend to click when the event would be swallowed
+        expect(mouseEvents).toHaveLength(0);
+      });
+
+      it('should fail with CLICK_OFFSCREEN when the element cannot be scrolled into view', async () => {
+        const capture = captureConsoleOutput();
+        const exitMock = mockProcessExit();
+        const context = new CDPContext();
+
+        const { mouseEvents } = stubClickPoint(context, {
+          rect: { x: 28, y: 4000, width: 100, height: 40 },
+          scrolled: true,
+          inViewport: false,
+          hitOk: false,
+          hit: null
+        });
+
+        try {
+          await input.click(context, '#stuck', { page: 'page1' });
+        } catch {
+          // Expected process.exit
+        }
+
+        const logs = capture.getLogs();
+        capture.restore();
+        exitMock.restore();
+
+        expect(exitMock.exitCode).toBe(1);
+        expect(JSON.parse(logs[0]).code).toBe('CLICK_OFFSCREEN');
+        expect(mouseEvents).toHaveLength(0);
+      });
+
+      it('should click anyway when --force is set despite occlusion', async () => {
+        const capture = captureConsoleOutput();
+        const context = new CDPContext();
+
+        const { mouseEvents } = stubClickPoint(context, {
+          rect: { x: 28, y: 38, width: 129, height: 47 },
+          scrolled: false,
+          inViewport: true,
+          hitOk: false,
+          hit: 'div#overlay'
+        });
+
+        await input.click(context, '#top', { page: 'page1', force: true });
+
+        const logs = capture.getLogs();
+        capture.restore();
+
+        const result = JSON.parse(logs[0]);
+        expect(result.success).toBe(true);
+        expect(result.data.occludedBy).toBe('div#overlay');
+        expect(mouseEvents.filter(e => e.type === 'mousePressed')).toHaveLength(1);
+      });
+
+      it('should fail with CLICK_DETACHED when the element left the document', async () => {
+        const capture = captureConsoleOutput();
+        const exitMock = mockProcessExit();
+        const context = new CDPContext();
+
+        stubClickPoint(context, { detached: true });
+
+        try {
+          await input.click(context, '#gone', { page: 'page1' });
+        } catch {
+          // Expected process.exit
+        }
+
+        const logs = capture.getLogs();
+        capture.restore();
+        exitMock.restore();
+
+        expect(exitMock.exitCode).toBe(1);
+        expect(JSON.parse(logs[0]).code).toBe('CLICK_DETACHED');
+      });
+    });
+
     it('should call handleWaitOptions after click when wait-for is set', async () => {
       const capture = captureConsoleOutput();
       const context = new CDPContext();
@@ -455,7 +640,197 @@ describe('Input Commands', () => {
     });
   });
 
+  describe('fill value replacement', () => {
+    it('should clear through the value property, not the value attribute', async () => {
+      const capture = captureConsoleOutput();
+      const context = new CDPContext();
+      const sent: any[] = [];
+
+      const originalConnect = context.connect.bind(context);
+      context.connect = async (page) => {
+        const ws = await originalConnect(page) as MockWebSocket;
+        const originalSend = ws.send.bind(ws);
+        ws.send = (data: string) => {
+          sent.push(JSON.parse(data));
+          originalSend(data);
+        };
+        return ws;
+      };
+
+      await input.fill(context, 'input#email', 'new', { page: 'page1' });
+      capture.restore();
+
+      // DOM.setAttributeValue only writes the default value; a dirty field keeps
+      // its old text and typing appends to it.
+      expect(sent.filter(m => m.method === 'DOM.setAttributeValue')).toHaveLength(0);
+
+      const clearCall = sent.find(m =>
+        m.method === 'Runtime.callFunctionOn' &&
+        m.params?.functionDeclaration?.includes('activeElement')
+      );
+      expect(clearCall).toBeDefined();
+      expect(clearCall.params.functionDeclaration).toMatch(/el\.value = ''/);
+    });
+
+    it('should target the handle of the nth match, not a re-queried selector', async () => {
+      const capture = captureConsoleOutput();
+      const context = new CDPContext();
+      const sent: any[] = [];
+
+      const originalConnect = context.connect.bind(context);
+      context.connect = async (page) => {
+        const ws = await originalConnect(page) as MockWebSocket;
+        const originalSend = ws.send.bind(ws);
+        ws.send = (data: string) => {
+          const msg = JSON.parse(data);
+          sent.push(msg);
+          if (msg.method === 'DOM.querySelectorAll') {
+            ws.sentMessages.push(msg);
+            setTimeout(() => {
+              ws.simulateMessage({ id: msg.id, result: { nodeIds: [42, 43] } });
+            }, 5);
+            return;
+          }
+          originalSend(data);
+        };
+        return ws;
+      };
+
+      await input.fill(context, 'input', 'x', { page: 'page1', nth: 2 });
+      capture.restore();
+
+      // The old frame path cleared document.querySelector(selector) - always the
+      // first match - while typing went to the nth.
+      const evaluates = sent.filter(m => m.method === 'Runtime.evaluate');
+      expect(evaluates.every(m => !m.params?.expression?.includes(".value = ''"))).toBe(true);
+    });
+
+    it('should report a disabled field instead of claiming success', async () => {
+      const capture = captureConsoleOutput();
+      const exitMock = mockProcessExit();
+      const context = new CDPContext();
+
+      const originalConnect = context.connect.bind(context);
+      context.connect = async (page) => {
+        const ws = await originalConnect(page) as MockWebSocket;
+        const originalSend = ws.send.bind(ws);
+        ws.send = (data: string) => {
+          const msg = JSON.parse(data);
+          if (
+            msg.method === 'Runtime.callFunctionOn' &&
+            msg.params?.functionDeclaration?.includes('activeElement')
+          ) {
+            ws.sentMessages.push(msg);
+            setTimeout(() => {
+              ws.simulateMessage({
+                id: msg.id,
+                result: { result: { value: { error: 'Field is disabled' } } }
+              });
+            }, 5);
+            return;
+          }
+          originalSend(data);
+        };
+        return ws;
+      };
+
+      try {
+        await input.fill(context, 'input#off', 'x', { page: 'page1' });
+      } catch {
+        // Expected process.exit
+      }
+
+      const logs = capture.getLogs();
+      capture.restore();
+      exitMock.restore();
+
+      expect(exitMock.exitCode).toBe(1);
+      const error = JSON.parse(logs[0]);
+      expect(error.code).toBe('FILL_FAILED');
+      expect(error.message).toMatch(/disabled/);
+    });
+  });
+
   describe('pressKey', () => {
+    it('should send a virtual key code so the key actually acts', async () => {
+      const capture = captureConsoleOutput();
+      const context = new CDPContext();
+      const keyEvents: any[] = [];
+
+      const originalConnect = context.connect.bind(context);
+      context.connect = async (page) => {
+        const ws = await originalConnect(page) as MockWebSocket;
+        const originalSend = ws.send.bind(ws);
+        ws.send = (data: string) => {
+          const msg = JSON.parse(data);
+          if (msg.method === 'Input.dispatchKeyEvent') {
+            keyEvents.push(msg.params);
+          }
+          originalSend(data);
+        };
+        return ws;
+      };
+
+      await input.pressKey(context, 'enter', { page: 'page1' });
+      capture.restore();
+
+      // keyCode 0 produces an event the page sees but the browser ignores, so
+      // Enter would never submit a form.
+      expect(keyEvents[0].windowsVirtualKeyCode).toBe(13);
+      expect(keyEvents[0].nativeVirtualKeyCode).toBe(13);
+      expect(keyEvents[0].code).toBe('Enter');
+      expect(keyEvents[0].text).toBe('\r');
+      expect(keyEvents[1].type).toBe('keyUp');
+      expect(keyEvents[1].windowsVirtualKeyCode).toBe(13);
+    });
+
+    it('should use rawKeyDown for keys that insert no text', async () => {
+      const capture = captureConsoleOutput();
+      const context = new CDPContext();
+      const keyEvents: any[] = [];
+
+      const originalConnect = context.connect.bind(context);
+      context.connect = async (page) => {
+        const ws = await originalConnect(page) as MockWebSocket;
+        const originalSend = ws.send.bind(ws);
+        ws.send = (data: string) => {
+          const msg = JSON.parse(data);
+          if (msg.method === 'Input.dispatchKeyEvent') {
+            keyEvents.push(msg.params);
+          }
+          originalSend(data);
+        };
+        return ws;
+      };
+
+      await input.pressKey(context, 'arrowdown', { page: 'page1' });
+      capture.restore();
+
+      expect(keyEvents[0].type).toBe('rawKeyDown');
+      expect(keyEvents[0].text).toBeUndefined();
+      expect(keyEvents[0].windowsVirtualKeyCode).toBe(40);
+    });
+
+    it('should reject an unknown key rather than sending a dead event', async () => {
+      const capture = captureConsoleOutput();
+      const exitMock = mockProcessExit();
+      const context = new CDPContext();
+
+      try {
+        await input.pressKey(context, 'nonsense', { page: 'page1' });
+      } catch {
+        // Expected process.exit
+      }
+
+      const logs = capture.getLogs();
+      capture.restore();
+      exitMock.restore();
+
+      expect(exitMock.exitCode).toBe(1);
+      expect(JSON.parse(logs[0]).code).toBe('PRESS_KEY_FAILED');
+      expect(JSON.parse(logs[0]).message).toMatch(/Unknown key/);
+    });
+
     it('should map common key names', async () => {
       const capture = captureConsoleOutput();
       const context = new CDPContext();

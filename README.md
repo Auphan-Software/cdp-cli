@@ -288,8 +288,12 @@ cdp-cli screenshot "example" --output screenshot.jpg
 # Different formats
 cdp-cli screenshot "example" --output screenshot.png --format png
 
-# Downscale before saving (50% size)
+# Downscale before saving (50% size). Scaling re-encodes as PNG, so the
+# format defaults to png and an explicit --format jpeg/webp is rejected.
 cdp-cli screenshot "example" --output screenshot.png --scale 0.5
+
+# Clip to one element (scrolled into view first, 10px padding)
+cdp-cli screenshot "example" --selector "#invoice-total" --output el.png --format png
 
 # Output base64 (NDJSON)
 cdp-cli screenshot "example"
@@ -338,6 +342,15 @@ cdp-cli list-network "example" --type xhr
 
 **click** - Click an element by CSS selector or visible text
 Supports `--text`, `--match exact|contains|regex`, `--case-sensitive`, `--nth` for multi-match disambiguation, `--within` to scope the search to a container, and `--frame` to target elements inside iframes. Use `--longpress <seconds>` to hold the primary button before release (defaults to 1 second when the flag is provided without a value; not compatible with `--double`). Use `--touch` for touch events instead of mouse events (not compatible with `--double`). When multiple elements match, the CLI reports each candidate (including bounding boxes) so an LLM can choose the right target with `--nth`. Supports `--wait-for`, `--wait-for-text`, `--wait-for-idle`, and `--wait-for-frame` to wait for DOM changes after clicking.
+
+The target is scrolled into view before the click, and the click point is hit-tested first so a click that would be swallowed by an overlay fails loudly instead of reporting a false success:
+
+- `CLICK_OCCLUDED` - another element covers the click point (`details.occludedBy` names it). Pass `--force` to dispatch anyway.
+- `CLICK_OFFSCREEN` - the element could not be scrolled into the viewport.
+- `CLICK_DETACHED` - the element left the document before the click.
+
+Successful results include `scrolled` (whether the page had to scroll) and `occludedBy` (non-null only with `--force`).
+
 ```bash
 # CSS selector (default behaviour)
 cdp-cli click "button#submit" "example"
@@ -365,6 +378,9 @@ cdp-cli click "button.add" --within ".cart-section" "example"
 cdp-cli click "#submit-btn" "example" --frame "#myframe"
 cdp-cli click --text "Save" "example" --frame "#myframe"
 
+# Click through an overlay that would otherwise intercept the event
+cdp-cli click "#submit-btn" "example" --force
+
 # Wait for DOM changes after click
 cdp-cli click --text "Submit" "example" --wait-for "#success-message"
 cdp-cli click --text "Submit" "example" --wait-for-text "Order confirmed"
@@ -381,6 +397,8 @@ Wait options (shared with navigate):
 
 **drag** - Drag from one element/position to another
 Supports both mouse and touch drag operations. Use `--longpress` before drag for mobile-style drag-and-drop. Targets can be CSS selectors, text matches, or `x,y` coordinates. Use `--frame` to drag within an iframe.
+
+Element endpoints are scrolled into view before the drag. Because the events are dispatched at viewport coordinates, both endpoints must be on screen at the same time; if scrolling to one pushes the other out, the command fails with `DRAG_OFFSCREEN` instead of dragging between the wrong points. Coordinate endpoints (`x,y`) are used as given.
 ```bash
 # Mouse drag (default)
 cdp-cli drag "#item" "#dropzone" "example"
@@ -416,6 +434,8 @@ Options:
 
 **fill** - Fill an input element
 Supports `--nth` for multi-match disambiguation, `--within` to scope the search to a container, and `--frame` to target inputs inside iframes. Supports `--wait-for`, `--wait-for-text`, `--wait-for-idle`, and `--wait-for-frame` to wait for DOM changes after filling.
+
+Replaces the field's current value (the previous contents come back as `replaced` in the result), types the new value as real key events, then emits `change`. Only `<input>`, `<textarea>`, and `contenteditable` elements can be filled - a `<select>`, a disabled or read-only field, or a non-field element fails with `FILL_FAILED` rather than reporting a success that did nothing.
 ```bash
 cdp-cli fill "input#email" "user@example.com" "example"
 cdp-cli fill "input[name='password']" "secret123" "example"
@@ -450,11 +470,23 @@ Optional flags:
 - `--frame`: Target iframe by selector or index
 
 **press-key** - Press a keyboard key
+Named keys (`enter`, `tab`, `escape`, `backspace`, `delete`, `insert`, `space`, `arrowup`/`down`/`left`/`right`, `home`, `end`, `pageup`, `pagedown`), `F1`-`F12`, and single characters. Aliases: `esc`, `del`, `return`, `up`, `down`, `left`, `right`. An unrecognised name fails instead of dispatching an event the browser ignores.
 ```bash
 cdp-cli press-key enter "example"
 cdp-cli press-key tab "example"
 cdp-cli press-key escape "example"
+cdp-cli press-key arrowdown "example"
 ```
+
+**emulate** - Emulate a device
+Presets `ipad`, `iphone`, and `desktop` (which clears all overrides), or a custom size via `--width`/`--height`/`--scale`/`--ua`/`--touch`.
+```bash
+cdp-cli emulate ipad "example"
+cdp-cli emulate desktop "example"          # reset
+cdp-cli emulate custom "example" --width 800 --height 600 --touch
+```
+
+Chrome scopes emulation overrides to the CDP session that set them, so the user-agent override is dropped when a short-lived connection closes. The command routes through the daemon when one is running, which keeps the override alive; the result reports `persistent` (whether a daemon session was used) and `uaApplied` (whether the page actually reports the requested UA), plus a warning when it did not stick. Run `cdp-cli daemon start` for UA emulation to hold.
 
 ## LLM Usage Patterns
 
