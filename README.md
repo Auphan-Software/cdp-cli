@@ -9,6 +9,16 @@ Command-line interface for Chrome DevTools Protocol (CDP), optimized for LLM age
 > **Distribution note**
 > This scoped build (`@auphansoftware/cdp-cli`) is published for Auphan Software internal use, remains under the MIT license, and bundles the upstream work originally authored by [@myers](https://github.com/myers) at [github.com/myers/cdp-cli](https://github.com/myers/cdp-cli).
 
+> **Upgrading to 1.8.0 — one breaking change**
+> `--wait-for` and `--wait-for-text` now default to the document named by
+> `--frame`, instead of always checking the top document. This affects any
+> script that passes `--frame` together with either flag. Pass
+> `--wait-for-frame 0` to restore the old behaviour. See [CHANGELOG.md](CHANGELOG.md).
+>
+> On Windows, also run `npm run install:exe` after upgrading — a stale
+> `cdp-cli.exe` on PATH shadows the npm build for cmd.exe, PHP `exec()`, batch
+> and CI. See [Windows: which cdp-cli is actually running](#windows-which-cdp-cli-is-actually-running).
+
 ## Installation
 
 ```bash
