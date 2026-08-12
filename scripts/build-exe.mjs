@@ -61,6 +61,10 @@ async function buildExe() {
     define: {
       'CDP_CLI_VERSION': JSON.stringify(pkg.version),
       'CDP_CLI_EXE_MODE': 'true',
+      // Baked in so `--version` can expose which build an install is running.
+      // The exe does not track source, and on Windows PATHEXT resolves it ahead
+      // of the .cmd shim, so a stale one silently shadows a fresh npm build.
+      'CDP_CLI_BUILD': JSON.stringify(new Date().toISOString().replace(/\.\d+Z$/, 'Z')),
     },
     alias: {
       'ws': wsShimPath,

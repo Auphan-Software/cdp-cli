@@ -136,9 +136,11 @@ Options:
 #### Waiting for a navigation
 
 `--wait-for-navigation` is available on `navigate`, `click`, `fill`, `select` and
-`press-key`. It resolves only when the **main frame commits a new document and
-that document fires its load event**, tracked by CDP `Page.frameNavigated` /
-`Page.loadEventFired` and keyed on the frame's `loaderId`.
+`press-key`. It resolves only when the watched frame **commits a new document and
+that document finishes loading**, tracked by CDP `Page.frameNavigated` plus a
+completion event, and keyed on the frame's `loaderId`. The watched frame is the
+main frame unless `--frame`/`--wait-for-frame` names another — see
+[Waiting on an iframe](#waiting-on-an-iframe) below.
 
 Use it for classic post-and-refresh pages, where a form POST re-renders the whole
 document. `--wait-for-text` is the wrong tool there: every label you might wait
@@ -160,6 +162,7 @@ Notes:
 - On timeout the command fails with a non-zero exit and states whether the
   document never committed or committed but never finished loading.
 
+<a name="waiting-on-an-iframe"></a>
 ##### Waiting on an iframe
 
 A form POST inside an iframe replaces **that frame's** document; the main frame
@@ -184,7 +187,7 @@ detected with `Page.frameStoppedLoading` and `Page.lifecycleEvent`, because
 `--wait-for-frame` also scopes `--wait-for` and `--wait-for-text`, so those are
 checked inside the same document you were driving.
 
-> **Changed in 1.7.0:** `--wait-for` and `--wait-for-text` now default to the
+> **Changed in 1.8.0:** `--wait-for` and `--wait-for-text` now default to the
 > frame given by `--frame` instead of always checking the top document. If you
 > were relying on checking the top document while acting inside a frame, pass
 > `--wait-for-frame 0` to target the top frame explicitly.
@@ -546,7 +549,9 @@ Options:
 **fill** - Fill an input element
 Supports `--nth` for multi-match disambiguation, `--within` to scope the search to a container, and `--frame` to target inputs inside iframes. Supports `--wait-for`, `--wait-for-text`, `--wait-for-idle`, `--wait-for-frame`, and `--wait-for-navigation` to wait for DOM changes after filling.
 
-Replaces the field's current value (the previous contents come back as `replaced` in the result), types the new value as real key events, then emits `change`. Only `<input>`, `<textarea>`, and `contenteditable` elements can be filled - a disabled or read-only field, or a non-field element fails with `FILL_FAILED` rather than reporting a success that did nothing. A `<select>` is rejected too; use the **select** command below.
+Replaces the field's current value (the previous contents come back as `replaced` in the result), types the new value as real key events, then emits `change`.
+
+Because the `change` is emitted explicitly, a page that *also* produces one natively — a widget whose `onkeyup` moves focus to the next field, for instance — can see its `change` handler run twice for one `fill`. That is harmless for the usual idempotent "sync a hidden field" handler, but worth knowing if yours accumulates. Only `<input>`, `<textarea>`, and `contenteditable` elements can be filled - a disabled or read-only field, or a non-field element fails with `FILL_FAILED` rather than reporting a success that did nothing. A `<select>` is rejected too; use the **select** command below.
 ```bash
 cdp-cli fill "input#email" "user@example.com" "example"
 cdp-cli fill "input[name='password']" "secret123" "example"
@@ -883,3 +888,44 @@ MIT
 ---
 
 **Built for LLM agents** - Every command outputs structured, parseable, grep-friendly data.
+
+## Windows: which cdp-cli is actually running
+
+An npm global install leaves four entries sharing one stem:
+
+```
+cdp-cli        cdp-cli.cmd        cdp-cli.ps1        cdp-cli.exe
+```
+
+`PATHEXT` resolves `.EXE` **before** `.CMD`, and the standalone `.exe` does not
+track source — it only changes when someone rebuilds it. So:
+
+| Caller | Resolves to | Tracks source? |
+|---|---|---|
+| Git Bash / WSL | `cdp-cli` (shell script) | yes, via `build/` |
+| cmd.exe, PowerShell, PHP `exec()`, batch, Make, most CI | `cdp-cli.exe` | **no** |
+
+A stale exe therefore answers every non-POSIX caller as an older tool, returning
+well-formed JSON with no warning, while a bash smoke test reports the new
+version. Verifying only from bash cannot detect it.
+
+`--version` reports the build so this is visible:
+
+```
+1.9.0 (npm build 2026-08-12T18:06:54Z)   <- the .cmd/shell path, rebuilt by `npm run build`
+1.9.0 (exe build 2026-08-12T18:07:15Z)   <- the standalone exe
+```
+
+After changing the source, rebuild and install the exe too:
+
+```bash
+npm run install:exe    # builds the exe, installs it over the one on PATH, verifies through cmd.exe
+```
+
+That script deliberately checks with `cmd /c "cdp-cli --version"` rather than the
+current shell, and fails if anything still shadows the install.
+
+While another process may be calling the CLI, prefer `npx tsc` over
+`npm run build` for a redeploy: `build` runs `clean` first, which removes
+`build/` and makes every concurrent call fail with `Cannot find module
+...build\index.js` until compilation finishes.

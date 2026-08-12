@@ -6,7 +6,7 @@
  * Optimized for LLM agents with NDJSON output
  */
 
-import { readFileSync } from 'fs';
+import { readFileSync, statSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import yargs from 'yargs';
@@ -17,6 +17,26 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = typeof CDP_CLI_VERSION !== 'undefined'
   ? { version: CDP_CLI_VERSION }
   : JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf-8'));
+
+/**
+ * Version string carries where this build came from and when it was produced.
+ *
+ * On Windows several shims share the name (cdp-cli, .cmd, .ps1, .exe) and
+ * PATHEXT resolves .exe ahead of .cmd, so a stale standalone exe can shadow a
+ * freshly built npm install and answer every call as an older tool. A bare
+ * semver cannot show that; a build stamp can.
+ */
+const isExeBuild = typeof CDP_CLI_BUILD !== 'undefined';
+const buildStamp = (() => {
+  if (isExeBuild) return CDP_CLI_BUILD as string;
+  try {
+    // The compiled entry's mtime is when this install was last built.
+    return statSync(fileURLToPath(import.meta.url)).mtime.toISOString().replace(/\.\d+Z$/, 'Z');
+  } catch {
+    return 'unknown';
+  }
+})();
+const versionString = `${pkg.version} (${isExeBuild ? 'exe' : 'npm'} build ${buildStamp})`;
 import * as pages from './commands/pages.js';
 import * as debug from './commands/debug.js';
 import * as network from './commands/network.js';
@@ -62,7 +82,7 @@ process.on('unhandledRejection', (reason) => {
 // Create CLI
 const cli = yargs(hideBin(process.argv))
   .scriptName('cdp-cli')
-  .version(pkg.version)
+  .version(versionString)
   .usage('Usage: $0 <command> [options]')
   .option('cdp-url', {
     type: 'string',
@@ -179,7 +199,7 @@ cli.command(
       })
       .option('wait-for-navigation', {
         type: 'boolean',
-        description: 'Wait for the main frame to replace its document (real load, not text presence)',
+        description: 'Wait for a real document replacement (not text presence). Watches the frame from --wait-for-frame, else the main frame.',
         default: false
       })
       .check((argv) => {
@@ -614,7 +634,7 @@ cli.command(
       })
       .option('wait-for-navigation', {
         type: 'boolean',
-        description: 'Wait for the main frame to replace its document (form POST, link, redirect)',
+        description: 'Wait for a real document replacement (form POST, link, redirect). Watches the frame from --frame; override with --wait-for-frame.',
         default: false
       })
       .option('timeout', {
@@ -721,7 +741,7 @@ cli.command(
       })
       .option('wait-for-navigation', {
         type: 'boolean',
-        description: 'Wait for the main frame to replace its document (for fills that submit)',
+        description: 'Wait for a real document replacement (for fills that submit). Watches the frame from --frame; override with --wait-for-frame.',
         default: false
       })
       .option('timeout', {
@@ -839,7 +859,7 @@ cli.command(
       })
       .option('wait-for-navigation', {
         type: 'boolean',
-        description: 'Wait for the main frame to replace its document (for selects that submit on change)',
+        description: 'Wait for a real document replacement (for selects that submit on change). Watches the frame from --frame; override with --wait-for-frame.',
         default: false
       })
       .option('timeout', {
@@ -942,7 +962,7 @@ cli.command(
       })
       .option('wait-for-navigation', {
         type: 'boolean',
-        description: 'Wait for the main frame to replace its document (Enter submitting a form)',
+        description: 'Wait for a real document replacement (Enter submitting a form). Watches the frame from --wait-for-frame, else the main frame.',
         default: false
       })
       .option('timeout', {

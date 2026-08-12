@@ -1,6 +1,6 @@
 {
   "name": "@auphansoftware/cdp-cli",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "description": "CLI for Chrome DevTools Protocol - optimized for LLM agents with NDJSON output",
   "type": "module",
   "bin": {
@@ -13,6 +13,7 @@
     "build": "npm run clean && tsc && node scripts/make-executable.mjs",
     "bundle": "npm run build && node scripts/bundle.mjs",
     "build:exe": "npm run build && node scripts/build-exe.mjs",
+    "install:exe": "node scripts/build-exe.mjs && node scripts/install-exe.mjs",
     "prepack": "npm run build",
     "start": "npm run build && node build/index.js",
     "test": "vitest run",

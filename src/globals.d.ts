@@ -3,3 +3,4 @@
  */
 declare const CDP_CLI_VERSION: string | undefined;
 declare const CDP_CLI_EXE_MODE: boolean | undefined;
+declare const CDP_CLI_BUILD: string | undefined;
