@@ -10,6 +10,7 @@ import { resizePngBuffer } from '../resize.js';
 import { createExecSession, createExecSessionByPageRef } from '../daemon/exec.js';
 import { DaemonClient } from '../daemon/client.js';
 import { fetch as undiciFetch } from 'undici';
+import { version as cliVersion, build as cliBuild, runtime as cliRuntime } from '../version.js';
 
 /**
  * Get the ax snapshot script for evaluating in page context
@@ -758,6 +759,14 @@ export async function status(context: CDPContext): Promise<void> {
     }
 
     outputLine({
+      // Discrete fields so a harness can gate on the version without parsing
+      // the human-facing --version string, whose build suffix makes PHP's
+      // version_compare report an equal version as older.
+      cli: {
+        version: cliVersion,
+        build: cliBuild,
+        runtime: cliRuntime
+      },
       daemon: {
         running: daemonStatus.running,
         sessions: daemonStatus.sessions

@@ -888,5 +888,40 @@ describe('Debug Commands', () => {
       expect(result.chrome.running).toBe(true);
       expect(result.chrome.pages).toBe(2);
     });
+
+    /**
+     * A harness must be able to gate on the version without parsing the
+     * human-facing --version string: its build suffix makes PHP's
+     * version_compare report an equal version as older.
+     */
+    it('should report the cli version as discrete machine-readable fields', async () => {
+      const capture = captureConsoleOutput();
+      const context = new CDPContext();
+
+      global.fetch = async (url: string | URL | Request) => {
+        const urlStr = url.toString();
+        if (urlStr.includes(':9223/health')) {
+          return { ok: true, json: async () => ({ status: 'ok', sessions: 0 }) } as any;
+        }
+        if (urlStr.includes('/json/version')) {
+          return { ok: true, json: async () => ({ Browser: 'Chrome/120.0.0.0' }) } as any;
+        }
+        if (urlStr.endsWith('/json')) {
+          return { ok: true, json: async () => [] } as any;
+        }
+        throw new Error('Unknown endpoint');
+      };
+
+      await debug.status(context);
+
+      const logs = capture.getLogs();
+      capture.restore();
+
+      const result = JSON.parse(logs[0]);
+      // Bare semver: no build suffix, so version_compare and friends behave.
+      expect(result.cli.version).toMatch(/^\d+\.\d+\.\d+$/);
+      expect(typeof result.cli.build).toBe('string');
+      expect(['npm', 'exe']).toContain(result.cli.runtime);
+    });
   });
 });

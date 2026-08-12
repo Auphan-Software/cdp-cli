@@ -6,37 +6,14 @@
  * Optimized for LLM agents with NDJSON output
  */
 
-import { readFileSync, statSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { CDPContext } from './context.js';
+import { versionString } from './version.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const pkg = typeof CDP_CLI_VERSION !== 'undefined'
-  ? { version: CDP_CLI_VERSION }
-  : JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf-8'));
-
-/**
- * Version string carries where this build came from and when it was produced.
- *
- * On Windows several shims share the name (cdp-cli, .cmd, .ps1, .exe) and
- * PATHEXT resolves .exe ahead of .cmd, so a stale standalone exe can shadow a
- * freshly built npm install and answer every call as an older tool. A bare
- * semver cannot show that; a build stamp can.
- */
-const isExeBuild = typeof CDP_CLI_BUILD !== 'undefined';
-const buildStamp = (() => {
-  if (isExeBuild) return CDP_CLI_BUILD as string;
-  try {
-    // The compiled entry's mtime is when this install was last built.
-    return statSync(fileURLToPath(import.meta.url)).mtime.toISOString().replace(/\.\d+Z$/, 'Z');
-  } catch {
-    return 'unknown';
-  }
-})();
-const versionString = `${pkg.version} (${isExeBuild ? 'exe' : 'npm'} build ${buildStamp})`;
 import * as pages from './commands/pages.js';
 import * as debug from './commands/debug.js';
 import * as network from './commands/network.js';

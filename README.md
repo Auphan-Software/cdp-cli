@@ -523,6 +523,11 @@ Wait options (shared with navigate):
 Supports both mouse and touch drag operations. Use `--longpress` before drag for mobile-style drag-and-drop. Targets can be CSS selectors, text matches, or `x,y` coordinates. Use `--frame` to drag within an iframe.
 
 Element endpoints are scrolled into view before the drag. Because the events are dispatched at viewport coordinates, both endpoints must be on screen at the same time; if scrolling to one pushes the other out, the command fails with `DRAG_OFFSCREEN` instead of dragging between the wrong points. Coordinate endpoints (`x,y`) are used as given.
+
+> **`--frame` on `drag` is unverified.** It resolves the frame through the same
+> code path as `click`, whose frame targeting and coordinate translation are
+> verified against a real iframe — but `drag --frame` itself has not been
+> exercised end to end. Treat the iframe example below as untested.
 ```bash
 # Mouse drag (default)
 cdp-cli drag "#item" "#dropzone" "example"
@@ -918,6 +923,18 @@ track source — it only changes when someone rebuilds it. So:
 A stale exe therefore answers every non-POSIX caller as an older tool, returning
 well-formed JSON with no warning, while a bash smoke test reports the new
 version. Verifying only from bash cannot detect it.
+
+**If a script needs to gate on the version, read `status`, not `--version`:**
+
+```bash
+cdp-cli status
+{"cli":{"version":"1.10.0","build":"2026-08-12T18:25:59Z","runtime":"exe"}, ...}
+```
+
+`status.cli.version` is a bare semver, safe to hand to any comparator. The
+`--version` string is human-facing and carries a build suffix; PHP's
+`version_compare` reads that suffix as a pre-release marker and reports an equal
+version as *older*, which rejects a correct build.
 
 `--version` reports the build so this is visible:
 

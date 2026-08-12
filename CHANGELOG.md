@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.10.0
+
+### `status` reports the CLI version as machine-readable fields
+
+```json
+{"cli":{"version":"1.10.0","build":"2026-08-12T18:25:59Z","runtime":"exe"}, "daemon":{...}, "chrome":{...}}
+```
+
+**Scripts should gate on `status.cli.version`, not on `--version`.** The
+`--version` string carries a build suffix (`1.10.0 (exe build ...)`), and PHP's
+`version_compare` treats trailing text as a pre-release marker — so comparing
+the raw string against a bare semver reports an *equal* version as older:
+
+```php
+version_compare("1.10.0 (exe build ...)", "1.10.0", "<")   // TRUE - rejects a correct build
+version_compare($status["cli"]["version"], "1.10.0", "<")  // false - correct
+```
+
+Any harness that shells out and compares versions wants the `status` field.
+`--version` stays human-facing.
+
 ## 1.9.0
 
 ### `--version` now reports which build is answering
