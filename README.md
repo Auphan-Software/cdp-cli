@@ -532,10 +532,9 @@ Supports both mouse and touch drag operations. Use `--longpress` before drag for
 
 Element endpoints are scrolled into view before the drag. Because the events are dispatched at viewport coordinates, both endpoints must be on screen at the same time; if scrolling to one pushes the other out, the command fails with `DRAG_OFFSCREEN` instead of dragging between the wrong points. Coordinate endpoints (`x,y`) are used as given.
 
-> **`--frame` on `drag` is unverified.** It resolves the frame through the same
-> code path as `click`, whose frame targeting and coordinate translation are
-> verified against a real iframe — but `drag --frame` itself has not been
-> exercised end to end. Treat the iframe example below as untested.
+`--frame` is verified on `drag`: dragging between two elements inside an iframe
+releases inside the destination's own rect, which is what a correct coordinate
+translation produces and a wrong frame offset does not.
 ```bash
 # Mouse drag (default)
 cdp-cli drag "#item" "#dropzone" "example"
