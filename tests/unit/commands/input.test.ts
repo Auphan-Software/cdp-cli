@@ -905,6 +905,71 @@ describe('Input Commands', () => {
       expect(evaluates.every(m => !m.params?.expression?.includes(".value = ''"))).toBe(true);
     });
 
+    /**
+     * Regression for the two defects a stale 1.5.2 build showed on a widget of
+     * two adjacent maxlength boxes, the first with an onkeyup that moves focus
+     * to the second: filling them in sequence left the FIRST box empty, and no
+     * `change` reached the page, so the hidden field the widget syncs never
+     * updated.
+     *
+     * Both reduce to one invariant at this level: every operation in a fill must
+     * go through the handle that fill resolved. Clearing or dispatching through
+     * anything else lands on whatever is focused, which by then is the next box.
+     *
+     * The end-to-end version of this needs a real browser, which this suite has
+     * no harness for; it was verified manually against a live widget.
+     */
+    it('should focus, clear and dispatch change all through its own resolved handle', async () => {
+      const capture = captureConsoleOutput();
+      const context = new CDPContext();
+      const calls: any[] = [];
+
+      const originalConnect = context.connect.bind(context);
+      context.connect = async (page) => {
+        const ws = await originalConnect(page) as MockWebSocket;
+        const originalSend = ws.send.bind(ws);
+        ws.send = (data: string) => {
+          const msg = JSON.parse(data);
+          if (msg.method === 'Runtime.callFunctionOn') {
+            calls.push(msg.params);
+          }
+          // Hand back a handle keyed to the node, so a fill that reached for the
+          // wrong element would show up as a different objectId.
+          if (msg.method === 'DOM.resolveNode') {
+            ws.sentMessages.push(msg);
+            setTimeout(() => {
+              ws.simulateMessage({
+                id: msg.id,
+                result: { object: { objectId: `handle-for-${msg.params.nodeId}` } }
+              });
+            }, 5);
+            return;
+          }
+          originalSend(data);
+        };
+        return ws;
+      };
+
+      await input.fill(context, '#box4', '10', { page: 'page1' });
+      capture.restore();
+
+      expect(calls.length).toBeGreaterThan(0);
+
+      // One handle for the whole operation - not a re-query, not the focused node.
+      const handles = Array.from(new Set(calls.map(c => c.objectId)));
+      expect(handles).toHaveLength(1);
+      expect(handles[0]).toMatch(/^handle-for-/);
+
+      // And the page must actually be told the value changed.
+      const changeDispatch = calls.find(c =>
+        typeof c.functionDeclaration === 'string' &&
+        c.functionDeclaration.includes("new Event('change'")
+      );
+      expect(changeDispatch).toBeDefined();
+      expect(changeDispatch.functionDeclaration).toContain('bubbles: true');
+      expect(changeDispatch.objectId).toBe(handles[0]);
+    });
+
     it('should report a disabled field instead of claiming success', async () => {
       const capture = captureConsoleOutput();
       const exitMock = mockProcessExit();
