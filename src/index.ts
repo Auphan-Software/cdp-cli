@@ -76,11 +76,14 @@ const cli = yargs(hideBin(process.argv))
   .alias('version', 'v')
   .wrap(120)
   .epilog(`Key Features:
-  --frame               Target iframes (click, fill, drag, snapshot, eval, navigate --wait-for)
+  --frame               Target an iframe by CSS selector ("#my-iframe") or index (1 = first iframe).
+                        Works on click, fill, select, drag, eval, query, styles, snapshot, dismiss-overlays.
   --text/--nth          Click/drag by visible text with multi-match disambiguation
   --within              Scope element search to a container
   --wait-for            Wait for selector/text/idle after navigation
-  --wait-for-navigation Wait for a real document replacement (click, fill, select, press-key, navigate)
+  --wait-for-navigation Wait for a real document replacement (click, fill, select, press-key, navigate).
+                        Watches the frame from --frame; override with --wait-for-frame.
+  --wait-for-frame      Frame the waits apply to, by selector or index (defaults to --frame)
   select                Set a <select> by value, --text label, or --index
   --touch               Touch events for mobile testing (click, drag)
   --longpress           Hold before click/drag for mobile patterns
@@ -172,7 +175,7 @@ cli.command(
       })
       .option('wait-for-frame', {
         type: 'string',
-        description: 'Target iframe for --wait-for/--wait-for-text by selector or index'
+        description: 'Frame these waits apply to, by CSS selector or index. Also the frame --wait-for-navigation watches.'
       })
       .option('wait-for-navigation', {
         type: 'boolean',
@@ -607,7 +610,7 @@ cli.command(
       })
       .option('wait-for-frame', {
         type: 'string',
-        description: 'Target iframe for wait checks (by selector or index)'
+        description: 'Frame these waits apply to, by CSS selector or index (defaults to --frame). Also the frame --wait-for-navigation watches.'
       })
       .option('wait-for-navigation', {
         type: 'boolean',
@@ -714,7 +717,7 @@ cli.command(
       })
       .option('wait-for-frame', {
         type: 'string',
-        description: 'Target iframe for wait checks (by selector or index)'
+        description: 'Frame these waits apply to, by CSS selector or index (defaults to --frame). Also the frame --wait-for-navigation watches.'
       })
       .option('wait-for-navigation', {
         type: 'boolean',
@@ -832,7 +835,7 @@ cli.command(
       })
       .option('wait-for-frame', {
         type: 'string',
-        description: 'Target iframe for wait checks (by selector or index)'
+        description: 'Frame these waits apply to, by CSS selector or index (defaults to --frame). Also the frame --wait-for-navigation watches.'
       })
       .option('wait-for-navigation', {
         type: 'boolean',
@@ -935,7 +938,7 @@ cli.command(
       })
       .option('wait-for-frame', {
         type: 'string',
-        description: 'Target iframe for wait checks (by selector or index)'
+        description: 'Frame these waits apply to, by CSS selector or index (defaults to --frame). Also the frame --wait-for-navigation watches.'
       })
       .option('wait-for-navigation', {
         type: 'boolean',

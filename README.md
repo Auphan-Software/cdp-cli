@@ -157,9 +157,37 @@ Notes:
 - Same-document changes (hash routes, `history.pushState`) keep the `loaderId`
   and deliberately do **not** satisfy this wait. Use `--wait-for`/`--wait-for-text`
   for SPA route changes.
-- Subframe loads never satisfy it; only the main frame counts.
 - On timeout the command fails with a non-zero exit and states whether the
   document never committed or committed but never finished loading.
+
+##### Waiting on an iframe
+
+A form POST inside an iframe replaces **that frame's** document; the main frame
+never navigates. A main-frame wait would sit there until it timed out, so name
+the frame to watch. The frame comes from `--frame` by default, and
+`--wait-for-frame` overrides it:
+
+```bash
+# Submit inside an iframe — the wait follows --frame automatically
+cdp-cli click "input[value='Add']" "example" --frame "#page-iframe" --wait-for-navigation
+
+# Click in the TOP document, but the iframe is what navigates
+# (common when a shell re-parents a page's buttons into its own nav bar)
+cdp-cli click ".nav-save-btn" "example" --wait-for-navigation --wait-for-frame "#page-iframe"
+```
+
+Main-frame waits still ignore subframe loads entirely, so an unrelated iframe
+(an ad, a printer-queue frame) can never satisfy one. Subframe completion is
+detected with `Page.frameStoppedLoading` and `Page.lifecycleEvent`, because
+`Page.loadEventFired` only ever fires for the main frame.
+
+`--wait-for-frame` also scopes `--wait-for` and `--wait-for-text`, so those are
+checked inside the same document you were driving.
+
+> **Changed in 1.7.0:** `--wait-for` and `--wait-for-text` now default to the
+> frame given by `--frame` instead of always checking the top document. If you
+> were relying on checking the top document while acting inside a frame, pass
+> `--wait-for-frame 0` to target the top frame explicitly.
 
 **close-page** - Close a page
 ```bash
@@ -389,6 +417,31 @@ cdp-cli list-network "example" --duration 5
 cdp-cli list-network "example" --type fetch
 cdp-cli list-network "example" --type xhr
 ```
+
+### Working with iframes
+
+`--frame` takes **either** a CSS selector matched against the top document, or a
+1-based frame index:
+
+```bash
+cdp-cli click "#save" "example" --frame "#page-iframe"   # CSS selector (recommended)
+cdp-cli click "#save" "example" --frame 1                # 1 = first iframe, 0 = top document
+```
+
+A selector is worth preferring: index order follows the frame tree, so an
+unrelated iframe elsewhere on the page silently shifts what `1` means.
+
+Supported on `click`, `fill`, `select`, `drag`, `eval`, `query`, `styles`,
+`snapshot`, and `dismiss-overlays`. Click and drag coordinates are translated
+into the frame's own coordinate space automatically.
+
+If the frame cannot be resolved, the command **fails** rather than quietly
+running against the top document — so a mistyped selector surfaces as an error
+instead of a success against the wrong DOM. A frame that exists but has no
+execution context yet reports that it may still be loading.
+
+`press-key` needs no `--frame`: keystrokes go to whatever is focused, so focus
+the field first (with `fill`, or `click`) and the keystroke lands in that frame.
 
 ### Input Automation
 

@@ -716,43 +716,60 @@ export class CDPContext {
     ws: WebSocket,
     frameSpec?: string
   ): Promise<number | undefined> {
-    if (!frameSpec || frameSpec === '0') {
+    const frameId = await this.resolveFrameId(ws, frameSpec);
+    if (frameId === undefined) {
       return undefined; // Top frame, use default context
     }
 
-    const frames = await this.getFrameTree(ws);
     const contexts = await this.getExecutionContexts(ws);
+    const contextId = contexts.find(c => c.frameId === frameId)?.id;
 
-    // Helper to find context by frame ID
-    const getContextForFrame = (frameId: string): number | undefined => {
-      const ctx = contexts.find(c => c.frameId === frameId);
-      return ctx?.id;
-    };
+    // Returning undefined here would silently fall back to the top frame,
+    // so callers would run against the wrong document and still succeed.
+    if (contextId === undefined) {
+      const frames = await this.getFrameTree(ws);
+      const frame = frames.find(f => f.id === frameId);
+      throw new Error(
+        `No execution context found for frame ${frameSpec} (${frame?.url ?? 'unknown url'}). The frame may still be loading.`
+      );
+    }
+
+    return contextId;
+  }
+
+  /**
+   * Resolve a frame specification to a CDP frame ID.
+   *
+   * Frame IDs survive a navigation of that frame, while execution context IDs
+   * do not, so this is what a navigation watcher has to key on.
+   *
+   * @param frameSpec Frame specification: selector (e.g. "#iframe") or index (1 = first iframe)
+   * @returns frame ID, or undefined for the top frame
+   */
+  async resolveFrameId(
+    ws: WebSocket,
+    frameSpec?: string
+  ): Promise<string | undefined> {
+    if (!frameSpec || frameSpec === '0') {
+      return undefined; // Top frame
+    }
+
+    const frames = await this.getFrameTree(ws);
 
     // If numeric, treat as frame index (0 = top, 1 = first child, etc.)
     if (/^\d+$/.test(frameSpec)) {
       const index = parseInt(frameSpec, 10);
       if (index === 0) return undefined;
-      if (index > 0 && index <= frames.length - 1) {
-        // frames[0] is top, frames[1] is first iframe
-        const frameId = frames[index]?.id;
-        if (frameId) {
-          const contextId = getContextForFrame(frameId);
-          // Returning undefined here would silently fall back to the top frame,
-          // so callers would run against the wrong document and still succeed.
-          if (contextId === undefined) {
-            throw new Error(
-              `No execution context found for frame ${index} (${frames[index]?.url ?? 'unknown url'}). The frame may still be loading.`
-            );
-          }
-          return contextId;
-        }
+      // frames[0] is top, frames[1] is first iframe
+      const frameId = frames[index]?.id;
+      if (index > 0 && index <= frames.length - 1 && frameId) {
+        return frameId;
       }
       throw new Error(`Frame index ${index} not found. Available: 0-${frames.length - 1}`);
     }
 
-    // Otherwise treat as CSS selector - need to find iframe and get its frame ID
-    // First, evaluate in top context to find the iframe's src/name
+    // Otherwise treat as CSS selector - find the iframe element in the top
+    // document, then match it to a frame by URL or name.
     await this.sendCommand(ws, 'Runtime.enable');
     const iframeInfo = await this.sendCommand(ws, 'Runtime.evaluate', {
       expression: `(() => {
@@ -773,7 +790,6 @@ export class CDPContext {
 
     const { src, name } = iframeInfo.result.value;
 
-    // Find matching frame by URL or name
     const matchingFrame = frames.find(f =>
       f.parentId && // Must be a child frame
       (f.url === src || f.name === name || (name && f.url.includes(name)))
@@ -787,12 +803,7 @@ export class CDPContext {
       throw new Error(`Could not find frame context for: ${frameSpec}\n\nAvailable frames:\n${availableFrames}`);
     }
 
-    const contextId = getContextForFrame(matchingFrame.id);
-    if (!contextId) {
-      throw new Error(`No execution context found for frame: ${matchingFrame.url}`);
-    }
-
-    return contextId;
+    return matchingFrame.id;
   }
 
   /**

@@ -101,7 +101,7 @@ export async function navigate(
     await context.sendCommand(ws, 'Runtime.enable');
 
     if (options.waitForNavigation) {
-      navigationWatcher = await armNavigationWatcher(context, ws);
+      navigationWatcher = await armNavigationWatcher(context, ws, options.waitForFrame);
     }
 
     // Perform navigation action

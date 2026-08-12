@@ -5,7 +5,7 @@
 import { CDPContext, type Page } from '../context.js';
 import { outputError, outputSuccess } from '../output.js';
 import { describeChar, describeKey, type KeyDescriptor } from '../keys.js';
-import { armNavigationWatcher, handleWaitOptions, type NavigationWatcher, type WaitOptions } from './wait.js';
+import { armNavigationWatcher, effectiveWaitFrame, handleWaitOptions, type NavigationWatcher, type WaitOptions } from './wait.js';
 
 type TextMatchMode = 'exact' | 'contains' | 'regex';
 
@@ -1131,7 +1131,7 @@ export async function click(
     // Armed before dispatch: a form POST can commit and load before a
     // post-action listener would have attached.
     if (options.waitForNavigation) {
-      navigationWatcher = await armNavigationWatcher(context, ws);
+      navigationWatcher = await armNavigationWatcher(context, ws, effectiveWaitFrame(options));
     }
 
     if (options.touch) {
@@ -1212,7 +1212,7 @@ export async function click(
         waitFor: options.waitFor,
         waitForText: options.waitForText,
         waitForIdle: options.waitForIdle,
-        waitForFrame: options.waitForFrame,
+        waitForFrame: effectiveWaitFrame(options),
         waitForNavigation: options.waitForNavigation,
         timeout: options.timeout
       },
@@ -1240,7 +1240,7 @@ export async function click(
       ...(options.waitFor && { waitedFor: options.waitFor }),
       ...(options.waitForText && { waitedForText: options.waitForText }),
       ...(options.waitForIdle && { waitedForIdle: true }),
-      ...(options.waitForFrame && { waitedInFrame: options.waitForFrame }),
+      ...(effectiveWaitFrame(options) && { waitedInFrame: effectiveWaitFrame(options) }),
       ...(options.waitForNavigation && { waitedForNavigation: true })
     });
   } catch (error) {
@@ -1434,7 +1434,7 @@ export async function selectOption(
       target.value !== undefined ? 'value' : target.text !== undefined ? 'text' : 'index';
 
     if (options.waitForNavigation) {
-      navigationWatcher = await armNavigationWatcher(context, ws);
+      navigationWatcher = await armNavigationWatcher(context, ws, effectiveWaitFrame(options));
     }
 
     const callResult = await context.sendCommand(ws, 'Runtime.callFunctionOn', {
@@ -1552,7 +1552,7 @@ export async function selectOption(
         waitFor: options.waitFor,
         waitForText: options.waitForText,
         waitForIdle: options.waitForIdle,
-        waitForFrame: options.waitForFrame,
+        waitForFrame: effectiveWaitFrame(options),
         waitForNavigation: options.waitForNavigation,
         timeout: options.timeout
       },
@@ -1576,7 +1576,7 @@ export async function selectOption(
       ...(options.waitFor && { waitedFor: options.waitFor }),
       ...(options.waitForText && { waitedForText: options.waitForText }),
       ...(options.waitForIdle && { waitedForIdle: true }),
-      ...(options.waitForFrame && { waitedInFrame: options.waitForFrame }),
+      ...(effectiveWaitFrame(options) && { waitedInFrame: effectiveWaitFrame(options) }),
       ...(options.waitForNavigation && { waitedForNavigation: true })
     });
   } catch (error) {
@@ -1668,7 +1668,7 @@ export async function fill(
     const field = await focusAndClearField(context, ws, chosen.objectId, selector);
 
     if (options.waitForNavigation) {
-      navigationWatcher = await armNavigationWatcher(context, ws);
+      navigationWatcher = await armNavigationWatcher(context, ws, effectiveWaitFrame(options));
     }
 
     for (const char of value) {
@@ -1695,7 +1695,7 @@ export async function fill(
         waitFor: options.waitFor,
         waitForText: options.waitForText,
         waitForIdle: options.waitForIdle,
-        waitForFrame: options.waitForFrame,
+        waitForFrame: effectiveWaitFrame(options),
         waitForNavigation: options.waitForNavigation,
         timeout: options.timeout
       },
@@ -1712,7 +1712,7 @@ export async function fill(
       ...(options.waitFor && { waitedFor: options.waitFor }),
       ...(options.waitForText && { waitedForText: options.waitForText }),
       ...(options.waitForIdle && { waitedForIdle: true }),
-      ...(options.waitForFrame && { waitedInFrame: options.waitForFrame }),
+      ...(effectiveWaitFrame(options) && { waitedInFrame: effectiveWaitFrame(options) }),
       ...(options.waitForNavigation && { waitedForNavigation: true })
     });
   } catch (error) {
@@ -1756,7 +1756,7 @@ export async function pressKey(
     // Enter in a form field submits it, so the watcher has to be live before
     // the keystroke is dispatched.
     if (options.waitForNavigation) {
-      navigationWatcher = await armNavigationWatcher(context, ws);
+      navigationWatcher = await armNavigationWatcher(context, ws, effectiveWaitFrame(options));
     }
 
     await dispatchKey(context, ws, descriptor);
@@ -1768,7 +1768,7 @@ export async function pressKey(
         waitFor: options.waitFor,
         waitForText: options.waitForText,
         waitForIdle: options.waitForIdle,
-        waitForFrame: options.waitForFrame,
+        waitForFrame: effectiveWaitFrame(options),
         waitForNavigation: options.waitForNavigation,
         timeout: options.timeout
       },
@@ -1782,7 +1782,7 @@ export async function pressKey(
       ...(options.waitFor && { waitedFor: options.waitFor }),
       ...(options.waitForText && { waitedForText: options.waitForText }),
       ...(options.waitForIdle && { waitedForIdle: true }),
-      ...(options.waitForFrame && { waitedInFrame: options.waitForFrame }),
+      ...(effectiveWaitFrame(options) && { waitedInFrame: effectiveWaitFrame(options) }),
       ...(options.waitForNavigation && { waitedForNavigation: true })
     });
   } catch (error) {

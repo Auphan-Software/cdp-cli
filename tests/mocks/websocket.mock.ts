@@ -202,7 +202,18 @@ export class MockWebSocket extends EventEmitter {
                 id: 'frame123',
                 url: 'https://example.com',
                 loaderId: 'loader-initial'
-              }
+              },
+              childFrames: [
+                {
+                  frame: {
+                    id: 'child-frame',
+                    parentId: 'frame123',
+                    name: 'inner',
+                    url: 'https://example.com/inner',
+                    loaderId: 'child-loader-initial'
+                  }
+                }
+              ]
             }
           };
           break;
