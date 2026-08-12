@@ -334,7 +334,13 @@ describe('CDPContext', () => {
       await expect(context.createPage()).rejects.toThrow('Failed to create page');
     });
 
-    it('should construct endpoint without encoding protocol delimiters', async () => {
+    /**
+     * Chrome parses everything after '?' on /json/new as a query string, so the
+     * URL has to travel as one fully-escaped value. Passing it literally cut it
+     * at the first '&' and dropped the fragment with it, which silently created
+     * the wrong page for any hash-routed SPA.
+     */
+    const captureCreatePageEndpoint = async (url: string): Promise<string> => {
       const calls: any[] = [];
       const fetchStub = async (input: any, init?: any) => {
         calls.push([input, init]);
@@ -344,7 +350,7 @@ describe('CDPContext', () => {
             return {
               id: 'new-page-123',
               title: 'New Tab',
-              url: 'http://localhost:3001/path with space',
+              url,
               type: 'page',
               webSocketDebuggerUrl: 'ws://localhost:9222/devtools/page/new-page-123'
             };
@@ -357,17 +363,41 @@ describe('CDPContext', () => {
 
       try {
         const context = new CDPContext();
-        await context.createPage('http://localhost:3001/path with space#section');
-
-        expect(calls).toEqual([
-          [
-            'http://localhost:9222/json/new?http://localhost:3001/path%20with%20space%23section',
-            { method: 'PUT' }
-          ]
-        ]);
+        await context.createPage(url);
+        expect(calls).toHaveLength(1);
+        expect(calls[0][1]).toEqual({ method: 'PUT' });
+        return calls[0][0] as string;
       } finally {
         (global as any).fetch = originalFetch;
       }
+    };
+
+    it('should percent-encode the whole URL so Chrome cannot parse it as a query', async () => {
+      const endpoint = await captureCreatePageEndpoint('http://localhost:3001/path with space#section');
+
+      expect(endpoint).toBe(
+        'http://localhost:9222/json/new?http%3A%2F%2Flocalhost%3A3001%2Fpath%20with%20space%23section'
+      );
+    });
+
+    it('should preserve every query parameter after the first ampersand', async () => {
+      const url = 'http://127.0.0.1/app/?test_scenario=admin&_cb=probe1#s:login.php?lang_id=1,management/management.php?lang_id=1';
+      const endpoint = await captureCreatePageEndpoint(url);
+
+      // The whole URL must survive the round trip; '&' and '#' must not be
+      // readable by Chrome's query parser as delimiters.
+      const sent = endpoint.slice('http://localhost:9222/json/new?'.length);
+      expect(decodeURIComponent(sent)).toBe(url);
+      expect(sent).not.toContain('&');
+      expect(sent).not.toContain('#');
+    });
+
+    it('should not double-encode a URL that already contains percent escapes', async () => {
+      const url = 'http://127.0.0.1/app/?already=%20encoded&z=100%25';
+      const endpoint = await captureCreatePageEndpoint(url);
+
+      const sent = endpoint.slice('http://localhost:9222/json/new?'.length);
+      expect(decodeURIComponent(sent)).toBe(url);
     });
   });
 });

@@ -127,8 +127,25 @@ export class MockWebSocket extends EventEmitter {
           break;
 
         case 'Runtime.callFunctionOn':
+          // The select command reads the option list off the element
+          if (message.params?.functionDeclaration?.includes('Not a <select> element')) {
+            result = {
+              result: {
+                value: {
+                  value: 'range',
+                  text: 'Date Range',
+                  optionIndex: 3,
+                  selectedIndex: 2,
+                  previousValue: '',
+                  previousText: '-- pick --',
+                  changed: true,
+                  optionCount: 4,
+                  multiple: false
+                }
+              }
+            };
           // The fill probe focuses the field and clears its value
-          if (message.params?.functionDeclaration?.includes('activeElement')) {
+          } else if (message.params?.functionDeclaration?.includes('activeElement')) {
             result = {
               result: {
                 value: { tagName: 'input', cleared: '' }
@@ -175,6 +192,18 @@ export class MockWebSocket extends EventEmitter {
         case 'Page.navigate':
           result = {
             frameId: 'frame123'
+          };
+          break;
+
+        case 'Page.getFrameTree':
+          result = {
+            frameTree: {
+              frame: {
+                id: 'frame123',
+                url: 'https://example.com',
+                loaderId: 'loader-initial'
+              }
+            }
           };
           break;
 

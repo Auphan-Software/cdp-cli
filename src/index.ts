@@ -76,12 +76,14 @@ const cli = yargs(hideBin(process.argv))
   .alias('version', 'v')
   .wrap(120)
   .epilog(`Key Features:
-  --frame         Target iframes (click, fill, drag, snapshot, eval, navigate --wait-for)
-  --text/--nth    Click/drag by visible text with multi-match disambiguation
-  --within        Scope element search to a container
-  --wait-for      Wait for selector/text/idle after navigation
-  --touch         Touch events for mobile testing (click, drag)
-  --longpress     Hold before click/drag for mobile patterns
+  --frame               Target iframes (click, fill, drag, snapshot, eval, navigate --wait-for)
+  --text/--nth          Click/drag by visible text with multi-match disambiguation
+  --within              Scope element search to a container
+  --wait-for            Wait for selector/text/idle after navigation
+  --wait-for-navigation Wait for a real document replacement (click, fill, select, press-key, navigate)
+  select                Set a <select> by value, --text label, or --index
+  --touch               Touch events for mobile testing (click, drag)
+  --longpress           Hold before click/drag for mobile patterns
 
 Run "cdp-cli <command> --help" for command-specific options.`)
   .fail((msg, err, yargs) => {
@@ -172,6 +174,11 @@ cli.command(
         type: 'string',
         description: 'Target iframe for --wait-for/--wait-for-text by selector or index'
       })
+      .option('wait-for-navigation', {
+        type: 'boolean',
+        description: 'Wait for the main frame to replace its document (real load, not text presence)',
+        default: false
+      })
       .check((argv) => {
         const hint = validateNavigateParams(argv.action as string, argv.page as string);
         if (hint.likely) {
@@ -191,7 +198,8 @@ cli.command(
         waitForText: argv['wait-for-text'] as string | undefined,
         waitForIdle: argv['wait-for-idle'] as boolean,
         timeout: argv.timeout as number,
-        waitForFrame: argv['wait-for-frame'] as string | undefined
+        waitForFrame: argv['wait-for-frame'] as string | undefined,
+        waitForNavigation: argv['wait-for-navigation'] as boolean
       }
     );
   }
@@ -601,6 +609,11 @@ cli.command(
         type: 'string',
         description: 'Target iframe for wait checks (by selector or index)'
       })
+      .option('wait-for-navigation', {
+        type: 'boolean',
+        description: 'Wait for the main frame to replace its document (form POST, link, redirect)',
+        default: false
+      })
       .option('timeout', {
         type: 'number',
         description: 'Timeout for wait operations in ms (default: 10000)'
@@ -650,6 +663,7 @@ cli.command(
         waitForText: argv.waitForText as string | undefined,
         waitForIdle: argv.waitForIdle as boolean | undefined,
         waitForFrame: argv.waitForFrame as string | undefined,
+        waitForNavigation: argv.waitForNavigation as boolean | undefined,
         timeout: argv.timeout as number | undefined
       }
     );
@@ -702,6 +716,11 @@ cli.command(
         type: 'string',
         description: 'Target iframe for wait checks (by selector or index)'
       })
+      .option('wait-for-navigation', {
+        type: 'boolean',
+        description: 'Wait for the main frame to replace its document (for fills that submit)',
+        default: false
+      })
       .option('timeout', {
         type: 'number',
         description: 'Timeout for wait operations in ms (default: 10000)'
@@ -733,6 +752,155 @@ cli.command(
         waitForText: argv.waitForText as string | undefined,
         waitForIdle: argv.waitForIdle as boolean | undefined,
         waitForFrame: argv.waitForFrame as string | undefined,
+        waitForNavigation: argv.waitForNavigation as boolean | undefined,
+        timeout: argv.timeout as number | undefined
+      }
+    );
+  }
+);
+
+cli.command(
+  'select <selector> <valueOrPage> [page]',
+  'Set a <select> element. Usage: select <selector> <value> <page>  OR  select <selector> <page> --text "Label" | --index N',
+  (yargs) => {
+    return yargs
+      .positional('selector', {
+        describe: 'CSS selector for the <select> element',
+        type: 'string'
+      })
+      .positional('valueOrPage', {
+        describe: 'Option value, or the page when --text/--index is used',
+        type: 'string'
+      })
+      .positional('page', {
+        describe: 'Page ID or title (omit when matching by --text/--index)',
+        type: 'string'
+      })
+      .option('text', {
+        type: 'string',
+        description: 'Match the option by its visible label instead of its value'
+      })
+      .option('index', {
+        type: 'number',
+        description: 'Match the Nth option (1-based, same convention as --nth)',
+        coerce: (value: unknown) => {
+          if (value === undefined || value === null || value === '') {
+            return undefined;
+          }
+          const num = Number(value);
+          if (!Number.isInteger(num) || num < 1) {
+            throw new Error('--index must be a positive integer (1-based)');
+          }
+          return num;
+        }
+      })
+      .option('match', {
+        type: 'string',
+        description: 'Label matching strategy for --text (exact, contains, regex)',
+        choices: ['exact', 'contains', 'regex'] as const,
+        default: 'exact'
+      })
+      .option('case-sensitive', {
+        type: 'boolean',
+        description: 'Treat --text match as case-sensitive',
+        default: false
+      })
+      .option('nth', {
+        type: 'number',
+        description: 'Select the Nth <select> element when the selector matches several (1-based)'
+      })
+      .option('within', {
+        type: 'string',
+        description: 'CSS selector to scope the search within a container'
+      })
+      .option('frame', {
+        type: 'string',
+        description: 'Target iframe by selector (e.g. "#myframe") or index (1 = first iframe)'
+      })
+      .option('wait-for', {
+        type: 'string',
+        description: 'CSS selector to wait for after selecting'
+      })
+      .option('wait-for-text', {
+        type: 'string',
+        description: 'Text to wait for after selecting'
+      })
+      .option('wait-for-idle', {
+        type: 'boolean',
+        description: 'Wait for network idle after selecting',
+        default: false
+      })
+      .option('wait-for-frame', {
+        type: 'string',
+        description: 'Target iframe for wait checks (by selector or index)'
+      })
+      .option('wait-for-navigation', {
+        type: 'boolean',
+        description: 'Wait for the main frame to replace its document (for selects that submit on change)',
+        default: false
+      })
+      .option('timeout', {
+        type: 'number',
+        description: 'Timeout for wait operations in ms (default: 10000)'
+      })
+      .check((argv) => {
+        const hasText = typeof argv.text === 'string' && argv.text.length > 0;
+        const hasIndex = typeof argv.index === 'number';
+        const byFlag = hasText || hasIndex;
+
+        if (hasText && hasIndex) {
+          throw new Error('--text and --index are mutually exclusive');
+        }
+
+        // Three positionals means a value was given; two means the second one
+        // is the page and the option must be identified by --text/--index.
+        const gaveValue = typeof argv.page === 'string' && argv.page.length > 0;
+
+        if (gaveValue && byFlag) {
+          throw new Error(
+            'A positional value cannot be combined with --text/--index. ' +
+            'Use: select <selector> <value> <page>  OR  select <selector> <page> --text "Label"'
+          );
+        }
+
+        if (!gaveValue && !byFlag) {
+          throw new Error(
+            'Provide the option to select: select <selector> <value> <page>  OR  select <selector> <page> --text "Label" | --index N'
+          );
+        }
+
+        return true;
+      });
+  },
+  async (argv) => {
+    const context = new CDPContext(argv['cdp-url'] as string);
+
+    // Resolved by arity: with three positionals the middle one is the value,
+    // with two the second is the page and --text/--index names the option.
+    const gaveValue = typeof argv.page === 'string' && (argv.page as string).length > 0;
+    const pageRef = gaveValue ? (argv.page as string) : (argv.valueOrPage as string);
+    const value = gaveValue ? (argv.valueOrPage as string) : undefined;
+
+    await input.selectOption(
+      context,
+      argv.selector as string,
+      {
+        value,
+        text: argv.text as string | undefined,
+        index: argv.index as number | undefined,
+        match: argv.match as 'exact' | 'contains' | 'regex',
+        caseSensitive: argv.caseSensitive as boolean
+      },
+      {
+        page: pageRef,
+        nth: argv.nth as number | undefined,
+        within: argv.within as string | undefined,
+        frame: argv.frame as string | undefined,
+        waitFor: argv.waitFor as string | undefined,
+        waitForText: argv.waitForText as string | undefined,
+        waitForIdle: argv.waitForIdle as boolean | undefined,
+        waitForFrame: argv.waitForFrame as string | undefined,
+        waitForNavigation: argv.waitForNavigation as boolean | undefined,
         timeout: argv.timeout as number | undefined
       }
     );
@@ -741,7 +909,7 @@ cli.command(
 
 cli.command(
   'press-key <key> <page>',
-  'Press a keyboard key',
+  'Press a keyboard key. Options: --wait-for, --wait-for-text, --wait-for-navigation, --timeout',
   (yargs) => {
     return yargs
       .positional('key', {
@@ -751,6 +919,32 @@ cli.command(
       .positional('page', {
         describe: 'Page ID or title',
         type: 'string'
+      })
+      .option('wait-for', {
+        type: 'string',
+        description: 'CSS selector to wait for after the keystroke'
+      })
+      .option('wait-for-text', {
+        type: 'string',
+        description: 'Text to wait for after the keystroke'
+      })
+      .option('wait-for-idle', {
+        type: 'boolean',
+        description: 'Wait for network idle after the keystroke',
+        default: false
+      })
+      .option('wait-for-frame', {
+        type: 'string',
+        description: 'Target iframe for wait checks (by selector or index)'
+      })
+      .option('wait-for-navigation', {
+        type: 'boolean',
+        description: 'Wait for the main frame to replace its document (Enter submitting a form)',
+        default: false
+      })
+      .option('timeout', {
+        type: 'number',
+        description: 'Timeout for wait operations in ms (default: 10000)'
       })
       .check((argv) => {
         const hint = validatePressKeyParams(argv.key as string, argv.page as string);
@@ -763,7 +957,13 @@ cli.command(
   async (argv) => {
     const context = new CDPContext(argv['cdp-url'] as string);
     await input.pressKey(context, argv.key as string, {
-      page: argv.page as string
+      page: argv.page as string,
+      waitFor: argv.waitFor as string | undefined,
+      waitForText: argv.waitForText as string | undefined,
+      waitForIdle: argv.waitForIdle as boolean | undefined,
+      waitForFrame: argv.waitForFrame as string | undefined,
+      waitForNavigation: argv.waitForNavigation as boolean | undefined,
+      timeout: argv.timeout as number | undefined
     });
   }
 );

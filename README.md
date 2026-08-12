@@ -99,6 +99,10 @@ cdp-cli list-pages
 ```bash
 cdp-cli new-page "https://example.com"
 cdp-cli new-page  # Empty page
+
+# Query strings and hash fragments are preserved in full — quote the URL so the
+# shell does not split it on '&'.
+cdp-cli new-page "http://127.0.0.1/app/?scenario=admin&cb=1#s:login.php?lang_id=1"
 ```
 
 **navigate** - Navigate page (URL, back, forward, reload)
@@ -115,6 +119,9 @@ cdp-cli navigate "https://example.com" "example" --wait-for-idle
 
 # Wait for content inside an iframe
 cdp-cli navigate "https://example.com" "example" --wait-for "#form" --wait-for-frame "#myframe"
+
+# Wait for the document to actually be replaced
+cdp-cli navigate "https://example.com" "example" --wait-for-navigation
 ```
 
 Options:
@@ -122,7 +129,37 @@ Options:
 - `--wait-for-text <text>`: Wait for text to appear in page body
 - `--wait-for-idle`: Wait for network idle and document ready
 - `--wait-for-frame <spec>`: Target iframe for wait checks (by selector or index)
+- `--wait-for-navigation`: Wait for a real document replacement (see below)
 - `--timeout <ms>`: Timeout for wait operations (default: 10000)
+
+<a name="wait-for-navigation"></a>
+#### Waiting for a navigation
+
+`--wait-for-navigation` is available on `navigate`, `click`, `fill`, `select` and
+`press-key`. It resolves only when the **main frame commits a new document and
+that document fires its load event**, tracked by CDP `Page.frameNavigated` /
+`Page.loadEventFired` and keyed on the frame's `loaderId`.
+
+Use it for classic post-and-refresh pages, where a form POST re-renders the whole
+document. `--wait-for-text` is the wrong tool there: every label you might wait
+for is already on the **outgoing** document, so the wait returns immediately and
+the assertions that follow run against the old DOM — a silent false result.
+
+```bash
+# Correct: returns only after the POST response has loaded
+cdp-cli click "#save" "example" --wait-for-navigation
+
+# Combine them: navigation resolves first, so the text is matched on the NEW document
+cdp-cli click "#save" "example" --wait-for-navigation --wait-for-text "Saved"
+```
+
+Notes:
+- Same-document changes (hash routes, `history.pushState`) keep the `loaderId`
+  and deliberately do **not** satisfy this wait. Use `--wait-for`/`--wait-for-text`
+  for SPA route changes.
+- Subframe loads never satisfy it; only the main frame counts.
+- On timeout the command fails with a non-zero exit and states whether the
+  document never committed or committed but never finished loading.
 
 **close-page** - Close a page
 ```bash
@@ -305,6 +342,21 @@ Optional flags:
 - `--quality, -q`: JPEG quality (0-100)
 - `--scale, -s`: Downscale width and height by the factor (`0 < scale <= 1`)
 
+Prefer `--output` in scripted and agent use: without it the image is emitted as
+base64 on stdout, which for a full-page capture is hundreds of KB and will flood
+a calling process or transcript. With `--output` the command prints only the
+resolved absolute path, format, byte size, and pixel dimensions:
+
+```json
+{"success":true,"message":"Screenshot saved","data":{"file":"Q:\\web\\shots\\page.png","format":"png","size":47853,"width":2560,"height":1330}}
+```
+
+The format is inferred from the output file extension (`.png`, `.jpg`/`.jpeg`,
+`.webp`) unless `--format` says otherwise. Paths are resolved natively, so on
+Windows use a drive-qualified or project-relative path (`shots/page.png`,
+`Q:/web/app/dev/tests/shots/page.png`) — there is no `/tmp` on Windows. The
+parent directory must already exist.
+
 **dialog** - Check for and handle JavaScript dialogs (alert/confirm/prompt)
 ```bash
 # Check if a dialog is blocking the page
@@ -341,7 +393,9 @@ cdp-cli list-network "example" --type xhr
 ### Input Automation
 
 **click** - Click an element by CSS selector or visible text
-Supports `--text`, `--match exact|contains|regex`, `--case-sensitive`, `--nth` for multi-match disambiguation, `--within` to scope the search to a container, and `--frame` to target elements inside iframes. Use `--longpress <seconds>` to hold the primary button before release (defaults to 1 second when the flag is provided without a value; not compatible with `--double`). Use `--touch` for touch events instead of mouse events (not compatible with `--double`). When multiple elements match, the CLI reports each candidate (including bounding boxes) so an LLM can choose the right target with `--nth`. Supports `--wait-for`, `--wait-for-text`, `--wait-for-idle`, and `--wait-for-frame` to wait for DOM changes after clicking.
+Supports `--text`, `--match exact|contains|regex`, `--case-sensitive`, `--nth` for multi-match disambiguation, `--within` to scope the search to a container, and `--frame` to target elements inside iframes. Use `--longpress <seconds>` to hold the primary button before release (defaults to 1 second when the flag is provided without a value; not compatible with `--double`). Use `--touch` for touch events instead of mouse events (not compatible with `--double`). When multiple elements match, the CLI reports each candidate (including bounding boxes) so an LLM can choose the right target with `--nth`. Supports `--wait-for`, `--wait-for-text`, `--wait-for-idle`, `--wait-for-frame`, and `--wait-for-navigation` to wait for DOM changes after clicking.
+
+Clicking an `<option>` inside a `<select>` does **not** work and never can — Chrome draws that list as an OS popup outside the DOM, so the click reports success and the value is unchanged. Use the **select** command instead.
 
 The target is scrolled into view before the click, and the click point is hit-tested first so a click that would be swallowed by an overlay fails loudly instead of reporting a false success:
 
@@ -386,6 +440,9 @@ cdp-cli click --text "Submit" "example" --wait-for "#success-message"
 cdp-cli click --text "Submit" "example" --wait-for-text "Order confirmed"
 cdp-cli click "#load-more" "example" --wait-for-idle
 cdp-cli click "#tab2" "example" --wait-for ".tab-content" --wait-for-frame "#myframe"
+
+# Form POST that re-renders the page: wait for the new document, not for text
+cdp-cli click "#save" "example" --wait-for-navigation
 ```
 
 Wait options (shared with navigate):
@@ -393,6 +450,7 @@ Wait options (shared with navigate):
 - `--wait-for-text <text>`: Wait for text to appear in page body
 - `--wait-for-idle`: Wait for network idle and document ready
 - `--wait-for-frame <spec>`: Target iframe for wait checks (by selector or index)
+- `--wait-for-navigation`: Wait for a real document replacement ([details](#wait-for-navigation))
 - `--timeout <ms>`: Timeout for wait operations (default: 10000)
 
 **drag** - Drag from one element/position to another
@@ -433,9 +491,9 @@ Options:
 - `--frame`: Target iframe (applies to both source and destination)
 
 **fill** - Fill an input element
-Supports `--nth` for multi-match disambiguation, `--within` to scope the search to a container, and `--frame` to target inputs inside iframes. Supports `--wait-for`, `--wait-for-text`, `--wait-for-idle`, and `--wait-for-frame` to wait for DOM changes after filling.
+Supports `--nth` for multi-match disambiguation, `--within` to scope the search to a container, and `--frame` to target inputs inside iframes. Supports `--wait-for`, `--wait-for-text`, `--wait-for-idle`, `--wait-for-frame`, and `--wait-for-navigation` to wait for DOM changes after filling.
 
-Replaces the field's current value (the previous contents come back as `replaced` in the result), types the new value as real key events, then emits `change`. Only `<input>`, `<textarea>`, and `contenteditable` elements can be filled - a `<select>`, a disabled or read-only field, or a non-field element fails with `FILL_FAILED` rather than reporting a success that did nothing.
+Replaces the field's current value (the previous contents come back as `replaced` in the result), types the new value as real key events, then emits `change`. Only `<input>`, `<textarea>`, and `contenteditable` elements can be filled - a disabled or read-only field, or a non-field element fails with `FILL_FAILED` rather than reporting a success that did nothing. A `<select>` is rejected too; use the **select** command below.
 ```bash
 cdp-cli fill "input#email" "user@example.com" "example"
 cdp-cli fill "input[name='password']" "secret123" "example"
@@ -456,7 +514,50 @@ Wait options (shared with navigate):
 - `--wait-for-text <text>`: Wait for text to appear in page body
 - `--wait-for-idle`: Wait for network idle and document ready
 - `--wait-for-frame <spec>`: Target iframe for wait checks (by selector or index)
+- `--wait-for-navigation`: Wait for a real document replacement ([details](#wait-for-navigation))
 - `--timeout <ms>`: Timeout for wait operations (default: 10000)
+
+**select** - Set a `<select>` element
+
+Chrome renders the option list as an OS-level popup that is not part of the DOM,
+so there is no coordinate a synthetic mouse click can land on: clicking an option
+reports success and changes nothing. This command assigns the selection through
+the element, focuses it, and dispatches the events a completed user pick produces
+(`input` then `change`, both bubbling), so page handlers such as `onchange` fire.
+
+```bash
+# By option value (page last, same shape as fill)
+cdp-cli select "select[name='mode']" "range" "example"
+
+# By visible label (page is the second argument in this form)
+cdp-cli select "select[name='mode']" "example" --text "Date Range"
+cdp-cli select "select[name='mode']" "example" --text "date" --match contains
+
+# By position (1-based, same convention as --nth)
+cdp-cli select "select[name='mode']" "example" --index 3
+
+# Selects that submit the form on change
+cdp-cli select "#store" "example" --text "Downtown" --wait-for-navigation
+```
+
+Options:
+- `--text <label>`: Match the option by visible label instead of value
+- `--index <n>`: Match the Nth option (1-based)
+- `--match`: Label matching for `--text`: `exact` (default), `contains`, `regex`
+- `--case-sensitive`: Treat `--text` as case-sensitive (default off)
+- `--nth <n>`: Choose which `<select>` when the selector matches several
+- `--within <selector>` / `--frame <spec>`: Scope the search
+- Wait options as above, including `--wait-for-navigation`
+
+The result reports what was actually chosen, so callers can log it:
+
+```json
+{"success":true,"message":"Option selected","data":{"selector":"#mode","strategy":"text","value":"range","text":"Date Range","optionIndex":3,"selectedIndex":2,"previousValue":"","previousText":"-- pick --","changed":true,"optionCount":4,"multiple":false}}
+```
+
+`optionIndex` is 1-based; `selectedIndex` is the DOM's 0-based value. Selecting a
+non-`<select>` element, or a value/label/index that matches no option, fails with
+`SELECT_FAILED` and lists the available options.
 
 **dismiss-overlays** - Auto-dismiss toasts, notifications, and modal overlays
 ```bash
@@ -476,7 +577,13 @@ cdp-cli press-key enter "example"
 cdp-cli press-key tab "example"
 cdp-cli press-key escape "example"
 cdp-cli press-key arrowdown "example"
+
+# Enter submitting a form: wait for the response document to load
+cdp-cli press-key enter "example" --wait-for-navigation
 ```
+
+Wait options (shared with navigate): `--wait-for`, `--wait-for-text`,
+`--wait-for-idle`, `--wait-for-frame`, `--wait-for-navigation`, `--timeout`.
 
 **emulate** - Emulate a device
 Presets `ipad`, `iphone`, and `desktop` (which clears all overrides), or a custom size via `--width`/`--height`/`--scale`/`--ua`/`--touch`.

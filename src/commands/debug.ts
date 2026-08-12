@@ -5,7 +5,7 @@
 import { CDPContext, ConsoleMessage } from '../context.js';
 import { outputLine, outputError, outputSuccess, outputRaw } from '../output.js';
 import { readFileSync, writeFileSync } from 'fs';
-import { extname } from 'node:path';
+import { extname, resolve } from 'node:path';
 import { resizePngBuffer } from '../resize.js';
 import { createExecSession, createExecSessionByPageRef } from '../daemon/exec.js';
 import { DaemonClient } from '../daemon/client.js';
@@ -451,6 +451,65 @@ export async function evaluate(
 }
 
 /**
+ * Read the pixel dimensions out of an encoded image.
+ *
+ * Reported so a caller writing to --output learns what it captured without
+ * having to decode the file itself. Returns null for anything unparseable
+ * rather than failing the capture, since the file has already been written.
+ */
+export function imageDimensions(buffer: Buffer): { width: number; height: number } | null {
+  // PNG: 8-byte signature, then the IHDR chunk carries width/height big-endian.
+  if (buffer.length >= 24 && buffer.readUInt32BE(0) === 0x89504e47) {
+    return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
+  }
+
+  // JPEG: walk the marker segments to the start-of-frame, which holds the size.
+  if (buffer.length >= 4 && buffer[0] === 0xff && buffer[1] === 0xd8) {
+    let offset = 2;
+    while (offset + 9 < buffer.length) {
+      if (buffer[offset] !== 0xff) {
+        offset++;
+        continue;
+      }
+      const marker = buffer[offset + 1];
+      // Standalone markers carry no length payload to skip over.
+      if (marker === 0xd8 || marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) {
+        offset += 2;
+        continue;
+      }
+      const isStartOfFrame =
+        (marker >= 0xc0 && marker <= 0xc3) ||
+        (marker >= 0xc5 && marker <= 0xc7) ||
+        (marker >= 0xc9 && marker <= 0xcb) ||
+        (marker >= 0xcd && marker <= 0xcf);
+      if (isStartOfFrame) {
+        return { height: buffer.readUInt16BE(offset + 5), width: buffer.readUInt16BE(offset + 7) };
+      }
+      offset += 2 + buffer.readUInt16BE(offset + 2);
+    }
+    return null;
+  }
+
+  // WebP: RIFF container, dimensions depend on which VP8 chunk follows.
+  if (buffer.length >= 30 && buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WEBP') {
+    const chunk = buffer.toString('ascii', 12, 16);
+    if (chunk === 'VP8 ') {
+      return { width: buffer.readUInt16LE(26) & 0x3fff, height: buffer.readUInt16LE(28) & 0x3fff };
+    }
+    if (chunk === 'VP8L') {
+      const bits = buffer.readUInt32LE(21);
+      return { width: (bits & 0x3fff) + 1, height: ((bits >> 14) & 0x3fff) + 1 };
+    }
+    if (chunk === 'VP8X') {
+      const read24 = (at: number) => buffer[at] | (buffer[at + 1] << 8) | (buffer[at + 2] << 16);
+      return { width: read24(24) + 1, height: read24(27) + 1 };
+    }
+  }
+
+  return null;
+}
+
+/**
  * Take a screenshot
  */
 export async function screenshot(
@@ -579,10 +638,14 @@ export async function screenshot(
     if (options.output) {
       writeFileSync(options.output, buffer);
 
+      const dimensions = imageDimensions(buffer);
+
       outputSuccess('Screenshot saved', {
-        file: options.output,
+        file: resolve(options.output),
         format,
-        size: buffer.length
+        size: buffer.length,
+        width: dimensions?.width ?? null,
+        height: dimensions?.height ?? null
       });
     } else {
       outputLine({

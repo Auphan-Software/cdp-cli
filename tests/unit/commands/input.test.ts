@@ -442,6 +442,206 @@ describe('Input Commands', () => {
     });
   });
 
+  /**
+   * Chrome renders the option list as an OS popup, so a synthetic click has no
+   * DOM target to land on and the value never changes. selectOption assigns the
+   * selection and dispatches the events a completed pick produces instead.
+   */
+  describe('selectOption', () => {
+    const selectCall = (ws: MockWebSocket) =>
+      ws.sentMessages.find(
+        (m: any) =>
+          m.method === 'Runtime.callFunctionOn' &&
+          m.params?.functionDeclaration?.includes('Not a <select> element')
+      );
+
+    it('should select by value and report the resulting value and label', async () => {
+      const capture = captureConsoleOutput();
+      const context = new CDPContext();
+
+      await input.selectOption(context, 'select#mode', { value: 'range' }, { page: 'page1' });
+
+      const logs = capture.getLogs();
+      capture.restore();
+
+      const result = JSON.parse(logs[0]);
+      expect(result.success).toBe(true);
+      expect(result.data.strategy).toBe('value');
+      expect(result.data.value).toBe('range');
+      expect(result.data.text).toBe('Date Range');
+      expect(result.data.previousValue).toBe('');
+      expect(result.data.changed).toBe(true);
+    });
+
+    it('should dispatch bubbling input and change events so page handlers fire', async () => {
+      const capture = captureConsoleOutput();
+      const context = new CDPContext();
+
+      let captured: MockWebSocket | undefined;
+      const originalConnect = context.connect.bind(context);
+      context.connect = async (page) => {
+        const ws = await originalConnect(page) as unknown as MockWebSocket;
+        captured = ws;
+        return ws as any;
+      };
+
+      await input.selectOption(context, 'select#mode', { value: 'range' }, { page: 'page1' });
+      capture.restore();
+
+      const declaration = selectCall(captured!)?.params?.functionDeclaration ?? '';
+      expect(declaration).toContain("new Event('input', { bubbles: true })");
+      expect(declaration).toContain("new Event('change', { bubbles: true })");
+    });
+
+    it('should pass the text strategy and match mode through to the page', async () => {
+      const capture = captureConsoleOutput();
+      const context = new CDPContext();
+
+      let captured: MockWebSocket | undefined;
+      const originalConnect = context.connect.bind(context);
+      context.connect = async (page) => {
+        const ws = await originalConnect(page) as unknown as MockWebSocket;
+        captured = ws;
+        return ws as any;
+      };
+
+      await input.selectOption(
+        context,
+        'select#mode',
+        { text: 'Date Range', match: 'contains', caseSensitive: true },
+        { page: 'page1' }
+      );
+      capture.restore();
+
+      const args = selectCall(captured!)?.params?.arguments ?? [];
+      expect(args[0]).toEqual({ value: 'text' });
+      expect(args[1]).toEqual({ value: 'Date Range' });
+      expect(args[2]).toEqual({ value: 'contains' });
+      expect(args[3]).toEqual({ value: true });
+    });
+
+    it('should send the 1-based index straight through for the index strategy', async () => {
+      const capture = captureConsoleOutput();
+      const context = new CDPContext();
+
+      let captured: MockWebSocket | undefined;
+      const originalConnect = context.connect.bind(context);
+      context.connect = async (page) => {
+        const ws = await originalConnect(page) as unknown as MockWebSocket;
+        captured = ws;
+        return ws as any;
+      };
+
+      await input.selectOption(context, 'select#mode', { index: 3 }, { page: 'page1' });
+      capture.restore();
+
+      const args = selectCall(captured!)?.params?.arguments ?? [];
+      expect(args[0]).toEqual({ value: 'index' });
+      expect(args[1]).toEqual({ value: 3 });
+    });
+
+    it('should error with the available options when nothing matches', async () => {
+      const capture = captureConsoleOutput();
+      const exitMock = mockProcessExit();
+      const context = new CDPContext();
+
+      const originalConnect = context.connect.bind(context);
+      context.connect = async (page) => {
+        const ws = await originalConnect(page) as unknown as MockWebSocket;
+        const origSend = ws.send.bind(ws);
+        ws.send = (data: string) => {
+          const msg = JSON.parse(data);
+          if (
+            msg.method === 'Runtime.callFunctionOn' &&
+            msg.params?.functionDeclaration?.includes('Not a <select> element')
+          ) {
+            setTimeout(() => {
+              ws.simulateMessage({
+                id: msg.id,
+                result: {
+                  result: {
+                    value: {
+                      error: 'No option matched',
+                      optionCount: 2,
+                      options: ['1. "Single Day" (value="day")', '2. "Date Range" (value="range")']
+                    }
+                  }
+                }
+              });
+            }, 5);
+            ws.sentMessages.push(msg);
+            return;
+          }
+          origSend(data);
+        };
+        return ws as any;
+      };
+
+      try {
+        await input.selectOption(context, 'select#mode', { value: 'nope' }, { page: 'page1' });
+      } catch {
+        // Expected process.exit
+      }
+
+      expect(exitMock.exitCode).toBe(1);
+      const logs = capture.getLogs();
+      capture.restore();
+      exitMock.restore();
+
+      const result = JSON.parse(logs[0]);
+      expect(result.error).toBe(true);
+      expect(result.code).toBe('SELECT_FAILED');
+      expect(result.message).toContain('No option matched');
+      expect(result.message).toContain('Available options:');
+      expect(result.message).toContain('Date Range');
+    });
+
+    it('should error when the element is not a <select>', async () => {
+      const capture = captureConsoleOutput();
+      const exitMock = mockProcessExit();
+      const context = new CDPContext();
+
+      const originalConnect = context.connect.bind(context);
+      context.connect = async (page) => {
+        const ws = await originalConnect(page) as unknown as MockWebSocket;
+        const origSend = ws.send.bind(ws);
+        ws.send = (data: string) => {
+          const msg = JSON.parse(data);
+          if (
+            msg.method === 'Runtime.callFunctionOn' &&
+            msg.params?.functionDeclaration?.includes('Not a <select> element')
+          ) {
+            setTimeout(() => {
+              ws.simulateMessage({
+                id: msg.id,
+                result: { result: { value: { error: 'Not a <select> element; got <input>' } } }
+              });
+            }, 5);
+            ws.sentMessages.push(msg);
+            return;
+          }
+          origSend(data);
+        };
+        return ws as any;
+      };
+
+      try {
+        await input.selectOption(context, 'input#label', { value: 'x' }, { page: 'page1' });
+      } catch {
+        // Expected process.exit
+      }
+
+      expect(exitMock.exitCode).toBe(1);
+      const logs = capture.getLogs();
+      capture.restore();
+      exitMock.restore();
+
+      const result = JSON.parse(logs[0]);
+      expect(result.error).toBe(true);
+      expect(result.message).toContain('Not a <select> element');
+    });
+  });
+
   describe('fill', () => {
     it('should fill input element', async () => {
       const capture = captureConsoleOutput();

@@ -10,7 +10,105 @@ export interface WaitOptions {
   waitForText?: string;
   waitForIdle?: boolean;
   waitForFrame?: string;
+  waitForNavigation?: boolean;
   timeout?: number;
+}
+
+export interface NavigationResult {
+  url: string;
+  loaderId: string;
+}
+
+export interface NavigationWatcher {
+  /** Resolve once the main frame has committed AND finished loading a new document */
+  wait(timeout: number): Promise<NavigationResult>;
+  /** Detach the message listener; safe to call more than once */
+  dispose(): void;
+}
+
+/**
+ * Start listening for a main-frame document replacement.
+ *
+ * This has to be armed *before* the action that triggers the navigation:
+ * a form POST can commit and finish loading before a post-action listener
+ * would have attached, and the events would be missed entirely.
+ *
+ * Detection is by loaderId, not by text or URL, so it reports a genuine
+ * document swap. Same-document navigations (hash changes, history.pushState)
+ * keep the loaderId and deliberately do NOT satisfy this wait.
+ */
+export async function armNavigationWatcher(
+  context: CDPContext,
+  ws: WebSocket
+): Promise<NavigationWatcher> {
+  await context.sendCommand(ws, 'Page.enable');
+
+  const tree = await context.sendCommand(ws, 'Page.getFrameTree');
+  const mainFrameId: string | undefined = tree?.frameTree?.frame?.id;
+  const startLoaderId: string | undefined = tree?.frameTree?.frame?.loaderId;
+
+  // Held in one object so the closure's writes stay visible to wait() without
+  // fighting TypeScript's narrowing of captured `let` bindings.
+  const state: { committed: NavigationResult | null; loaded: boolean } = {
+    committed: null,
+    loaded: false
+  };
+
+  const messageHandler = (data: Buffer) => {
+    try {
+      const msg = JSON.parse(data.toString());
+
+      if (msg.method === 'Page.frameNavigated') {
+        const frame = msg.params?.frame;
+        if (!frame) return;
+        // Subframe loads (ads, iframes) must not satisfy a main-frame wait.
+        if (frame.parentId) return;
+        if (mainFrameId && frame.id !== mainFrameId) return;
+        if (startLoaderId && frame.loaderId === startLoaderId) return;
+
+        state.committed = { url: frame.url, loaderId: frame.loaderId };
+        state.loaded = false;
+        return;
+      }
+
+      // Ordered after frameNavigated on the same connection, so a load event
+      // only counts once the new document has committed.
+      if (msg.method === 'Page.loadEventFired' && state.committed) {
+        state.loaded = true;
+      }
+    } catch {
+      // Ignore parse errors
+    }
+  };
+
+  ws.on('message', messageHandler);
+
+  return {
+    async wait(timeout: number): Promise<NavigationResult> {
+      const start = Date.now();
+
+      while (Date.now() - start < timeout) {
+        if (state.committed && state.loaded) {
+          return state.committed;
+        }
+        await new Promise(r => setTimeout(r, 50));
+      }
+
+      if (state.committed) {
+        throw new Error(
+          `Timeout waiting for navigation after ${timeout}ms: a new document committed at ${state.committed.url} but never finished loading`
+        );
+      }
+
+      throw new Error(
+        `Timeout waiting for navigation after ${timeout}ms: the main frame never replaced its document. ` +
+        'A same-document change (hash route, pushState) does not count as a navigation.'
+      );
+    },
+    dispose() {
+      ws.off('message', messageHandler);
+    }
+  };
 }
 
 /**
@@ -136,17 +234,31 @@ export async function waitForIdle(
 
 /**
  * Orchestrate all wait conditions after an action.
- * Order: idle -> frame resolve -> selector -> text
+ * Order: navigation -> idle -> frame resolve -> selector -> text
+ *
+ * Navigation is resolved first so that any selector/text condition is checked
+ * against the new document rather than the outgoing one.
+ *
+ * `navigationWatcher` must have been armed by the caller before the action ran;
+ * it is required whenever `options.waitForNavigation` is set.
  */
 export async function handleWaitOptions(
   context: CDPContext,
   ws: WebSocket,
-  options: WaitOptions
+  options: WaitOptions,
+  navigationWatcher?: NavigationWatcher
 ): Promise<void> {
   const timeout = options.timeout ?? 10000;
-  const hasWait = options.waitFor || options.waitForText || options.waitForIdle;
+  const hasWait = options.waitFor || options.waitForText || options.waitForIdle || options.waitForNavigation;
 
   if (!hasWait) return;
+
+  if (options.waitForNavigation) {
+    if (!navigationWatcher) {
+      throw new Error('waitForNavigation requires a navigation watcher armed before the action');
+    }
+    await navigationWatcher.wait(timeout);
+  }
 
   if (options.waitForIdle) {
     await waitForIdle(context, ws, timeout);

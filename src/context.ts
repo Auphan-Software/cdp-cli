@@ -625,8 +625,11 @@ export class CDPContext {
    */
   async createPage(url?: string): Promise<Page> {
     const endpoint = url
-      // Chrome expects the literal URL after '?', so use encodeURI to keep protocol delimiters while escaping spaces; fragments must still be escaped.
-      ? `${this.cdpUrl}/json/new?${encodeURI(url).replace(/#/g, '%23')}`
+      // Chrome parses everything after '?' as a query string, so a URL passed
+      // literally is cut at its first '&' and loses the rest, fragment included.
+      // Percent-encoding the whole URL as one opaque value survives that parse
+      // and Chrome unescapes it back before navigating.
+      ? `${this.cdpUrl}/json/new?${encodeURIComponent(url)}`
       : `${this.cdpUrl}/json/new`;
 
     const response = await fetch(endpoint, { method: 'PUT' });

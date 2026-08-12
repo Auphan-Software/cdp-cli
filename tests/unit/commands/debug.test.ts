@@ -10,6 +10,7 @@ import { MockWebSocket } from '../../mocks/websocket.mock.js';
 import { captureConsoleOutput, mockProcessExit } from '../../helpers.js';
 import { consoleMessages, accessibilityResponses } from '../../fixtures/cdp-responses.js';
 import { writeFileSync } from 'fs';
+import { resolve } from 'node:path';
 
 describe('Debug Commands', () => {
   beforeEach(() => {
@@ -316,6 +317,48 @@ describe('Debug Commands', () => {
     });
   });
 
+  /**
+   * Reported alongside --output so a caller learns what it captured without
+   * decoding the file. Parsed from the container headers directly.
+   */
+  describe('imageDimensions', () => {
+    it('should read dimensions from a PNG header', () => {
+      const png = Buffer.alloc(24);
+      png.writeUInt32BE(0x89504e47, 0);
+      png.writeUInt32BE(1280, 16);
+      png.writeUInt32BE(720, 20);
+
+      expect(debug.imageDimensions(png)).toEqual({ width: 1280, height: 720 });
+    });
+
+    it('should read dimensions from a JPEG start-of-frame marker', () => {
+      // SOI, a COM segment to skip over, then SOF0 carrying the size.
+      const jpeg = Buffer.from([
+        0xff, 0xd8,
+        0xff, 0xfe, 0x00, 0x04, 0x41, 0x42,
+        0xff, 0xc0, 0x00, 0x11, 0x08, 0x02, 0xd0, 0x05, 0x00, 0x03, 0x01, 0x22, 0x00
+      ]);
+
+      expect(debug.imageDimensions(jpeg)).toEqual({ width: 1280, height: 720 });
+    });
+
+    it('should read dimensions from a lossy WebP chunk', () => {
+      const webp = Buffer.alloc(32);
+      webp.write('RIFF', 0, 'ascii');
+      webp.write('WEBP', 8, 'ascii');
+      webp.write('VP8 ', 12, 'ascii');
+      webp.writeUInt16LE(1280, 26);
+      webp.writeUInt16LE(720, 28);
+
+      expect(debug.imageDimensions(webp)).toEqual({ width: 1280, height: 720 });
+    });
+
+    it('should return null rather than throw on unrecognized bytes', () => {
+      expect(debug.imageDimensions(Buffer.from('not an image'))).toBeNull();
+      expect(debug.imageDimensions(Buffer.alloc(0))).toBeNull();
+    });
+  });
+
   describe('screenshot', () => {
     it('should save screenshot to file', async () => {
       const capture = captureConsoleOutput();
@@ -337,10 +380,11 @@ describe('Debug Commands', () => {
       expect(callArgs[0]).toBe('/tmp/test.jpg');
       expect(Buffer.isBuffer(callArgs[1])).toBe(true);
 
-      // Verify success output
+      // Verify success output. The reported path is absolute so a caller that
+      // passed a relative one still learns exactly where the file landed.
       const result = JSON.parse(logs[0]);
       expect(result.success).toBe(true);
-      expect(result.data.file).toBe('/tmp/test.jpg');
+      expect(result.data.file).toBe(resolve('/tmp/test.jpg'));
       expect(result.data.format).toBe('jpeg');
       expect(result.data.size).toBeGreaterThan(0);
     });

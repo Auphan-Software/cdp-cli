@@ -6,7 +6,7 @@ import { WebSocket } from 'ws';
 import { CDPContext, Page } from '../context.js';
 import { outputLines, outputLine, outputError, outputSuccess } from '../output.js';
 import { DaemonClient } from '../daemon/client.js';
-import { handleWaitOptions, type WaitOptions } from './wait.js';
+import { armNavigationWatcher, handleWaitOptions, type NavigationWatcher, type WaitOptions } from './wait.js';
 
 type WindowState = 'normal' | 'minimized' | 'maximized' | 'fullscreen';
 
@@ -86,6 +86,7 @@ export async function navigate(
   options: NavigateOptions = {}
 ): Promise<void> {
   let ws;
+  let navigationWatcher: NavigationWatcher | undefined;
 
   try {
     // Get page to navigate
@@ -98,6 +99,10 @@ export async function navigate(
     // Enable required domains
     await context.sendCommand(ws, 'Page.enable');
     await context.sendCommand(ws, 'Runtime.enable');
+
+    if (options.waitForNavigation) {
+      navigationWatcher = await armNavigationWatcher(context, ws);
+    }
 
     // Perform navigation action
     if (action === 'back') {
@@ -126,7 +131,7 @@ export async function navigate(
     }
 
     // Handle wait options
-    await handleWaitOptions(context, ws, options);
+    await handleWaitOptions(context, ws, options, navigationWatcher);
 
     outputSuccess('Navigation complete', {
       action,
@@ -134,7 +139,8 @@ export async function navigate(
       ...(options.waitFor && { waitedFor: options.waitFor }),
       ...(options.waitForText && { waitedForText: options.waitForText }),
       ...(options.waitForIdle && { waitedForIdle: true }),
-      ...(options.waitForFrame && { waitedInFrame: options.waitForFrame })
+      ...(options.waitForFrame && { waitedInFrame: options.waitForFrame }),
+      ...(options.waitForNavigation && { waitedForNavigation: true })
     });
   } catch (error) {
     outputError(
@@ -144,6 +150,9 @@ export async function navigate(
     );
     process.exit(1);
   } finally {
+    if (navigationWatcher) {
+      navigationWatcher.dispose();
+    }
     if (ws) {
       ws.close();
     }

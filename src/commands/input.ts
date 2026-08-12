@@ -1,11 +1,11 @@
 /**
- * Input automation commands: click, fill, press-key
+ * Input automation commands: click, fill, select, press-key
  */
 
 import { CDPContext, type Page } from '../context.js';
 import { outputError, outputSuccess } from '../output.js';
 import { describeChar, describeKey, type KeyDescriptor } from '../keys.js';
-import { handleWaitOptions, type WaitOptions } from './wait.js';
+import { armNavigationWatcher, handleWaitOptions, type NavigationWatcher, type WaitOptions } from './wait.js';
 
 type TextMatchMode = 'exact' | 'contains' | 'regex';
 
@@ -913,6 +913,7 @@ export async function click(
   optionsInput: { page: string; double?: boolean; longpress?: number; touch?: boolean; frame?: string; force?: boolean } & WaitOptions
 ): Promise<void> {
   let ws;
+  let navigationWatcher: NavigationWatcher | undefined;
   const target: ClickTargetInput =
     typeof targetInput === 'string'
       ? { selector: targetInput }
@@ -1127,6 +1128,12 @@ export async function click(
     const yRounded = Math.round(y);
     const roundedRect = roundRect(rect);
 
+    // Armed before dispatch: a form POST can commit and load before a
+    // post-action listener would have attached.
+    if (options.waitForNavigation) {
+      navigationWatcher = await armNavigationWatcher(context, ws);
+    }
+
     if (options.touch) {
       // Touch tap sequence
       await context.sendCommand(ws, 'Input.dispatchTouchEvent', {
@@ -1198,13 +1205,19 @@ export async function click(
     }
 
     // Handle post-action wait conditions
-    await handleWaitOptions(context, ws, {
-      waitFor: options.waitFor,
-      waitForText: options.waitForText,
-      waitForIdle: options.waitForIdle,
-      waitForFrame: options.waitForFrame,
-      timeout: options.timeout
-    });
+    await handleWaitOptions(
+      context,
+      ws,
+      {
+        waitFor: options.waitFor,
+        waitForText: options.waitForText,
+        waitForIdle: options.waitForIdle,
+        waitForFrame: options.waitForFrame,
+        waitForNavigation: options.waitForNavigation,
+        timeout: options.timeout
+      },
+      navigationWatcher
+    );
 
     outputSuccess('Click performed', {
       strategy: target.selector ? 'css' : 'text',
@@ -1227,7 +1240,8 @@ export async function click(
       ...(options.waitFor && { waitedFor: options.waitFor }),
       ...(options.waitForText && { waitedForText: options.waitForText }),
       ...(options.waitForIdle && { waitedForIdle: true }),
-      ...(options.waitForFrame && { waitedInFrame: options.waitForFrame })
+      ...(options.waitForFrame && { waitedInFrame: options.waitForFrame }),
+      ...(options.waitForNavigation && { waitedForNavigation: true })
     });
   } catch (error) {
     if (error instanceof ClickError) {
@@ -1246,6 +1260,9 @@ export async function click(
     }
     process.exit(1);
   } finally {
+    if (navigationWatcher) {
+      navigationWatcher.dispose();
+    }
     if (ws) {
       ws.close();
     }
@@ -1286,7 +1303,7 @@ async function focusAndClearField(
         const isField = tagName === 'input' || tagName === 'textarea';
 
         if (tagName === 'select') {
-          return { error: 'Cannot type into a <select>; click the option instead' };
+          return { error: 'Cannot type into a <select>; use the select command instead: cdp-cli select <selector> <value> <page> (or --text "Label")' };
         }
         if (!isField && !editable) {
           return { error: 'Element is not a text field (<' + tagName + '>)' };
@@ -1333,6 +1350,252 @@ async function focusAndClearField(
   };
 }
 
+export interface SelectTargetInput {
+  value?: string;
+  text?: string;
+  index?: number;
+  match?: TextMatchMode;
+  caseSensitive?: boolean;
+}
+
+/**
+ * Set a <select> element's value.
+ *
+ * Chrome renders the option list as an OS-level popup that is not part of the
+ * DOM, so there is no coordinate a synthetic mouse click can land on to choose
+ * an option. The selection is therefore assigned through the element and the
+ * events a completed user pick produces (`input` then `change`, both bubbling)
+ * are dispatched, so page handlers observe exactly what they would from a real
+ * gesture. The element is focused first, as a real pick would.
+ */
+export async function selectOption(
+  context: CDPContext,
+  selector: string,
+  target: SelectTargetInput,
+  options: { page: string; nth?: number; within?: string; frame?: string } & WaitOptions
+): Promise<void> {
+  let ws;
+  let navigationWatcher: NavigationWatcher | undefined;
+
+  try {
+    const page = await context.findPage(options.page);
+    await context.assertNoDevTools(page.id);
+
+    ws = await context.connect(page);
+    await context.assertNoDialog(ws);
+
+    await context.sendCommand(ws, 'DOM.enable');
+    await context.sendCommand(ws, 'Runtime.enable');
+
+    let matches: ElementMatch[];
+    if (options.frame) {
+      const contextId = await context.resolveFrameContext(ws, options.frame);
+      if (contextId === undefined) {
+        throw new Error(`Could not resolve frame context: ${options.frame}`);
+      }
+      matches = await resolveClickCandidatesInFrame(
+        context,
+        ws,
+        { selector, within: options.within },
+        contextId
+      );
+    } else {
+      matches = await resolveBySelector(context, ws, selector, options.within);
+    }
+
+    if (matches.length === 0) {
+      throw new Error(
+        options.frame
+          ? `Element not found in frame: ${selector}`
+          : `Element not found: ${selector}`
+      );
+    }
+
+    let selectedIndex = 0;
+    if (typeof options.nth === 'number') {
+      if (options.nth < 1 || options.nth > matches.length) {
+        throw new Error(
+          `--nth ${options.nth} is out of range (1-${matches.length})\n${summarizeMatches(matches).join('\n')}`
+        );
+      }
+      selectedIndex = options.nth - 1;
+    } else if (matches.length > 1) {
+      throw new Error(
+        `Multiple elements matched. Use --nth to choose one.\n${summarizeMatches(matches).join('\n')}`
+      );
+    }
+
+    const chosen = matches[selectedIndex];
+    if (!chosen.objectId) {
+      throw new Error(`Could not resolve an element handle for: ${selector}`);
+    }
+
+    const strategy: 'value' | 'text' | 'index' =
+      target.value !== undefined ? 'value' : target.text !== undefined ? 'text' : 'index';
+
+    if (options.waitForNavigation) {
+      navigationWatcher = await armNavigationWatcher(context, ws);
+    }
+
+    const callResult = await context.sendCommand(ws, 'Runtime.callFunctionOn', {
+      objectId: chosen.objectId,
+      functionDeclaration: `
+        function(strategy, needle, matchMode, caseSensitive) {
+          const el = this;
+          if (!el.isConnected) {
+            return { error: 'Element was removed from the document' };
+          }
+
+          const tagName = (el.tagName || '').toLowerCase();
+          if (tagName !== 'select') {
+            return { error: 'Not a <select> element; got <' + tagName + '>' };
+          }
+
+          const options = Array.prototype.slice.call(el.options);
+          const describe = options.map(function(o, i) {
+            return (i + 1) + '. ' + JSON.stringify(o.text.trim()) + ' (value=' + JSON.stringify(o.value) + ')';
+          });
+
+          const normalize = function(s) {
+            return caseSensitive ? s : s.toLowerCase();
+          };
+
+          let match = null;
+          if (strategy === 'value') {
+            match = options.find(function(o) { return o.value === needle; }) || null;
+          } else if (strategy === 'index') {
+            match = options[needle - 1] || null;
+          } else {
+            const want = normalize(String(needle));
+            match = options.find(function(o) {
+              const label = normalize(o.text.trim());
+              if (matchMode === 'contains') return label.indexOf(want) !== -1;
+              if (matchMode === 'regex') return new RegExp(needle, caseSensitive ? '' : 'i').test(o.text.trim());
+              return label === want;
+            }) || null;
+          }
+
+          if (!match) {
+            return {
+              error: 'No option matched',
+              optionCount: options.length,
+              options: describe
+            };
+          }
+
+          if (match.disabled) {
+            return { error: 'Matched option is disabled: ' + JSON.stringify(match.text.trim()) };
+          }
+
+          const previousValue = el.value;
+          const previousText = el.selectedIndex >= 0 ? el.options[el.selectedIndex].text.trim() : '';
+
+          // A single pick clears any other selection, which is what the native
+          // popup does even on a <select multiple> without modifier keys.
+          for (const o of options) {
+            o.selected = (o === match);
+          }
+
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+
+          return {
+            value: el.value,
+            text: match.text.trim(),
+            optionIndex: options.indexOf(match) + 1,
+            selectedIndex: el.selectedIndex,
+            previousValue: previousValue,
+            previousText: previousText,
+            changed: previousValue !== el.value,
+            optionCount: options.length,
+            multiple: el.multiple === true
+          };
+        }
+      `,
+      arguments: [
+        { value: strategy },
+        { value: strategy === 'value' ? target.value : strategy === 'index' ? target.index : target.text },
+        { value: target.match ?? 'exact' },
+        { value: target.caseSensitive ?? false }
+      ],
+      returnByValue: true
+    });
+
+    const result = callResult.result?.value;
+    if (!result) {
+      throw new Error(`Could not set <select>: ${selector}`);
+    }
+
+    if (result.error) {
+      const detail = Array.isArray(result.options) && result.options.length > 0
+        ? `\nAvailable options:\n${result.options.join('\n')}`
+        : '';
+      const wanted = strategy === 'value'
+        ? `value ${JSON.stringify(target.value)}`
+        : strategy === 'index'
+          ? `index ${target.index}`
+          : `text ${JSON.stringify(target.text)}`;
+      throw new Error(`${result.error} for ${wanted} on ${selector}${detail}`);
+    }
+
+    // Focus mirrors a real pick, and matters for pages that submit on blur.
+    try {
+      await context.sendCommand(ws, 'DOM.focus', { objectId: chosen.objectId });
+    } catch {
+      // A select can still be set without being focusable (hidden, disabled container).
+    }
+
+    await handleWaitOptions(
+      context,
+      ws,
+      {
+        waitFor: options.waitFor,
+        waitForText: options.waitForText,
+        waitForIdle: options.waitForIdle,
+        waitForFrame: options.waitForFrame,
+        waitForNavigation: options.waitForNavigation,
+        timeout: options.timeout
+      },
+      navigationWatcher
+    );
+
+    outputSuccess('Option selected', {
+      selector,
+      strategy,
+      value: result.value,
+      text: result.text,
+      optionIndex: result.optionIndex,
+      selectedIndex: result.selectedIndex,
+      previousValue: result.previousValue,
+      previousText: result.previousText,
+      changed: result.changed,
+      optionCount: result.optionCount,
+      multiple: result.multiple,
+      within: options.within ?? null,
+      frame: options.frame ?? null,
+      ...(options.waitFor && { waitedFor: options.waitFor }),
+      ...(options.waitForText && { waitedForText: options.waitForText }),
+      ...(options.waitForIdle && { waitedForIdle: true }),
+      ...(options.waitForFrame && { waitedInFrame: options.waitForFrame }),
+      ...(options.waitForNavigation && { waitedForNavigation: true })
+    });
+  } catch (error) {
+    outputError(
+      (error as Error).message,
+      'SELECT_FAILED',
+      { selector, value: target.value, text: target.text, index: target.index, frame: options.frame }
+    );
+    process.exit(1);
+  } finally {
+    if (navigationWatcher) {
+      navigationWatcher.dispose();
+    }
+    if (ws) {
+      ws.close();
+    }
+  }
+}
+
 /**
  * Fill an input element
  */
@@ -1343,6 +1606,8 @@ export async function fill(
   options: { page: string; nth?: number; within?: string; frame?: string } & WaitOptions
 ): Promise<void> {
   let ws;
+  let navigationWatcher: NavigationWatcher | undefined;
+
   try {
     // Get page
     const page = await context.findPage(options.page);
@@ -1402,6 +1667,10 @@ export async function fill(
     // the same element that was matched.
     const field = await focusAndClearField(context, ws, chosen.objectId, selector);
 
+    if (options.waitForNavigation) {
+      navigationWatcher = await armNavigationWatcher(context, ws);
+    }
+
     for (const char of value) {
       await dispatchKey(context, ws, describeChar(char));
     }
@@ -1419,13 +1688,19 @@ export async function fill(
     });
 
     // Handle post-action wait conditions
-    await handleWaitOptions(context, ws, {
-      waitFor: options.waitFor,
-      waitForText: options.waitForText,
-      waitForIdle: options.waitForIdle,
-      waitForFrame: options.waitForFrame,
-      timeout: options.timeout
-    });
+    await handleWaitOptions(
+      context,
+      ws,
+      {
+        waitFor: options.waitFor,
+        waitForText: options.waitForText,
+        waitForIdle: options.waitForIdle,
+        waitForFrame: options.waitForFrame,
+        waitForNavigation: options.waitForNavigation,
+        timeout: options.timeout
+      },
+      navigationWatcher
+    );
 
     outputSuccess('Fill performed', {
       selector,
@@ -1437,7 +1712,8 @@ export async function fill(
       ...(options.waitFor && { waitedFor: options.waitFor }),
       ...(options.waitForText && { waitedForText: options.waitForText }),
       ...(options.waitForIdle && { waitedForIdle: true }),
-      ...(options.waitForFrame && { waitedInFrame: options.waitForFrame })
+      ...(options.waitForFrame && { waitedInFrame: options.waitForFrame }),
+      ...(options.waitForNavigation && { waitedForNavigation: true })
     });
   } catch (error) {
     outputError(
@@ -1447,6 +1723,9 @@ export async function fill(
     );
     process.exit(1);
   } finally {
+    if (navigationWatcher) {
+      navigationWatcher.dispose();
+    }
     if (ws) {
       ws.close();
     }
@@ -1459,9 +1738,11 @@ export async function fill(
 export async function pressKey(
   context: CDPContext,
   key: string,
-  options: { page: string }
+  options: { page: string } & WaitOptions
 ): Promise<void> {
   let ws;
+  let navigationWatcher: NavigationWatcher | undefined;
+
   try {
     // Get page
     const page = await context.findPage(options.page);
@@ -1471,12 +1752,38 @@ export async function pressKey(
     await context.assertNoDialog(ws);
 
     const descriptor = describeKey(key);
+
+    // Enter in a form field submits it, so the watcher has to be live before
+    // the keystroke is dispatched.
+    if (options.waitForNavigation) {
+      navigationWatcher = await armNavigationWatcher(context, ws);
+    }
+
     await dispatchKey(context, ws, descriptor);
+
+    await handleWaitOptions(
+      context,
+      ws,
+      {
+        waitFor: options.waitFor,
+        waitForText: options.waitForText,
+        waitForIdle: options.waitForIdle,
+        waitForFrame: options.waitForFrame,
+        waitForNavigation: options.waitForNavigation,
+        timeout: options.timeout
+      },
+      navigationWatcher
+    );
 
     outputSuccess('Key pressed', {
       key: descriptor.key,
       code: descriptor.code,
-      keyCode: descriptor.keyCode
+      keyCode: descriptor.keyCode,
+      ...(options.waitFor && { waitedFor: options.waitFor }),
+      ...(options.waitForText && { waitedForText: options.waitForText }),
+      ...(options.waitForIdle && { waitedForIdle: true }),
+      ...(options.waitForFrame && { waitedInFrame: options.waitForFrame }),
+      ...(options.waitForNavigation && { waitedForNavigation: true })
     });
   } catch (error) {
     outputError(
@@ -1486,6 +1793,9 @@ export async function pressKey(
     );
     process.exit(1);
   } finally {
+    if (navigationWatcher) {
+      navigationWatcher.dispose();
+    }
     if (ws) {
       ws.close();
     }
