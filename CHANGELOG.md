@@ -21,6 +21,17 @@ version_compare($status["cli"]["version"], "1.10.0", "<")  // false - correct
 Any harness that shells out and compares versions wants the `status` field.
 `--version` stays human-facing.
 
+The `status` payload gained the `cli` key; `daemon` and `chrome` are unchanged,
+so existing readers of those keep working.
+
+### Known gaps
+
+- **No JS-predicate wait** (`cdp-cli-3p5`). `--wait-for` takes a CSS selector and
+  `--wait-for-text` takes body text; a caller waiting on anything else — a flag
+  on a frame's `window`, say — has to poll from outside with repeated `eval`.
+  A `--wait-for-expression` would close it. Deferred deliberately rather than
+  added mid-flight.
+
 ## 1.9.0
 
 ### `--version` now reports which build is answering

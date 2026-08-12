@@ -244,12 +244,20 @@ Features:
 - **Chrome restart handling**: Automatically reconnects and re-registers pages
 - **Idempotent**: Safe to call `daemon start` multiple times
 
-**status** - Check daemon and Chrome connection status
+**status** - Check the CLI build, daemon, and Chrome connection status
 ```bash
 cdp-cli status
+{"cli":{"version":"1.10.0","build":"2026-08-12T18:25:59Z","runtime":"exe"},"daemon":{"running":true,"sessions":3},"chrome":{"running":true,"version":"Chrome/150.0.7871.115","pages":3}}
 ```
 
-Output shows daemon state (running/stopped, session count) and Chrome state (running/stopped, version, page count).
+- `cli` *(added in 1.10.0)*: which build answered — `version` is a bare semver
+  safe to hand to any comparator, `build` is when it was produced, and `runtime`
+  is `npm` (the shell/`.cmd` shim) or `exe` (the standalone binary). **A script
+  that gates on a version should read `cli.version` here rather than parsing
+  `--version`**, whose build suffix breaks PHP's `version_compare`. See
+  [Windows: which cdp-cli is actually running](#windows-which-cdp-cli-is-actually-running).
+- `daemon`: running/stopped and session count.
+- `chrome`: running/stopped, version, page count.
 
 **ready** - Launch Chrome + start daemon + return pages (all-in-one)
 ```bash
