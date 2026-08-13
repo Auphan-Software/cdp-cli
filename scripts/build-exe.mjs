@@ -12,9 +12,10 @@
  */
 import * as esbuild from 'esbuild';
 import { execSync } from 'child_process';
-import { readFileSync, writeFileSync, unlinkSync } from 'fs';
+import { readFileSync, writeFileSync, unlinkSync, existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { gitIdentity } from './stamp-build.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -22,6 +23,22 @@ const root = join(__dirname, '..');
 
 // Read version from package.json
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf-8'));
+
+const git = gitIdentity(root);
+
+/**
+ * This script bundles build/exe-entry.js -- it does NOT compile TypeScript. Run
+ * directly against a stale build/ it will happily produce an exe from old
+ * output and install it over the one on PATH, which is exactly how the exe fell
+ * behind the npm shim (wi:6882): `install:exe` used to skip `npm run build`.
+ * The stamp is written by the build, so its absence proves the build was
+ * skipped. Refuse rather than ship a mystery binary.
+ */
+if (!existsSync(join(root, 'build', 'build-info.json'))) {
+  console.error('build/build-info.json is missing - build/ is stale or was never compiled.');
+  console.error('Run: npm run build:exe   (or npm run install:exe), not build-exe.mjs on its own.');
+  process.exit(1);
+}
 
 // Plugin: Replace 'ws' imports with Bun's native WebSocket
 // The ws library doesn't work in Bun runtime (101 handshake errors)
@@ -65,6 +82,13 @@ async function buildExe() {
       // The exe does not track source, and on Windows PATHEXT resolves it ahead
       // of the .cmd shim, so a stale one silently shadows a fresh npm build.
       'CDP_CLI_BUILD': JSON.stringify(new Date().toISOString().replace(/\.\d+Z$/, 'Z')),
+      // The commit is what makes drift detectable. A timestamp only says when
+      // the artifact was written; it cannot distinguish a rebuild of the same
+      // source from a build of different source. `cdp-cli doctor` compares this
+      // across cmd.exe/sh/PHP, and the npm path stamps the same fields into
+      // build/build-info.json.
+      'CDP_CLI_COMMIT': JSON.stringify(git.commit),
+      'CDP_CLI_DIRTY': JSON.stringify(git.dirty),
     },
     alias: {
       'ws': wsShimPath,

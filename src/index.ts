@@ -21,6 +21,7 @@ import * as input from './commands/input.js';
 import * as daemon from './commands/daemon.js';
 import * as logs from './commands/logs.js';
 import * as lifecycle from './commands/lifecycle.js';
+import * as doctor from './commands/doctor.js';
 import { outputError } from './output.js';
 import { homedir } from 'os';
 import {
@@ -1222,6 +1223,16 @@ cli.command(
   async (argv) => {
     const context = new CDPContext(argv['cdp-url'] as string);
     await debug.status(context);
+  }
+);
+
+// Doctor command
+cli.command(
+  'doctor',
+  'Verify every caller (cmd.exe, sh, PHP exec) resolves the same cdp-cli build',
+  () => {},
+  async () => {
+    await doctor.doctor();
   }
 );
 

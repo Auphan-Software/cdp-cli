@@ -1,5 +1,54 @@
 # Changelog
 
+## Unreleased
+
+### `install:exe` shipped the exe from a stale `build/`
+
+```
+"install:exe": "node scripts/build-exe.mjs && node scripts/install-exe.mjs"   # before
+"install:exe": "npm run build:exe && node scripts/install-exe.mjs"            # after
+```
+
+`build-exe.mjs` bundles `build/exe-entry.js`; it does not compile TypeScript.
+Run without a build in front of it, it produced an exe from whatever output was
+already on disk and installed it over the one on PATH. That is the mechanism
+behind the observed split: on 2026-08-12 the exe was cut at 18:25:59Z and
+`build/` was recompiled at 18:31:26Z, leaving cmd.exe/PHP `exec()` on one build
+and Git Bash on another, both reporting `1.10.0`.
+
+`build-exe.mjs` now refuses to run when `build/build-info.json` is absent, so
+calling it directly cannot silently ship a mystery binary either.
+
+### Artifacts carry their source commit
+
+`status.cli` gained `commit` and `dirty`; `--version` shows the short commit:
+
+```
+1.10.0 (npm build 2026-08-13T21:27:17Z, commit d13bea3aab86-dirty)
+```
+
+The npm path previously reported its own file mtime as the build time. A mtime
+is rewritten by copying and by `git checkout`, and cannot distinguish a rebuild
+of the same source from a build of different source. `scripts/stamp-build.mjs`
+now writes `build/build-info.json` at build time, and the exe gets the same
+fields through esbuild `define`.
+
+**Gate on `commit`, not `build`,** when asking whether two callers run the same
+tool.
+
+### New: `cdp-cli doctor`
+
+Runs `status` through cmd.exe, a POSIX shell and PHP `exec()`, then compares the
+source commit. Exit 1 names the caller that is stale.
+
+The check deliberately allows `runtime` to differ — the exe starts ~2x faster
+and is meant to coexist with the shims. Only the commit must match. An `unknown`
+commit (an artifact built before this stamp existed) fails rather than passes: a
+check that cannot see must not report clean.
+
+`npm run install:exe` now ends by running `doctor`, so a version match alone can
+no longer be mistaken for a verified install.
+
 ## 1.10.0
 
 ### `status` reports the CLI version as machine-readable fields

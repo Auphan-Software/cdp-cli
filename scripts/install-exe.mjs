@@ -74,4 +74,15 @@ if (!reported.startsWith(pkg.version)) {
   process.exit(1);
 }
 
+// A matching version number is NOT proof: the whole defect this guards against
+// was two builds reporting the same semver. Compare the source commit across
+// every caller, which is what `doctor` exists to do.
+console.log('Cross-checking that cmd.exe, sh and PHP exec() resolve the same commit...');
+try {
+  execFileSync('cmd', ['/c', 'cdp-cli doctor'], { encoding: 'utf-8', stdio: 'inherit' });
+} catch {
+  console.error('Callers do NOT agree on the build - see the doctor output above.');
+  process.exit(1);
+}
+
 console.log('OK - cmd.exe, and therefore PHP exec()/batch/CI, now resolve the current build.');

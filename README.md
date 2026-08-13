@@ -931,11 +931,40 @@ A stale exe therefore answers every non-POSIX caller as an older tool, returning
 well-formed JSON with no warning, while a bash smoke test reports the new
 version. Verifying only from bash cannot detect it.
 
+### `cdp-cli doctor` — the one command that answers it
+
+```bash
+cdp-cli doctor
+```
+
+It runs `status` through cmd.exe, a POSIX shell and PHP `exec()`, and compares
+what answered. Exit 0 means every caller runs the same source; exit 1 prints
+which one is stale and what to do about it.
+
+```json
+{"type":"doctor","agree":true,"callers":[
+  {"caller":"cmd.exe",   "runtime":"exe","version":"1.10.0","commit":"d13bea3aab86...","build":"..."},
+  {"caller":"sh",        "runtime":"npm","version":"1.10.0","commit":"d13bea3aab86...","build":"..."},
+  {"caller":"php exec()","runtime":"exe","version":"1.10.0","commit":"d13bea3aab86...","build":"..."}]}
+```
+
+**The invariant is not "one artifact".** The exe starts about twice as fast and
+is meant to stay, so `runtime` legitimately differs between callers. What must
+match is `commit` — the source each was built from.
+
+**Compare `commit`, not `build`.** A build timestamp says when a file was
+written: copying an install rewrites it, `git checkout` rewrites it, and it
+cannot tell a rebuild of the same source from a build of different source. Two
+artifacts are interchangeable when their commits match, whatever their
+timestamps say. This is what made the split invisible in the first place — both
+builds reported version `1.10.0`, five minutes apart, and every version check
+agreed.
+
 **If a script needs to gate on the version, read `status`, not `--version`:**
 
 ```bash
 cdp-cli status
-{"cli":{"version":"1.10.0","build":"2026-08-12T18:25:59Z","runtime":"exe"}, ...}
+{"cli":{"version":"1.10.0","build":"...","runtime":"exe","commit":"d13bea3aab86...","dirty":false}, ...}
 ```
 
 `status.cli.version` is a bare semver, safe to hand to any comparator. The
@@ -943,21 +972,22 @@ cdp-cli status
 `version_compare` reads that suffix as a pre-release marker and reports an equal
 version as *older*, which rejects a correct build.
 
-`--version` reports the build so this is visible:
-
-```
-1.9.0 (npm build 2026-08-12T18:06:54Z)   <- the .cmd/shell path, rebuilt by `npm run build`
-1.9.0 (exe build 2026-08-12T18:07:15Z)   <- the standalone exe
-```
+`dirty` is true when the artifact was built from a tree with modified tracked
+files — the commit alone does not identify such a build.
 
 After changing the source, rebuild and install the exe too:
 
 ```bash
-npm run install:exe    # builds the exe, installs it over the one on PATH, verifies through cmd.exe
+npm run install:exe    # builds BOTH paths, installs the exe over the one on PATH, then runs doctor
 ```
 
-That script deliberately checks with `cmd /c "cdp-cli --version"` rather than the
-current shell, and fails if anything still shadows the install.
+`install:exe` runs the full build first. It used to invoke `build-exe.mjs`
+directly, which only bundles `build/` and does not compile it — so it shipped an
+exe made from whatever stale output happened to be on disk. That is how the exe
+fell behind. `build-exe.mjs` now refuses to run against an uncompiled `build/`.
+
+That script deliberately checks with `cmd /c` rather than the current shell, and
+fails if anything still shadows the install.
 
 While another process may be calling the CLI, prefer `npx tsc` over
 `npm run build` for a redeploy: `build` runs `clean` first, which removes

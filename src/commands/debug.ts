@@ -10,7 +10,13 @@ import { resizePngBuffer } from '../resize.js';
 import { createExecSession, createExecSessionByPageRef } from '../daemon/exec.js';
 import { DaemonClient } from '../daemon/client.js';
 import { fetch as undiciFetch } from 'undici';
-import { version as cliVersion, build as cliBuild, runtime as cliRuntime } from '../version.js';
+import {
+  version as cliVersion,
+  build as cliBuild,
+  runtime as cliRuntime,
+  commit as cliCommit,
+  dirty as cliDirty
+} from '../version.js';
 
 /**
  * Get the ax snapshot script for evaluating in page context
@@ -762,10 +768,15 @@ export async function status(context: CDPContext): Promise<void> {
       // Discrete fields so a harness can gate on the version without parsing
       // the human-facing --version string, whose build suffix makes PHP's
       // version_compare report an equal version as older.
+      // `commit` is the field to compare across callers: build timestamps are
+      // rewritten by copying and by git checkout, so only the source SHA can
+      // tell "same tool" from "stale exe shadowing a fresh npm build".
       cli: {
         version: cliVersion,
         build: cliBuild,
-        runtime: cliRuntime
+        runtime: cliRuntime,
+        commit: cliCommit,
+        dirty: cliDirty
       },
       daemon: {
         running: daemonStatus.running,
