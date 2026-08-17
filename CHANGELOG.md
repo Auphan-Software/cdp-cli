@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.11.0
 
 ### A click into a frame is now confirmed, not assumed
 
