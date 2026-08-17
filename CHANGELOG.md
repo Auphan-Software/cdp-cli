@@ -2,6 +2,43 @@
 
 ## Unreleased
 
+### A click into a frame is now confirmed, not assumed
+
+`click` used to report success whenever it dispatched the events. When the
+click point resolves to an `<iframe>`, dispatching says nothing about delivery:
+Chrome routes the event into that frame from the browser process, and while
+that routing is still coming up the event goes to the top frame instead and
+does nothing at all.
+
+Measured on a live Bambora card field (Chrome 151.0.7922.138): a click up to
+~500ms after the card iframe mounted was swallowed — `document.activeElement`
+stayed `BODY`, the field stayed empty — while the identical click from ~1s on
+landed. `click` reported `{"success":true, "occludedBy":null}` for both.
+
+`click` now checks, when and only when the click point is a frame, that the
+frame took the click, and fails with **`CLICK_FRAME_NOT_REACHED`** when it did
+not — the same contract as `CLICK_OCCLUDED`, which already refuses to pretend a
+swallowed click happened. `--force` dispatches and reports anyway.
+
+The evidence is the event turning up **outside** the frame. Events do not cross
+a frame boundary, so the document around the frame sees the mousedown only when
+the frame did not get it; `details.deliveredTo` names what received it instead.
+Focus moving to the frame element is used too, but only to conclude success
+early — it arrives in 15-40ms, and a frame whose own content calls
+`preventDefault` on mousedown takes the click without ever taking focus, so
+focus alone would fail clicks that worked (measured, both ways).
+
+A click that navigates or tears down the page takes the check's execution
+context with it. That reports `frameReached: null` — unverifiable, not failed.
+
+Successful clicks gained `frameReached` (`null` when the click point was not a
+frame, or could not be verified) and `hitFrame`. `details.frameSrc` is trimmed
+to origin and path, because hosted-field iframe URLs carry session tokens.
+
+This is **not** "cross-origin iframes are unreachable": clicks into cross-origin
+and out-of-process frames work, including the Bambora fields, once the frame is
+routable. Only a click that provably did not arrive now fails.
+
 ### `install:exe` shipped the exe from a stale `build/`
 
 ```

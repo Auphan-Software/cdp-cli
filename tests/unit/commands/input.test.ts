@@ -349,6 +349,293 @@ describe('Input Commands', () => {
         expect(mouseEvents.filter(e => e.type === 'mousePressed')).toHaveLength(1);
       });
 
+      /**
+       * A click whose point resolves to an iframe is only delivered if Chrome
+       * routes it into that frame, which it does not while the frame's input
+       * routing is still coming up. The stub controls both halves: what the
+       * hit test saw, and what the post-click check found focused.
+       */
+      function stubFrameClick(
+        context: CDPContext,
+        hitValue: Record<string, unknown>,
+        reachValue: Record<string, unknown>
+      ): { mouseEvents: any[]; reachProbes: any[] } {
+        const mouseEvents: any[] = [];
+        const reachProbes: any[] = [];
+        const originalConnect = context.connect.bind(context);
+
+        context.connect = async (page) => {
+          const ws = await originalConnect(page) as MockWebSocket;
+          const originalSend = ws.send.bind(ws);
+
+          ws.send = (data: string) => {
+            const msg = JSON.parse(data);
+            const fn = msg.params?.functionDeclaration ?? '';
+
+            if (msg.method === 'Input.dispatchMouseEvent') {
+              mouseEvents.push(msg.params);
+            }
+
+            const reply = (result: unknown) => {
+              ws.sentMessages.push(msg);
+              setTimeout(() => {
+                ws.simulateMessage({ id: msg.id, result: { result } });
+              }, 5);
+            };
+
+            // Arming and disarming the witness: no return value expected.
+            if (msg.method === 'Runtime.callFunctionOn' && fn.includes('__cdpClickWitnessListener')) {
+              reply({});
+              return;
+            }
+
+            // The reach check is the one that reads the witness, and it must
+            // run against the retained frame handle, not the target.
+            if (msg.method === 'Runtime.callFunctionOn' && fn.includes('__cdpClickWitness')) {
+              reachProbes.push(msg.params);
+              reply({ value: reachValue });
+              return;
+            }
+
+            // Handle retained for the frame under the click point (no returnByValue).
+            if (
+              msg.method === 'Runtime.callFunctionOn' &&
+              fn.includes('elementFromPoint') &&
+              !msg.params.returnByValue
+            ) {
+              reply({ objectId: 'hit-frame-handle' });
+              return;
+            }
+
+            if (msg.method === 'Runtime.callFunctionOn' && fn.includes('elementFromPoint')) {
+              reply({ value: hitValue });
+              return;
+            }
+
+            originalSend(data);
+          };
+
+          return ws;
+        };
+
+        return { mouseEvents, reachProbes };
+      }
+
+      const IFRAME_HIT = {
+        rect: { x: 800, y: 340, width: 230, height: 42 },
+        scrolled: false,
+        inViewport: true,
+        hitOk: true,
+        hit: 'iframe',
+        hitIsFrame: true,
+        hitFrameSrc: 'https://libs.na.bambora.com/customcheckout/iframe.html?type=card-number'
+      };
+
+      it('should fail with CLICK_FRAME_NOT_REACHED when the iframe swallows the click', async () => {
+        const capture = captureConsoleOutput();
+        const exitMock = mockProcessExit();
+        const context = new CDPContext();
+
+        // Chrome delivered the event to the top frame instead: nothing focused.
+        const { mouseEvents, reachProbes } = stubFrameClick(context, IFRAME_HIT, {
+          saw: 'td.payment-cell',
+          focused: false,
+          active: 'body'
+        });
+
+        try {
+          await input.click(context, '.beanstream-form .cc-num', { page: 'page1' });
+        } catch {
+          // Expected process.exit
+        }
+
+        const logs = capture.getLogs();
+        capture.restore();
+        exitMock.restore();
+
+        expect(exitMock.exitCode).toBe(1);
+
+        const error = JSON.parse(logs[0]);
+        expect(error.error).toBe(true);
+        expect(error.code).toBe('CLICK_FRAME_NOT_REACHED');
+        expect(error.details.frameSrc).toContain('bambora');
+        expect(error.details.deliveredTo).toBe('td.payment-cell');
+        expect(error.details.activeElement).toBe('body');
+
+        // The events were dispatched — the point is that they went nowhere,
+        // which is only observable afterwards.
+        expect(mouseEvents.filter(e => e.type === 'mousePressed')).toHaveLength(1);
+        // The event turning up outside the frame is conclusive - no need to poll on
+        expect(reachProbes).toHaveLength(1);
+      });
+
+      it('should report frameReached when the iframe does take the click', async () => {
+        const capture = captureConsoleOutput();
+        const context = new CDPContext();
+
+        const { reachProbes } = stubFrameClick(context, IFRAME_HIT, {
+          saw: null,
+          focused: true,
+          active: 'iframe'
+        });
+
+        await input.click(context, '.beanstream-form .cc-num', { page: 'page1' });
+
+        const logs = capture.getLogs();
+        capture.restore();
+
+        const result = JSON.parse(logs[0]);
+        expect(result.success).toBe(true);
+        expect(result.data.frameReached).toBe(true);
+        expect(reachProbes).toHaveLength(1);
+        // Asked the frame it aimed at, not whatever drifted under the point
+        expect(reachProbes[0].objectId).toBe('hit-frame-handle');
+      });
+
+      it('should still count the click as reaching a frame whose content suppresses focus', async () => {
+        const capture = captureConsoleOutput();
+        const context = new CDPContext();
+
+        // Measured case: a child that calls preventDefault on mousedown gets
+        // the click but never takes focus. Nothing was seen outside the frame,
+        // so the click landed.
+        stubFrameClick(context, IFRAME_HIT, {
+          saw: null,
+          focused: false,
+          active: 'body'
+        });
+
+        await input.click(context, '.beanstream-form .cc-num', { page: 'page1' });
+
+        const logs = capture.getLogs();
+        capture.restore();
+
+        const result = JSON.parse(logs[0]);
+        expect(result.success).toBe(true);
+        expect(result.data.frameReached).toBe(true);
+      });
+
+      it('should not fail a frame click that navigated the verification context away', async () => {
+        const capture = captureConsoleOutput();
+        const context = new CDPContext();
+        const originalConnect = context.connect.bind(context);
+
+        context.connect = async (page) => {
+          const ws = await originalConnect(page) as MockWebSocket;
+          const originalSend = ws.send.bind(ws);
+
+          ws.send = (data: string) => {
+            const msg = JSON.parse(data);
+            const fn = msg.params?.functionDeclaration ?? '';
+
+            const reply = (result: unknown) => {
+              ws.sentMessages.push(msg);
+              setTimeout(() => {
+                ws.simulateMessage({ id: msg.id, result: { result } });
+              }, 5);
+            };
+
+            // Arming succeeds - the click is what destroys the context.
+            if (msg.method === 'Runtime.callFunctionOn' && fn.includes('__cdpClickWitnessListener')) {
+              reply({});
+              return;
+            }
+
+            if (msg.method === 'Runtime.callFunctionOn' && fn.includes('__cdpClickWitness')) {
+              // What Chrome answers once the click has replaced the document
+              ws.sentMessages.push(msg);
+              setTimeout(() => {
+                ws.simulateMessage({
+                  id: msg.id,
+                  error: { code: -32000, message: 'Cannot find context with specified id' }
+                });
+              }, 5);
+              return;
+            }
+
+            if (
+              msg.method === 'Runtime.callFunctionOn' &&
+              fn.includes('elementFromPoint') &&
+              !msg.params.returnByValue
+            ) {
+              reply({ objectId: 'hit-frame-handle' });
+              return;
+            }
+
+            if (msg.method === 'Runtime.callFunctionOn' && fn.includes('elementFromPoint')) {
+              reply({ value: IFRAME_HIT });
+              return;
+            }
+
+            originalSend(data);
+          };
+
+          return ws;
+        };
+
+        await input.click(context, '.beanstream-form .cc-num', { page: 'page1' });
+
+        const logs = capture.getLogs();
+        capture.restore();
+
+        const result = JSON.parse(logs[0]);
+        expect(result.success).toBe(true);
+        // Unverifiable, not failed: the click plainly did something
+        expect(result.data.frameReached).toBe(null);
+      });
+
+      it('should report the unreached frame instead of failing when --force is set', async () => {
+        const capture = captureConsoleOutput();
+        const context = new CDPContext();
+
+        stubFrameClick(context, IFRAME_HIT, {
+          saw: 'td.payment-cell',
+          focused: false,
+          active: 'body'
+        });
+
+        await input.click(context, '.beanstream-form .cc-num', {
+          page: 'page1',
+          force: true
+        });
+
+        const logs = capture.getLogs();
+        capture.restore();
+
+        const result = JSON.parse(logs[0]);
+        expect(result.success).toBe(true);
+        expect(result.data.frameReached).toBe(false);
+      });
+
+      it('should not run the reach check when the click point is not a frame', async () => {
+        const capture = captureConsoleOutput();
+        const context = new CDPContext();
+
+        const { reachProbes } = stubFrameClick(
+          context,
+          {
+            rect: { x: 28, y: 38, width: 129, height: 47 },
+            scrolled: false,
+            inViewport: true,
+            hitOk: true,
+            hit: 'button#submit',
+            hitIsFrame: false,
+            hitFrameSrc: null
+          },
+          { saw: null, focused: false, active: 'body' }
+        );
+
+        await input.click(context, 'button#submit', { page: 'page1' });
+
+        const logs = capture.getLogs();
+        capture.restore();
+
+        const result = JSON.parse(logs[0]);
+        expect(result.success).toBe(true);
+        expect(result.data.frameReached).toBe(null);
+        expect(reachProbes).toHaveLength(0);
+      });
+
       it('should fail with CLICK_DETACHED when the element left the document', async () => {
         const capture = captureConsoleOutput();
         const exitMock = mockProcessExit();

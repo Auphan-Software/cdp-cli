@@ -464,6 +464,21 @@ execution context yet reports that it may still be loading.
 `press-key` needs no `--frame`: keystrokes go to whatever is focused, so focus
 the field first (with `fill`, or `click`) and the keystroke lands in that frame.
 
+**A click does not always get into the frame it points at.** The event is
+delivered to the frame by the browser process, and it can miss: a frame that
+has just mounted is not routable yet, and a page still settling moves what is
+under the point. The click then lands in the surrounding document, and the
+keystrokes that follow go wherever focus already was. `click` now fails with
+`CLICK_FRAME_NOT_REACHED` instead of reporting success in that case, so for
+hosted payment fields (Bambora, Stripe Elements and the like): click, confirm
+it reported `frameReached: true`, and only then `press-key`.
+
+Focusing the iframe *element* from the top document — `document.querySelector(sel
++ ' iframe').focus()` — is same-origin and does move focus into the frame, but
+which control inside the frame ends up active is the frame's choice, so verify
+against the field's own state (the wrapper class a hosted field sets, or the
+value after typing) rather than assuming the caret is in the input.
+
 ### Input Automation
 
 **click** - Click an element by CSS selector or visible text
@@ -476,8 +491,11 @@ The target is scrolled into view before the click, and the click point is hit-te
 - `CLICK_OCCLUDED` - another element covers the click point (`details.occludedBy` names it). Pass `--force` to dispatch anyway.
 - `CLICK_OFFSCREEN` - the element could not be scrolled into the viewport.
 - `CLICK_DETACHED` - the element left the document before the click.
+- `CLICK_FRAME_NOT_REACHED` - the click point is inside a frame and the frame never took the click, so nothing happened. Pass `--force` to dispatch and report anyway.
 
-Successful results include `scrolled` (whether the page had to scroll) and `occludedBy` (non-null only with `--force`).
+Successful results include `scrolled` (whether the page had to scroll), `occludedBy` (non-null only with `--force`), and `frameReached` — `true`/`false` when the click point was a frame, `null` when it was not, with `hitFrame` naming the frame.
+
+A click whose point lands on an `<iframe>` is handed to *that frame's* document by the browser process, and that routing is not live the moment the frame element appears. A click dispatched into the gap is delivered to the top frame and silently does nothing — which is what a card field reporting "empty" after a clean-looking click means. `click` confirms the frame took it (focus moves to the frame element, which the top document can see even cross-origin) before reporting success, so this fails loudly instead of passing. Give the frame a moment and click again, or `--force` if you only want the events sent.
 
 ```bash
 # CSS selector (default behaviour)

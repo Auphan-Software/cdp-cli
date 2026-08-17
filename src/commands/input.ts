@@ -67,6 +67,9 @@ interface ClickPoint {
   inViewport: boolean;
   hitOk: boolean;
   hit: string | null;
+  /** The click point resolves to a nested frame, so the event is delivered to *its* document. */
+  hitIsFrame: boolean;
+  hitFrameSrc: string | null;
 }
 
 class ClickError extends Error {
@@ -332,11 +335,34 @@ async function getClickPoint(
           return out;
         };
 
+        // A frame under the click point means the event is handed to another
+        // document, which this session cannot see into. Whether it arrived is
+        // only knowable after the fact - see verifyFrameReached.
+        const hitTag = hit && hit.tagName;
+        const hitIsFrame = hitTag === 'IFRAME' || hitTag === 'FRAME';
+
+        // Origin and path only: hosted widgets carry session tokens and
+        // customer data in the iframe query string, and this goes to logs.
+        let hitFrameSrc = null;
+        if (hitIsFrame) {
+          const raw = hit.getAttribute('src');
+          if (raw) {
+            try {
+              const parsed = new URL(raw, document.baseURI);
+              hitFrameSrc = parsed.origin + parsed.pathname;
+            } catch (e) {
+              hitFrameSrc = raw.split('?')[0].split('#')[0];
+            }
+          }
+        }
+
         return {
           rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
           inViewport,
           hitOk,
-          hit: describe(hit)
+          hit: describe(hit),
+          hitIsFrame,
+          hitFrameSrc
         };
       }
     `,
@@ -376,8 +402,198 @@ async function getClickPoint(
     scrolled: rect.x !== priorRect.x || rect.y !== priorRect.y,
     inViewport: Boolean(value.inViewport),
     hitOk: Boolean(value.hitOk),
-    hit: typeof value.hit === 'string' ? value.hit : null
+    hit: typeof value.hit === 'string' ? value.hit : null,
+    hitIsFrame: Boolean(value.hitIsFrame),
+    hitFrameSrc: typeof value.hitFrameSrc === 'string' ? value.hitFrameSrc : null
   };
+}
+
+/**
+ * Retain a handle on the frame element sitting under the click point.
+ *
+ * The check has to be about the frame that was aimed at, not about whatever
+ * occupies those coordinates once the click has been dispatched: a page that
+ * is still settling moves things under the cursor, and re-deriving the node
+ * would name the element that drifted in rather than the frame.
+ */
+async function getHitFrameHandle(
+  context: CDPContext,
+  ws: any,
+  objectId: string,
+  point: { x: number; y: number }
+): Promise<string | undefined> {
+  const callResult = await context.sendCommand(ws, 'Runtime.callFunctionOn', {
+    objectId,
+    functionDeclaration: `
+      function(cx, cy) {
+        // Same descent as the hit test, or this would retain the shadow host
+        // where that one resolved a frame inside the shadow root.
+        let hit = document.elementFromPoint(cx, cy);
+        while (hit && hit.shadowRoot) {
+          const deeper = hit.shadowRoot.elementFromPoint(cx, cy);
+          if (!deeper || deeper === hit) break;
+          hit = deeper;
+        }
+
+        const tag = hit && hit.tagName;
+        return (tag === 'IFRAME' || tag === 'FRAME') ? hit : null;
+      }
+    `,
+    arguments: [{ value: point.x }, { value: point.y }]
+  });
+
+  return callResult.result?.objectId;
+}
+
+/**
+ * Watch the document that owns the frame for the click we are about to send.
+ *
+ * Events do not cross a frame boundary: a click that goes into the frame is
+ * invisible to the document around it. So if that document sees the mousedown,
+ * the frame did not get it - the browser delivered it outside the frame, where
+ * it did nothing the caller asked for. Armed before dispatch, read after.
+ */
+async function armFrameWitness(
+  context: CDPContext,
+  ws: any,
+  frameObjectId: string
+): Promise<void> {
+  await context.sendCommand(ws, 'Runtime.callFunctionOn', {
+    objectId: frameObjectId,
+    functionDeclaration: `
+      function() {
+        const doc = this.ownerDocument;
+        doc.__cdpClickWitness = null;
+        doc.__cdpClickWitnessListener = (event) => {
+          if (doc.__cdpClickWitness) return;
+          const n = event.target;
+          let out = (n && n.tagName ? n.tagName : 'unknown').toLowerCase();
+          if (n && n.id) out += '#' + n.id;
+          if (n && n.classList && n.classList.length) {
+            out += '.' + Array.from(n.classList).join('.');
+          }
+          doc.__cdpClickWitness = out;
+        };
+        doc.addEventListener('mousedown', doc.__cdpClickWitnessListener, true);
+        doc.addEventListener('touchstart', doc.__cdpClickWitnessListener, true);
+      }
+    `
+  });
+}
+
+/**
+ * Did the click actually get into the frame under the click point?
+ *
+ * Chrome delivers input to a nested frame through the browser process, and a
+ * click can miss it - the frame's routing is not live the moment the element
+ * mounts, and a page still settling can move what is under the point between
+ * the hit test and the dispatch. Either way the event lands in the surrounding
+ * document and silently does nothing. Measured on a live Bambora card field
+ * (Chrome 151.0.7922.138): clicks up to ~500ms after the iframe mounted were
+ * swallowed, clicks from ~1s on landed.
+ *
+ * Two signals, each used only in the direction it is trustworthy:
+ *  - the surrounding document seeing the event proves it did NOT reach the
+ *    frame (measured: the only signal that stays correct when the frame's own
+ *    content calls preventDefault on mousedown, which suppresses focus);
+ *  - focus moving to the frame element proves it DID, and arrives in 15-40ms,
+ *    so the common case does not pay the whole window.
+ */
+async function verifyFrameReached(
+  context: CDPContext,
+  ws: any,
+  frameObjectId: string,
+  timeoutMs: number = 500
+): Promise<{ reached: boolean | null; sawInDocument: string | null; active: string | null }> {
+  const deadline = Date.now() + timeoutMs;
+  let last: { reached: boolean | null; sawInDocument: string | null; active: string | null } = {
+    reached: true,
+    sawInDocument: null,
+    active: null
+  };
+
+  try {
+    for (;;) {
+      // The click may have navigated the page or torn the frame down, which
+      // takes the execution context with it. That is a click that plainly did
+      // something, so it is unverifiable rather than failed.
+      let callResult;
+      try {
+        callResult = await context.sendCommand(ws, 'Runtime.callFunctionOn', {
+        objectId: frameObjectId,
+        functionDeclaration: `
+          function() {
+            const doc = this.ownerDocument;
+            const active = doc.activeElement;
+
+            const describe = (n) => {
+              if (!n) return null;
+              let out = (n.tagName || '').toLowerCase();
+              if (n.id) out += '#' + n.id;
+              if (n.classList && n.classList.length) {
+                out += '.' + Array.from(n.classList).join('.');
+              }
+              return out;
+            };
+
+            return {
+              saw: doc.__cdpClickWitness || null,
+              focused: active === this,
+              active: describe(active)
+            };
+          }
+        `,
+          returnByValue: true
+        });
+      } catch {
+        return { reached: null, sawInDocument: null, active: null };
+      }
+
+      const value = callResult.result?.value;
+      if (value) {
+        last = {
+          // Nothing seen outside the frame is the verdict this settles on, so
+          // it only counts once the window has run out.
+          reached: !value.saw,
+          sawInDocument: typeof value.saw === 'string' ? value.saw : null,
+          active: typeof value.active === 'string' ? value.active : null
+        };
+
+        if (value.saw) {
+          return last;
+        }
+        if (value.focused) {
+          return { ...last, reached: true };
+        }
+      }
+
+      if (Date.now() >= deadline) {
+        return last;
+      }
+      await delay(25);
+    }
+  } finally {
+    // Best effort: if the context is gone there is no listener left to remove,
+    // and failing to tidy up must not turn a verdict into an error.
+    try {
+      await context.sendCommand(ws, 'Runtime.callFunctionOn', {
+        objectId: frameObjectId,
+        functionDeclaration: `
+          function() {
+            const doc = this.ownerDocument;
+            if (doc.__cdpClickWitnessListener) {
+              doc.removeEventListener('mousedown', doc.__cdpClickWitnessListener, true);
+              doc.removeEventListener('touchstart', doc.__cdpClickWitnessListener, true);
+            }
+            delete doc.__cdpClickWitnessListener;
+            delete doc.__cdpClickWitness;
+          }
+        `
+      });
+    } catch {
+      // context destroyed by the click - nothing to clean up
+    }
+  }
 }
 
 /**
@@ -1083,9 +1299,12 @@ export async function click(
     // in and unobstructed before the rect means anything.
     let scrolled = false;
     let occludedBy: string | null = null;
+    let clickPoint: ClickPoint | undefined;
+    let hitFrameObjectId: string | undefined;
 
     if (chosen.objectId) {
       const point = await getClickPoint(context, ws, chosen.objectId, rect);
+      clickPoint = point;
       rect = point.rect;
       scrolled = point.scrolled;
       occludedBy = point.hitOk ? null : point.hit;
@@ -1116,6 +1335,27 @@ export async function click(
           }
         );
       }
+
+      // Taken before the click, while the click point still means what the hit
+      // test said it meant.
+      if (point.hitIsFrame) {
+        hitFrameObjectId = await getHitFrameHandle(context, ws, chosen.objectId, {
+          x: rect.x + rect.width / 2,
+          y: rect.y + rect.height / 2
+        });
+
+        if (!hitFrameObjectId) {
+          throw new ClickError(
+            `Click point resolved to ${point.hit ?? 'a frame'} and then stopped resolving to a frame before the click could be sent; the page is still moving under the cursor`,
+            'CLICK_MEASURE_FAILED',
+            {
+              selector: target.selector,
+              text: target.text,
+              hitFrame: point.hit
+            }
+          );
+        }
+      }
     }
 
     const width = rect.width;
@@ -1127,6 +1367,12 @@ export async function click(
     const xRounded = Math.round(x);
     const yRounded = Math.round(y);
     const roundedRect = roundRect(rect);
+
+    // Armed before dispatch, for the same reason: the evidence that the click
+    // missed the frame is the event turning up outside it.
+    if (hitFrameObjectId) {
+      await armFrameWitness(context, ws, hitFrameObjectId);
+    }
 
     // Armed before dispatch: a form POST can commit and load before a
     // post-action listener would have attached.
@@ -1204,6 +1450,39 @@ export async function click(
       }
     }
 
+    // A click point that resolves to a frame is the one case where dispatching
+    // says nothing about delivery: the event either goes into that frame's own
+    // document, which this session cannot see into, or lands outside it and
+    // does nothing at all. Confirm it arrived before calling this a click, the
+    // same way occlusion is confirmed before dispatching.
+    let frameReached: boolean | null = null;
+
+    if (clickPoint?.hitIsFrame && hitFrameObjectId) {
+      const verdict = await verifyFrameReached(context, ws, hitFrameObjectId);
+      frameReached = verdict.reached;
+
+      // Strictly false: null means the click took the page somewhere the check
+      // could not follow, which is not a failed click.
+      if (verdict.reached === false && !options.force) {
+        throw new ClickError(
+          `Click point is inside ${clickPoint.hit ?? 'a frame'}, but the click was delivered to ${verdict.sawInDocument} outside it, so the frame never got it. A frame that has just mounted is not routable yet, and a page that is still settling moves what is under the point - wait for it and click again, or use --force to dispatch and report anyway.`,
+          'CLICK_FRAME_NOT_REACHED',
+          {
+            selector: target.selector,
+            text: target.text,
+            frame: options.frame,
+            hitFrame: clickPoint.hit,
+            frameSrc: clickPoint.hitFrameSrc,
+            deliveredTo: verdict.sawInDocument,
+            activeElement: verdict.active,
+            x: xRounded,
+            y: yRounded,
+            rect: roundedRect
+          }
+        );
+      }
+    }
+
     // Handle post-action wait conditions
     await handleWaitOptions(
       context,
@@ -1237,6 +1516,9 @@ export async function click(
       touch: options.touch || false,
       scrolled,
       occludedBy,
+      // null when the click point was not a frame, so there was nothing to reach
+      frameReached,
+      ...(frameReached !== null && { hitFrame: clickPoint?.hit ?? null }),
       ...(options.waitFor && { waitedFor: options.waitFor }),
       ...(options.waitForText && { waitedForText: options.waitForText }),
       ...(options.waitForIdle && { waitedForIdle: true }),
