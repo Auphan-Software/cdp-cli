@@ -26,6 +26,10 @@ Command-line interface for Chrome DevTools Protocol (CDP), optimized for LLM age
 > `cdp-cli.exe` on PATH shadows the npm build for cmd.exe, PHP `exec()`, batch
 > and CI. See [Windows: which cdp-cli is actually running](#windows-which-cdp-cli-is-actually-running).
 
+Maintainers: the Git release and the installer executable are separate release
+steps. Follow [RELEASING.md](RELEASING.md) to publish and independently verify
+the public S3 artifact.
+
 ## Installation
 
 ```bash
