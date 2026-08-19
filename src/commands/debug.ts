@@ -5,8 +5,9 @@
 import { CDPContext, ConsoleMessage } from '../context.js';
 import { outputLine, outputError, outputSuccess, outputRaw } from '../output.js';
 import { readFileSync, writeFileSync } from 'fs';
-import { extname, resolve } from 'node:path';
+import { extname } from 'node:path';
 import { resizePngBuffer } from '../resize.js';
+import { describeCliPath, normalizeCliPath } from '../path.js';
 import { createExecSession, createExecSessionByPageRef } from '../daemon/exec.js';
 import { DaemonClient } from '../daemon/client.js';
 import { fetch as undiciFetch } from 'undici';
@@ -268,6 +269,7 @@ export async function listConsole(
       (error as Error).message,
       'LIST_CONSOLE_FAILED'
     );
+    await context.releaseSessionLeases();
     process.exit(1);
   } finally {
     if (ws) {
@@ -347,9 +349,12 @@ export async function snapshot(
       'SNAPSHOT_FAILED',
       { format: options.format }
     );
+    await context.releaseSessionLeases();
+    await session?.close();
+    session = undefined;
     process.exit(1);
   } finally {
-    session?.close();
+    await session?.close();
     directWs?.close();
   }
 }
@@ -364,11 +369,12 @@ export async function evaluate(
 ): Promise<void> {
   let session: Awaited<ReturnType<typeof createExecSessionByPageRef>> | undefined;
   let directWs: Awaited<ReturnType<typeof context.connect>> | undefined;
+  const filePath = options.file ? describeCliPath(options.file) : undefined;
   try {
     // Read from file, stdin, or use expression
     let code = expression;
-    if (options.file) {
-      code = readFileSync(options.file, 'utf-8');
+    if (filePath) {
+      code = readFileSync(filePath.normalizedPath, 'utf-8');
     } else if (options.stdin) {
       code = readFileSync(0, 'utf-8');
     }
@@ -404,6 +410,7 @@ export async function evaluate(
           'EVAL_EXCEPTION',
           result.exceptionDetails
         );
+        await context.releaseSessionLeases();
         process.exit(1);
       }
 
@@ -433,6 +440,7 @@ export async function evaluate(
           'EVAL_EXCEPTION',
           result.exceptionDetails
         );
+        await context.releaseSessionLeases();
         process.exit(1);
       }
 
@@ -446,11 +454,16 @@ export async function evaluate(
     outputError(
       (error as Error).message,
       'EVAL_FAILED',
-      { expression, frame: options.frame }
+      {
+        expression,
+        frame: options.frame,
+        ...(filePath && { file: filePath })
+      }
     );
+    await context.releaseSessionLeases();
     process.exit(1);
   } finally {
-    session?.close();
+    await session?.close();
     if (directWs) {
       directWs.close();
     }
@@ -524,6 +537,7 @@ export async function screenshot(
   options: { output?: string; format?: string; page: string; quality?: number; scale?: number; selector?: string }
 ): Promise<void> {
   let ws;
+  const outputPath = options.output ? describeCliPath(options.output) : undefined;
   try {
     // Get page
     const page = await context.findPage(options.page);
@@ -545,7 +559,7 @@ export async function screenshot(
         return undefined;
       }
 
-      const extension = extname(options.output).toLowerCase();
+      const extension = extname(normalizeCliPath(options.output)).toLowerCase();
       if (!extension) {
         return undefined;
       }
@@ -642,13 +656,15 @@ export async function screenshot(
       buffer = Buffer.from(await resizePngBuffer(buffer, scale));
     }
 
-    if (options.output) {
-      writeFileSync(options.output, buffer);
+    if (outputPath) {
+      writeFileSync(outputPath.normalizedPath, buffer);
 
       const dimensions = imageDimensions(buffer);
 
       outputSuccess('Screenshot saved', {
-        file: resolve(options.output),
+        file: outputPath.resolvedPath,
+        requestedFile: outputPath.requestedPath,
+        translatedPath: outputPath.translated,
         format,
         size: buffer.length,
         width: dimensions?.width ?? null,
@@ -665,8 +681,9 @@ export async function screenshot(
     outputError(
       (error as Error).message,
       'SCREENSHOT_FAILED',
-      { output: options.output }
+      { output: outputPath ?? options.output }
     );
+    await context.releaseSessionLeases();
     process.exit(1);
   } finally {
     if (ws) {
@@ -728,6 +745,7 @@ export async function dialog(
       'DIALOG_FAILED',
       {}
     );
+    await context.releaseSessionLeases();
     process.exit(1);
   } finally {
     if (ws) {
@@ -790,6 +808,7 @@ export async function status(context: CDPContext): Promise<void> {
       'STATUS_FAILED',
       {}
     );
+    await context.releaseSessionLeases();
     process.exit(1);
   }
 }
@@ -901,6 +920,7 @@ export async function query(
         'QUERY_EXCEPTION',
         evalResult.exceptionDetails
       );
+      await context.releaseSessionLeases();
       process.exit(1);
     }
 
@@ -914,9 +934,12 @@ export async function query(
       'QUERY_FAILED',
       { selector }
     );
+    await context.releaseSessionLeases();
+    await session?.close();
+    session = undefined;
     process.exit(1);
   } finally {
-    session?.close();
+    await session?.close();
     directWs?.close();
   }
 }
@@ -1013,6 +1036,7 @@ export async function styles(
         'STYLES_EXCEPTION',
         evalResult.exceptionDetails
       );
+      await context.releaseSessionLeases();
       process.exit(1);
     }
 
@@ -1023,9 +1047,12 @@ export async function styles(
       'STYLES_FAILED',
       { selector }
     );
+    await context.releaseSessionLeases();
+    await session?.close();
+    session = undefined;
     process.exit(1);
   } finally {
-    session?.close();
+    await session?.close();
     directWs?.close();
   }
 }
@@ -1179,9 +1206,12 @@ export async function emulate(
       'EMULATE_FAILED',
       { device }
     );
+    await context.releaseSessionLeases();
+    await session?.close();
+    session = undefined;
     process.exit(1);
   } finally {
-    session?.close();
+    await session?.close();
   }
 }
 
@@ -1248,6 +1278,7 @@ export async function dismissOverlays(
         'DISMISS_OVERLAYS_EXCEPTION',
         evalResult.exceptionDetails
       );
+      await context.releaseSessionLeases();
       process.exit(1);
     }
 
@@ -1258,9 +1289,12 @@ export async function dismissOverlays(
       'DISMISS_OVERLAYS_FAILED',
       {}
     );
+    await context.releaseSessionLeases();
+    await session?.close();
+    session = undefined;
     process.exit(1);
   } finally {
-    session?.close();
+    await session?.close();
     directWs?.close();
   }
 }

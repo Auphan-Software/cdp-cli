@@ -4,9 +4,22 @@
 
 import { WebSocket } from 'ws';
 import { CircularBuffer } from './circular-buffer.js';
-import type { ConsoleMessage, NetworkRequest, CDPMessage, StackFrame } from '../context.js';
+import type { ConsoleMessage, NetworkRequest, CDPMessage, StackFrame, DialogInfo } from '../context.js';
 
 const DEFAULT_BUFFER_SIZE = 500;
+const DIALOG_PROBE_TIMEOUT_MS = 350;
+const MAX_DIALOG_MESSAGE_LENGTH = 1_000;
+
+export interface PageDialogStatus {
+  open: boolean;
+  /** Present only when Page.javascriptDialogOpening was observed by this daemon. */
+  dialog?: DialogInfo;
+  observedAt?: number;
+  /** A short probe can infer an already-open dialog but cannot reveal its text. */
+  inferred?: boolean;
+  /** The bounded probe failed, but no dialog event was observed. */
+  probeUnavailable?: boolean;
+}
 
 export interface PageSessionOptions {
   pageId: string;
@@ -26,6 +39,7 @@ export class PageSession {
   private consoleById: Map<number, ConsoleMessage> = new Map();
   private networkBuffer: CircularBuffer<NetworkRequest>;
   private networkRequests: Map<string, NetworkRequest> = new Map();
+  private dialogStatus: PageDialogStatus = { open: false };
 
   private closed = false;
   private onCloseCallback?: () => void;
@@ -80,19 +94,27 @@ export class PageSession {
   }
 
   /**
-   * Enable Runtime and Network domains
+   * Enable the domains used by logs and dialog state. Page.enable is bounded:
+   * an already-open modal must not make daemon registration wait for a normal
+   * command timeout.
    */
   private async enableLogging(): Promise<void> {
     if (!this.ws) return;
 
     await this.sendCommand('Runtime.enable');
     await this.sendCommand('Network.enable');
+    try {
+      await this.sendCommand('Page.enable', undefined, DIALOG_PROBE_TIMEOUT_MS);
+    } catch {
+      // Page events may be unavailable while a modal is already blocking. The
+      // status endpoint will make one equally short best-effort probe later.
+    }
   }
 
   /**
    * Send CDP command (public for daemon command execution)
    */
-  sendCommand(method: string, params?: any): Promise<any> {
+  sendCommand(method: string, params?: any, timeoutMs = 10000): Promise<any> {
     return new Promise((resolve, reject) => {
       if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
         reject(new Error('WebSocket not connected'));
@@ -117,7 +139,7 @@ export class PageSession {
       const timeout = setTimeout(() => {
         this.ws?.off('message', messageHandler);
         reject(new Error(`Command timeout: ${method}`));
-      }, 10000);
+      }, timeoutMs);
 
       this.ws.on('message', messageHandler);
       this.ws.send(JSON.stringify({ id, method, params }));
@@ -187,9 +209,36 @@ export class PageSession {
       this.consoleById.set(consoleMsg.id, consoleMsg);
     }
 
+    if (message.method === 'Page.javascriptDialogOpening') {
+      const params = message.params ?? {};
+      this.dialogStatus = {
+        open: true,
+        dialog: sanitizeDialog(params),
+        observedAt: Date.now()
+      };
+    }
+
+    if (message.method === 'Page.javascriptDialogClosed') {
+      this.dialogStatus = { open: false };
+    }
+
     // Network requests
     if (message.method === 'Network.requestWillBeSent') {
-      const { requestId, request, timestamp, type } = message.params;
+      const { requestId, request, timestamp, type, redirectResponse } = message.params;
+      let isNewRequest = !this.networkRequests.has(requestId);
+
+      // Chrome reuses requestId across a redirect chain. Keep the completed hop
+      // in the log and start a new record for the next URL.
+      if (redirectResponse && this.networkRequests.has(requestId)) {
+        this.updateNetworkRequest(requestId, {
+          url: redirectResponse.url,
+          status: redirectResponse.status,
+          responseHeaders: redirectResponse.headers
+        });
+        this.networkRequests.delete(requestId);
+        isNewRequest = true;
+      }
+
       const entry = this.updateNetworkRequest(requestId, {
         url: request.url,
         method: request.method,
@@ -197,8 +246,12 @@ export class PageSession {
         type,
         requestHeaders: request.headers
       });
-      // Only push to buffer on initial request
-      this.networkBuffer.push(entry);
+
+      // The same requestWillBeSent can be observed more than once; the buffer
+      // receives one entry per request hop, while later events update it in place.
+      if (isNewRequest) {
+        this.networkBuffer.push(entry);
+      }
     }
 
     if (message.method === 'Network.responseReceived') {
@@ -216,6 +269,20 @@ export class PageSession {
       this.updateNetworkRequest(requestId, {
         size: encodedDataLength
       });
+      this.networkRequests.delete(requestId);
+    }
+
+    if (message.method === 'Network.loadingFailed') {
+      const { requestId, errorText, canceled, blockedReason, corsErrorStatus } = message.params;
+      this.updateNetworkRequest(requestId, {
+        failure: {
+          errorText: errorText ?? 'Request failed',
+          canceled: canceled === true,
+          ...(blockedReason !== undefined && { blockedReason }),
+          ...(corsErrorStatus !== undefined && { corsErrorStatus })
+        }
+      });
+      this.networkRequests.delete(requestId);
     }
   }
 
@@ -225,16 +292,28 @@ export class PageSession {
   private updateNetworkRequest(requestId: string, patch: Partial<NetworkRequest>): NetworkRequest {
     const current = this.networkRequests.get(requestId);
 
+    if (current) {
+      // The buffer stores this same object. Mutating it is deliberate: replacing
+      // the map entry would leave the persistent log with stale request data.
+      for (const [key, value] of Object.entries(patch)) {
+        if (value !== undefined) {
+          (current as unknown as Record<string, unknown>)[key] = value;
+        }
+      }
+      return current;
+    }
+
     const next: NetworkRequest = {
       id: requestId,
-      url: patch.url ?? current?.url ?? '',
-      method: patch.method ?? current?.method ?? 'GET',
-      timestamp: patch.timestamp ?? current?.timestamp ?? Date.now(),
-      type: patch.type ?? current?.type,
-      status: patch.status ?? current?.status,
-      size: patch.size ?? current?.size,
-      requestHeaders: patch.requestHeaders ?? current?.requestHeaders,
-      responseHeaders: patch.responseHeaders ?? current?.responseHeaders
+      url: patch.url ?? '',
+      method: patch.method ?? 'GET',
+      timestamp: patch.timestamp ?? Date.now(),
+      type: patch.type,
+      status: patch.status,
+      size: patch.size,
+      requestHeaders: patch.requestHeaders,
+      responseHeaders: patch.responseHeaders,
+      failure: patch.failure
     };
 
     this.networkRequests.set(requestId, next);
@@ -266,6 +345,27 @@ export class PageSession {
       return this.networkBuffer.getAll();
     }
     return this.networkBuffer.getLast(count).reverse(); // Return in chronological order
+  }
+
+  /**
+   * Return the latest dialog state without issuing an unbounded CDP command.
+   * Page events cover dialogs opened after registration. For a dialog that was
+   * already open, a short Runtime probe provides a deliberately conservative
+   * best-effort signal with no retained sensitive prompt text.
+   */
+  async getDialogStatus(): Promise<PageDialogStatus> {
+    if (this.dialogStatus.open) return cloneDialogStatus(this.dialogStatus);
+    if (!this.isConnected) return { open: false };
+
+    try {
+      await this.sendCommand('Runtime.evaluate', { expression: '1', timeout: 200 }, DIALOG_PROBE_TIMEOUT_MS);
+      return { open: false };
+    } catch {
+      return {
+        open: false,
+        probeUnavailable: true
+      };
+    }
   }
 
   /**
@@ -305,5 +405,41 @@ export class PageSession {
       this.ws.close();
       this.ws = null;
     }
+  }
+}
+
+function sanitizeDialog(params: Record<string, unknown>): DialogInfo {
+  const type = params.type;
+  return {
+    type: type === 'confirm' || type === 'prompt' || type === 'beforeunload' ? type : 'alert',
+    message: redactAndBound(typeof params.message === 'string' ? params.message : ''),
+    url: redactUrl(typeof params.url === 'string' ? params.url : '')
+    // Never persist defaultPrompt: it can contain form data or other sensitive input.
+  };
+}
+
+function cloneDialogStatus(status: PageDialogStatus): PageDialogStatus {
+  return {
+    open: status.open,
+    ...(status.dialog && { dialog: { ...status.dialog } }),
+    ...(status.observedAt !== undefined && { observedAt: status.observedAt }),
+    ...(status.inferred && { inferred: true }),
+    ...(status.probeUnavailable && { probeUnavailable: true })
+  };
+}
+
+function redactAndBound(text: string): string {
+  return text.replace(/https?:\/\/[^\s"'<>]+/g, redactUrl).slice(0, MAX_DIALOG_MESSAGE_LENGTH);
+}
+
+function redactUrl(input: string): string {
+  if (!input) return input;
+  try {
+    const url = new URL(input);
+    for (const key of Array.from(url.searchParams.keys())) url.searchParams.set(key, '[REDACTED]');
+    return url.toString();
+  } catch {
+    const queryIndex = input.indexOf('?');
+    return queryIndex === -1 ? input : `${input.slice(0, queryIndex)}?[REDACTED_QUERY]`;
   }
 }

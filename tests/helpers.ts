@@ -2,7 +2,6 @@
  * Test helpers and utilities
  */
 
-import { vi } from 'vitest';
 import { MockWebSocket } from './mocks/websocket.mock.js';
 import { installMockFetch } from './mocks/fetch.mock.js';
 
@@ -20,10 +19,6 @@ export function setupCDPMocks(options?: {
     failFetch: options?.failFetch
   });
 
-  // Mock WebSocket
-  vi.mock('ws', () => ({
-    WebSocket: MockWebSocket
-  }));
 }
 
 /**

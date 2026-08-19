@@ -8,6 +8,14 @@ import { CDPContext } from '../context.js';
 export interface WaitOptions {
   waitFor?: string;
   waitForText?: string;
+  /** JavaScript condition that must evaluate to a truthy value. */
+  waitForExpression?: string;
+  /** URL substring identifying a network response to await. */
+  waitForResponse?: string;
+  /** Optional final HTTP status required with waitForResponse. */
+  waitForStatus?: number;
+  /** Optional literal text that must occur in the matched response body. */
+  waitForBodyText?: string;
   waitForIdle?: boolean;
   waitForFrame?: string;
   waitForNavigation?: boolean;
@@ -36,6 +44,269 @@ export interface NavigationWatcher {
   wait(timeout: number): Promise<NavigationResult>;
   /** Detach the message listener; safe to call more than once */
   dispose(): void;
+}
+
+export interface NetworkIdleWatcher {
+  /** Resolve once observed requests have finished and the network is quiet. */
+  wait(timeout: number): Promise<void>;
+  /** Detach the message listener; safe to call more than once. */
+  dispose(): void;
+}
+
+export interface NetworkResponseResult {
+  requestId: string;
+  url: string;
+  status: number;
+  /** Present only when a body condition was requested; the body is never returned. */
+  bodyMatched?: boolean;
+}
+
+export interface NetworkResponseWatcher {
+  /** Resolve when the matching response (and optional body predicate) is observed. */
+  wait(timeout: number): Promise<NetworkResponseResult>;
+  /** Detach the message listener; safe to call more than once. */
+  dispose(): void;
+}
+
+export interface StandaloneWaitResult {
+  page: string;
+  waitedFor: {
+    selector?: string;
+    text?: string;
+    expression?: boolean;
+    idle?: boolean;
+    response?: string;
+    status?: number;
+    bodyText?: boolean;
+    frame?: string;
+  };
+}
+
+/**
+ * Wait against an already-open page without dispatching an action. The network
+ * watchers attach before polling begins, so activity occurring immediately
+ * after the command connects is not missed. Page lookup inherits CDPContext's
+ * exact session-target enforcement when --session is active.
+ */
+export async function waitForPageConditions(
+  context: CDPContext,
+  pageRef: string,
+  options: WaitOptions
+): Promise<StandaloneWaitResult> {
+  const hasWait = options.waitFor || options.waitForText || options.waitForExpression || options.waitForIdle || options.waitForResponse;
+  if (!hasWait) {
+    throw new Error('Provide at least one wait condition (selector, text, expression, idle, or response)');
+  }
+  if (options.waitForNavigation) {
+    throw new Error('wait-for-navigation requires an action that can trigger navigation');
+  }
+  if ((options.waitForStatus !== undefined || options.waitForBodyText !== undefined) && !options.waitForResponse) {
+    throw new Error('waitForStatus and waitForBodyText require waitForResponse');
+  }
+
+  const page = await context.findPage(pageRef);
+  await context.assertNoDevTools(page.id);
+  const ws = await context.connect(page);
+  let idleWatcher: NetworkIdleWatcher | undefined;
+  let responseWatcher: NetworkResponseWatcher | undefined;
+
+  try {
+    await context.assertNoDialog(ws);
+    await context.sendCommand(ws, 'Page.enable');
+    await context.sendCommand(ws, 'Runtime.enable');
+    if (options.waitForIdle) idleWatcher = await armNetworkIdleWatcher(context, ws);
+    if (options.waitForResponse) responseWatcher = await armNetworkResponseWatcher(context, ws, options);
+
+    await handleWaitOptions(context, ws, options, undefined, idleWatcher, responseWatcher);
+    return {
+      page: page.id,
+      waitedFor: {
+        ...(options.waitFor && { selector: options.waitFor }),
+        ...(options.waitForText && { text: options.waitForText }),
+        ...(options.waitForExpression && { expression: true }),
+        ...(options.waitForIdle && { idle: true }),
+        ...(options.waitForResponse && { response: options.waitForResponse }),
+        ...(options.waitForStatus !== undefined && { status: options.waitForStatus }),
+        ...(options.waitForBodyText && { bodyText: true }),
+        ...(options.waitForFrame && { frame: options.waitForFrame })
+      }
+    };
+  } finally {
+    responseWatcher?.dispose();
+    idleWatcher?.dispose();
+    ws.close();
+  }
+}
+
+/**
+ * Begin observing network activity before an action is sent to the page.
+ *
+ * Request IDs, rather than a counter, make duplicate protocol messages and
+ * redirect chains safe: a request is pending at most once and a terminal event
+ * only completes an ID that was actually observed.
+ */
+export async function armNetworkIdleWatcher(
+  context: CDPContext,
+  ws: WebSocket
+): Promise<NetworkIdleWatcher> {
+  await context.sendCommand(ws, 'Network.enable');
+
+  const pendingRequestIds = new Set<string>();
+  let lastActivity = Date.now();
+  const idleThreshold = 500;
+
+  const messageHandler = (data: Buffer) => {
+    try {
+      const msg = JSON.parse(data.toString());
+      const requestId: string | undefined = msg.params?.requestId;
+      if (!requestId) return;
+
+      if (msg.method === 'Network.requestWillBeSent') {
+        // A redirect retains its request ID and remains pending; refreshing the
+        // activity timestamp captures that real hop without double-counting it.
+        if (!pendingRequestIds.has(requestId) || msg.params?.redirectResponse) {
+          pendingRequestIds.add(requestId);
+          lastActivity = Date.now();
+        }
+      }
+
+      if (msg.method === 'Network.loadingFinished' || msg.method === 'Network.loadingFailed') {
+        if (pendingRequestIds.delete(requestId)) {
+          lastActivity = Date.now();
+        }
+      }
+    } catch {
+      // Ignore parse errors
+    }
+  };
+
+  ws.on('message', messageHandler);
+
+  return {
+    async wait(timeout: number): Promise<void> {
+      const start = Date.now();
+
+      while (Date.now() - start < timeout) {
+        if (pendingRequestIds.size === 0 && Date.now() - lastActivity >= idleThreshold) {
+          return;
+        }
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+
+      throw new Error('Timeout waiting for idle state');
+    },
+    dispose() {
+      ws.off('message', messageHandler);
+    }
+  };
+}
+
+/**
+ * Begin observing a response before an action is dispatched. URL matching is a
+ * literal substring deliberately: it is predictable for shell callers and
+ * avoids accepting arbitrary regular expressions as CLI input. A body check is
+ * deferred until loadingFinished and only yields a boolean, never body content.
+ */
+export async function armNetworkResponseWatcher(
+  context: CDPContext,
+  ws: WebSocket,
+  options: Pick<WaitOptions, 'waitForResponse' | 'waitForStatus' | 'waitForBodyText'>
+): Promise<NetworkResponseWatcher> {
+  if (!options.waitForResponse) {
+    throw new Error('waitForResponse is required to arm a network response watcher');
+  }
+
+  await context.sendCommand(ws, 'Network.enable');
+
+  interface Candidate {
+    requestId: string;
+    url: string;
+    status: number;
+    finished: boolean;
+    failed: boolean;
+    bodyCheck?: Promise<boolean>;
+  }
+
+  const candidates = new Map<string, Candidate>();
+  let lastMismatch = 'no matching response observed';
+
+  const matches = (url: string, status: number): boolean => {
+    if (!url.includes(options.waitForResponse!)) return false;
+    if (options.waitForStatus !== undefined && status !== options.waitForStatus) {
+      lastMismatch = `last matching URL had status ${status}, expected ${options.waitForStatus}`;
+      return false;
+    }
+    return true;
+  };
+
+  const messageHandler = (data: Buffer) => {
+    try {
+      const msg = JSON.parse(data.toString());
+      const requestId: string | undefined = msg.params?.requestId;
+      if (!requestId) return;
+
+      if (msg.method === 'Network.responseReceived') {
+        const response = msg.params?.response;
+        const url = String(response?.url ?? '');
+        const status = Number(response?.status);
+        if (!Number.isFinite(status) || !matches(url, status)) return;
+        candidates.set(requestId, { requestId, url, status, finished: false, failed: false });
+        return;
+      }
+
+      const candidate = candidates.get(requestId);
+      if (!candidate) return;
+      if (msg.method === 'Network.loadingFinished') candidate.finished = true;
+      if (msg.method === 'Network.loadingFailed') {
+        candidate.failed = true;
+        lastMismatch = `matching response ${candidate.status} failed to finish loading`;
+      }
+    } catch {
+      // Ignore malformed protocol events.
+    }
+  };
+
+  ws.on('message', messageHandler);
+
+  const bodyMatches = async (candidate: Candidate): Promise<boolean> => {
+    if (!options.waitForBodyText) return true;
+    if (!candidate.bodyCheck) {
+      candidate.bodyCheck = context.sendCommand(ws, 'Network.getResponseBody', { requestId: candidate.requestId })
+        .then((result) => {
+          const raw = String(result?.body ?? '');
+          const text = result?.base64Encoded ? Buffer.from(raw, 'base64').toString('utf8') : raw;
+          // The predicate is deliberately bounded, and neither the original nor
+          // truncated body is retained in result/error messages.
+          return text.slice(0, 65_536).includes(options.waitForBodyText!);
+        })
+        .catch(() => false);
+    }
+    return candidate.bodyCheck;
+  };
+
+  return {
+    async wait(timeout: number): Promise<NetworkResponseResult> {
+      const start = Date.now();
+      while (Date.now() - start < timeout) {
+        for (const candidate of candidates.values()) {
+          if (candidate.failed) continue;
+          if (!options.waitForBodyText) {
+            return { requestId: candidate.requestId, url: candidate.url, status: candidate.status };
+          }
+          if (!candidate.finished) continue;
+          if (await bodyMatches(candidate)) {
+            return { requestId: candidate.requestId, url: candidate.url, status: candidate.status, bodyMatched: true };
+          }
+          lastMismatch = 'matching response body did not contain the requested text';
+        }
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+      throw new Error(`Timeout waiting for response: ${options.waitForResponse}. ${lastMismatch}`);
+    },
+    dispose() {
+      ws.off('message', messageHandler);
+    }
+  };
 }
 
 /**
@@ -255,62 +526,101 @@ export async function waitForIdle(
   ws: WebSocket,
   timeout: number
 ): Promise<void> {
-  await context.sendCommand(ws, 'Network.enable');
-
-  const start = Date.now();
-  let pendingRequests = 0;
-  let lastActivity = Date.now();
-  const idleThreshold = 500;
-
-  const requestHandler = () => {
-    pendingRequests++;
-    lastActivity = Date.now();
-  };
-  const responseHandler = () => {
-    pendingRequests = Math.max(0, pendingRequests - 1);
-    lastActivity = Date.now();
-  };
-
-  const messageHandler = (data: Buffer) => {
-    try {
-      const msg = JSON.parse(data.toString());
-      if (msg.method === 'Network.requestWillBeSent') requestHandler();
-      if (msg.method === 'Network.loadingFinished' || msg.method === 'Network.loadingFailed') responseHandler();
-    } catch {
-      // Ignore parse errors
-    }
-  };
-
-  ws.on('message', messageHandler);
-
+  const watcher = await armNetworkIdleWatcher(context, ws);
   try {
+    const start = Date.now();
     while (Date.now() - start < timeout) {
+      await watcher.wait(timeout - (Date.now() - start));
+
       const docReady = await context.sendCommand(ws, 'Runtime.evaluate', {
         expression: `document.readyState === 'complete'`,
         returnByValue: true
       });
-
-      const isDocReady = docReady.result?.value === true;
-      const isNetworkIdle = pendingRequests === 0 && (Date.now() - lastActivity) >= idleThreshold;
-
-      if (isDocReady && isNetworkIdle) {
+      if (docReady.result?.value === true) {
         return;
       }
 
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise(resolve => setTimeout(resolve, 100));
     }
+
+    throw new Error('Timeout waiting for idle state');
   } finally {
-    // Without this the counters keep mutating for the life of the connection,
-    // which matters on the daemon's long-lived sessions.
-    ws.off('message', messageHandler);
+    watcher.dispose();
+  }
+}
+
+/**
+ * Poll a JavaScript expression until it resolves to a truthy value.
+ *
+ * This intentionally uses Runtime.evaluate rather than a page-side timer: the
+ * caller retains the same timeout and frame semantics as the selector/text
+ * waits, while `awaitPromise` lets an async predicate work without a wrapper.
+ */
+export async function waitForExpression(
+  context: CDPContext,
+  ws: WebSocket,
+  expression: string,
+  timeout: number,
+  contextId?: number
+): Promise<unknown> {
+  const start = Date.now();
+  const pollInterval = 100;
+  let lastValue: unknown = undefined;
+  let lastException: string | undefined;
+
+  while (Date.now() - start < timeout) {
+    try {
+      const remaining = Math.max(1, timeout - (Date.now() - start));
+      const result = await context.sendCommand(ws, 'Runtime.evaluate', {
+        expression,
+        contextId,
+        returnByValue: true,
+        awaitPromise: true,
+        timeout: remaining
+      });
+
+      if (result.exceptionDetails) {
+        lastException = formatWaitText(result.exceptionDetails.text
+          ?? result.exceptionDetails.exception?.description
+          ?? 'JavaScript evaluation failed');
+      } else {
+        lastException = undefined;
+        lastValue = result.result?.value ?? result.result?.unserializableValue ?? result.result?.description;
+        if (lastValue) {
+          return lastValue;
+        }
+      }
+    } catch (error) {
+      // Transient execution-context destruction is common immediately after a
+      // navigation, and should behave like a false predicate until timeout.
+      lastException = formatWaitText((error as Error).message);
+    }
+
+    await new Promise(resolve => setTimeout(resolve, pollInterval));
   }
 
-  throw new Error('Timeout waiting for idle state');
+  const detail = lastException
+    ? `Last exception: ${lastException}`
+    : `Last value: ${formatWaitValue(lastValue)}`;
+  throw new Error(`Timeout waiting for expression. ${detail}`);
+}
+
+function formatWaitValue(value: unknown): string {
+  try {
+    const formatted = JSON.stringify(value);
+    return (formatted ?? String(value)).slice(0, 500);
+  } catch {
+    return String(value).slice(0, 500);
+  }
+}
+
+function formatWaitText(value: string): string {
+  return value.slice(0, 500);
 }
 
 /**
  * Orchestrate all wait conditions after an action.
- * Order: navigation -> idle -> frame resolve -> selector -> text
+ * Order: navigation -> idle -> response -> frame resolve -> selector -> text -> expression
  *
  * Navigation is resolved first so that any selector/text condition is checked
  * against the new document rather than the outgoing one.
@@ -322,10 +632,12 @@ export async function handleWaitOptions(
   context: CDPContext,
   ws: WebSocket,
   options: WaitOptions,
-  navigationWatcher?: NavigationWatcher
+  navigationWatcher?: NavigationWatcher,
+  networkIdleWatcher?: NetworkIdleWatcher,
+  networkResponseWatcher?: NetworkResponseWatcher
 ): Promise<void> {
   const timeout = options.timeout ?? 10000;
-  const hasWait = options.waitFor || options.waitForText || options.waitForIdle || options.waitForNavigation;
+  const hasWait = options.waitFor || options.waitForText || options.waitForExpression || options.waitForResponse || options.waitForIdle || options.waitForNavigation;
 
   if (!hasWait) return;
 
@@ -337,12 +649,41 @@ export async function handleWaitOptions(
   }
 
   if (options.waitForIdle) {
-    await waitForIdle(context, ws, timeout);
+    if (networkIdleWatcher) {
+      await networkIdleWatcher.wait(timeout);
+      const start = Date.now();
+      let documentReady = false;
+      while (Date.now() - start < timeout) {
+        const docReady = await context.sendCommand(ws, 'Runtime.evaluate', {
+          expression: `document.readyState === 'complete'`,
+          returnByValue: true
+        });
+        if (docReady.result?.value === true) {
+          documentReady = true;
+          break;
+        }
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      if (!documentReady) {
+        throw new Error('Timeout waiting for document ready state after network became idle');
+      }
+    } else {
+      // Backward-compatible fallback for direct callers. Action commands arm
+      // a watcher before dispatch so they cannot miss immediately-started I/O.
+      await waitForIdle(context, ws, timeout);
+    }
+  }
+
+  if (options.waitForResponse) {
+    if (!networkResponseWatcher) {
+      throw new Error('waitForResponse requires a response watcher armed before the action');
+    }
+    await networkResponseWatcher.wait(timeout);
   }
 
   // Resolve frame context for wait conditions if specified
   let waitContextId: number | undefined;
-  if (options.waitForFrame && (options.waitFor || options.waitForText)) {
+  if (options.waitForFrame && (options.waitFor || options.waitForText || options.waitForExpression)) {
     const frameStart = Date.now();
     let frameResolved = false;
     let lastError: Error | undefined;
@@ -367,5 +708,9 @@ export async function handleWaitOptions(
 
   if (options.waitForText) {
     await waitForText(context, ws, options.waitForText, timeout, waitContextId);
+  }
+
+  if (options.waitForExpression) {
+    await waitForExpression(context, ws, options.waitForExpression, timeout, waitContextId);
   }
 }

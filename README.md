@@ -9,7 +9,14 @@ Command-line interface for Chrome DevTools Protocol (CDP), optimized for LLM age
 > **Distribution note**
 > This scoped build (`@auphansoftware/cdp-cli`) is published for Auphan Software internal use, remains under the MIT license, and bundles the upstream work originally authored by [@myers](https://github.com/myers) at [github.com/myers/cdp-cli](https://github.com/myers/cdp-cli).
 
-> **Upgrading to 1.8.0 — one breaking change**
+> **Upgrading to 1.12.0**
+> Actions can now wait on a JavaScript predicate or a specific response, and
+> `click`/`fill` verify their postconditions instead of treating a dispatched
+> CDP event as a completed interaction. Start the daemon before using buffered
+> network history or `diagnose`; use `network-detail` only with permission to
+> inspect the selected response body.
+>
+> **The 1.8.0 breaking change remains in effect:**
 > `--wait-for` and `--wait-for-text` now default to the document named by
 > `--frame`, instead of always checking the top document. This affects any
 > script that passes `--frame` together with either flag. Pass
@@ -69,6 +76,9 @@ cdp-cli logs console "example" --last 20
 
 # Query network requests
 cdp-cli logs network "example" --last 10
+
+# Ask only after the click's request really completes
+cdp-cli click "#save" "example" --wait-for-response "/api/order" --wait-for-status 201
 
 # Evaluate JavaScript
 cdp-cli eval "document.title" "example"
@@ -202,6 +212,51 @@ checked inside the same document you were driving.
 > were relying on checking the top document while acting inside a frame, pass
 > `--wait-for-frame 0` to target the top frame explicitly.
 
+#### Expression and response waits
+
+All action commands that already support post-action waits (`navigate`,
+`click`, `fill`, `select`, and `press-key`) also support these precise
+conditions:
+
+```bash
+# Poll inside the selected wait frame until the expression is truthy.
+cdp-cli click "#save" PAGE --wait-for-expression "window.orderSaved === true"
+
+# Source an expression without fragile shell quoting.
+cdp-cli click "#save" PAGE --wait-for-expression-file .\waits\order-saved.js
+Get-Content .\waits\order-saved.js | cdp-cli click "#save" PAGE --wait-for-expression-stdin
+
+# Observe the request before the click, then resolve only on the matching response.
+cdp-cli click "#save" PAGE --wait-for-response "/api/orders" --wait-for-status 201
+cdp-cli click "#save" PAGE --wait-for-response "/api/orders" --wait-for-body-text '"saved":true'
+```
+
+`--wait-for-expression` accepts synchronous or async JavaScript. Use exactly
+one of the inline, `--wait-for-expression-file`, or
+`--wait-for-expression-stdin` forms. `--wait-for-response` matches a
+literal URL substring, is armed before the triggering action, and can be
+combined with exact `--wait-for-status` and literal `--wait-for-body-text`.
+The body predicate reads at most 64 KiB and never prints response content.
+`--wait-for-status` and `--wait-for-body-text` are invalid without
+`--wait-for-response`.
+
+`--wait-for-idle` is also armed before the action. It tracks real request IDs,
+redirects, and failed loads, which avoids the old race where fast network work
+finished before a post-action wait had attached.
+
+Use the same predicates without triggering an action through `wait PAGE`:
+
+```bash
+cdp-cli wait PAGE --expression "window.checkoutReady === true" --wait-for-frame "#content"
+cdp-cli wait PAGE --wait-for-response "/api/status" --wait-for-status 200
+cdp-cli wait PAGE --wait-for ".complete" --timeout 30000
+```
+
+The standalone command uses `--expression` (or `--expression-file` /
+`--expression-stdin`) and retains the existing `--wait-for*` spellings for
+selector, text, idle, frame, and response checks. Expression timeouts include
+the last bounded value or exception to make a failed predicate diagnosable.
+
 **close-page** - Close a page
 ```bash
 cdp-cli close-page "example"
@@ -271,6 +326,74 @@ This command:
 2. Starts the daemon if not already running
 3. Returns list of open pages
 
+### Page Health and Diagnostics
+
+**page-health** - Inspect whether a page is visible, focused, sized, and able
+to receive browser input, without changing which page is active:
+
+```bash
+cdp-cli page-health "example"
+```
+
+**activate-page** - Explicitly bring a page to the foreground when a workflow
+really needs it. Normal inspection and actions do not activate pages as a side
+effect:
+
+```bash
+cdp-cli activate-page "example"
+```
+
+**diagnose** - Collect a bounded, redacted failure bundle:
+
+```bash
+cdp-cli diagnose "example"
+cdp-cli diagnose "example" --output-dir .\artifacts\checkout-failure
+```
+
+The emitted bundle contains redacted current/frame URLs, dialog and page-health
+state, a compact DOM summary, and recent console/network failures when the
+daemon is running. `--output-dir` creates the directory if needed and adds a
+`manifest.json` plus `screenshot.png`. It refuses to overwrite either artifact
+if it already exists. URL query values and dialog text are redacted; as with
+any screenshot or DOM-derived diagnostic, inspect the bundle before sharing it.
+
+### Named Workspace Sessions
+
+Named sessions make ownership explicit when several agents share one Chrome.
+Creating a session makes one initial page in an isolated `BrowserContext` by
+default:
+
+```bash
+cdp-cli session create checkout --url https://example.test/checkout
+cdp-cli session list
+
+# Work only with that session's exact owned target IDs.
+cdp-cli list-pages --session checkout
+cdp-cli new-page https://example.test/receipt --session checkout
+
+# Bring an existing page under a session only by its exact CDP target ID.
+cdp-cli session adopt checkout EXACT_TARGET_ID
+
+# This is destructive: it closes the isolated context and its pages.
+cdp-cli session remove checkout --force
+```
+
+Within `--session NAME`, page and target references must be exact IDs owned by
+that session; title/URL matching is deliberately disabled and cross-owner
+access fails with a structured `PAGE_NOT_OWNED` error. Use `session create
+NAME --shared` only for compatibility with Chrome's default shared context; it
+is never disposed by a session. Session state persists IDs and session metadata
+only—never page titles, URLs, logs, credentials, or storage—and fails closed if
+it belongs to another browser instance. BrowserContext isolation prevents
+accidental interference; it is not a security boundary.
+
+Session-store writes fail closed. If a process crashes during the tiny lock
+mutation critical section, the error reports an exact `*.lock.guard` path.
+First confirm that no cdp-cli process is using that endpoint's session store,
+then remove only that reported guard file and retry. `session reset --force`
+does not bypass or delete a guard, because doing so automatically could admit
+two writers.
+
 ### Log Queries
 
 Query console and network logs from the daemon's buffer. Requires daemon to be running.
@@ -289,7 +412,27 @@ cdp-cli logs network "example"              # Last 20 requests (default)
 cdp-cli logs network "example" --last 50    # Last 50 requests
 cdp-cli logs network "example" --last 0     # All buffered requests
 cdp-cli logs network "example" --filter xhr # Only XHR requests
+
+# Apply precise filters before taking the last N matching requests
+cdp-cli logs network "example" --url /api/orders --method POST --status 500
+cdp-cli logs network "example" --failed --since 1787059200000
 ```
+
+Network records retain their response status, headers, redirects, terminal
+completion, and `failure` details. For a full retained lifecycle, including
+redacted request/response headers:
+
+```bash
+cdp-cli network-detail REQUEST_ID "example"
+
+# Response bodies are opt-in and bounded; only use where the data is allowed.
+cdp-cli network-detail REQUEST_ID "example" --body --max-body-bytes 32768
+```
+
+`--url` is a literal substring; `--method` is matched case-insensitively;
+`--status`, `--failed`, and `--since` filter the recorded lifecycle. A response
+body is never included unless `--body` is explicit, and sensitive standard
+headers (for example `Authorization`, `Cookie`, and `X-Api-Key`) are redacted.
 
 **logs clear** - Clear logs for a page
 ```bash
@@ -479,6 +622,40 @@ which control inside the frame ends up active is the frame's choice, so verify
 against the field's own state (the wrapper class a hosted field sets, or the
 value after typing) rather than assuming the caret is in the input.
 
+### Out-of-process iframe targets
+
+`--frame` remains the convenient route for normal page frames. Chrome can place
+a cross-origin or isolated iframe in a separate target/session (an OOPIF),
+however, and an ordinary page-session command cannot evaluate inside that
+target. Use the exact-target commands when you need an explicit, auditable
+operation against one of those frames:
+
+```bash
+# List page and OOPIF targets. Target IDs are opaque and must be copied exactly.
+cdp-cli targets
+
+# Resolve a particular iframe element from its parent target.
+cdp-cli target-frame PARENT_TARGET_ID "iframe.payment"
+
+# The result has target:null for a same-process iframe; otherwise use its targetId.
+cdp-cli target-query "input[name=cardnumber]" IFRAME_TARGET_ID
+cdp-cli target-fill "input[name=cardnumber]" "4111111111111111" IFRAME_TARGET_ID --expect-value
+cdp-cli target-eval "document.readyState" IFRAME_TARGET_ID
+cdp-cli target-press-key tab IFRAME_TARGET_ID --selector "input[name=cardnumber]"
+```
+
+`target` accepts only a literal target ID—never a title or URL—and
+`target-frame` maps the selected iframe via Chrome's exact frame ID, not a
+heuristic URL match. Target-local selectors must match exactly one element.
+These primitives currently provide evaluation, inspection, fill/read-back, and
+keyboard dispatch; they deliberately do not synthesize mouse-coordinate clicks
+inside an OOPIF. Listed topology URLs omit credentials, query strings, and
+fragments.
+
+Input values are redacted from `target-query` and `target-fill` output by
+default; lengths and verification state remain available. Use `--show-value`
+only when returning the raw value is explicitly safe and necessary.
+
 ### Input Automation
 
 **click** - Click an element by CSS selector or visible text
@@ -494,6 +671,11 @@ The target is scrolled into view before the click, and the click point is hit-te
 - `CLICK_FRAME_NOT_REACHED` - the click point is inside a frame and the frame never took the click, so nothing happened. Pass `--force` to dispatch and report anyway.
 
 Successful results include `scrolled` (whether the page had to scroll), `occludedBy` (non-null only with `--force`), and `frameReached` — `true`/`false` when the click point was a frame, `null` when it was not, with `hitFrame` naming the frame.
+
+For ordinary (non-frame) clicks, the command also observes the target document
+after dispatch. If Chrome accepted the event but no matching mousedown reached
+that document, it fails with `CLICK_NOT_DELIVERED`; this is a real failure, not
+a reason to blindly retry an action that may already have run elsewhere.
 
 A click whose point lands on an `<iframe>` is handed to *that frame's* document by the browser process, and that routing is not live the moment the frame element appears. A click dispatched into the gap is delivered to the top frame and silently does nothing — which is what a card field reporting "empty" after a clean-looking click means. `click` confirms the frame took it (focus moves to the frame element, which the top document can see even cross-origin) before reporting success, so this fails loudly instead of passing. Give the frame a moment and click again, or `--force` if you only want the events sent.
 
@@ -540,6 +722,10 @@ cdp-cli click "#save" "example" --wait-for-navigation
 Wait options (shared with navigate):
 - `--wait-for <selector>`: Wait for CSS selector to appear after action
 - `--wait-for-text <text>`: Wait for text to appear in page body
+- `--wait-for-expression <js>`: Wait for a truthy JavaScript expression
+- `--wait-for-expression-file <path>` / `--wait-for-expression-stdin`: Read that expression from a file or stdin
+- `--wait-for-response <url-substring>`: Wait for an observed response armed before the action
+- `--wait-for-status <code>` / `--wait-for-body-text <text>`: Further constrain `--wait-for-response`
 - `--wait-for-idle`: Wait for network idle and document ready
 - `--wait-for-frame <spec>`: Target iframe for wait checks (by selector or index)
 - `--wait-for-navigation`: Wait for a real document replacement ([details](#wait-for-navigation))
@@ -587,11 +773,27 @@ Options:
 - `--frame`: Target iframe (applies to both source and destination)
 
 **fill** - Fill an input element
-Supports `--nth` for multi-match disambiguation, `--within` to scope the search to a container, and `--frame` to target inputs inside iframes. Supports `--wait-for`, `--wait-for-text`, `--wait-for-idle`, `--wait-for-frame`, and `--wait-for-navigation` to wait for DOM changes after filling.
+Supports `--nth` for multi-match disambiguation, `--within` to scope the search to a container, `--frame` to target inputs inside iframes, and `--expect-value` when exact read-back is required. Supports `--wait-for`, `--wait-for-text`, `--wait-for-idle`, `--wait-for-frame`, and `--wait-for-navigation` to wait for DOM changes after filling.
 
 Replaces the field's current value (the previous contents come back as `replaced` in the result), types the new value as real key events, then emits `change`.
 
 Because the `change` is emitted explicitly, a page that *also* produces one natively — a widget whose `onkeyup` moves focus to the next field, for instance — can see its `change` handler run twice for one `fill`. That is harmless for the usual idempotent "sync a hidden field" handler, but worth knowing if yours accumulates. Only `<input>`, `<textarea>`, and `contenteditable` elements can be filled - a disabled or read-only field, or a non-field element fails with `FILL_FAILED` rather than reporting a success that did nothing. A `<select>` is rejected too; use the **select** command below.
+
+After typing, `fill` re-resolves the live field. Its result includes value
+lengths plus `originalConnected`, `replacementDetected`, and
+`valueApplied`/`verification`; raw requested, prior, and actual values are
+redacted unless `--show-value` is explicitly supplied. By default, it fails only when a non-empty
+requested value is provably lost (the live value becomes empty). A differing
+non-empty value is reported as observable—many fields intentionally normalize
+or mask input. Add `--expect-value` when the workflow requires exact equality:
+
+```bash
+cdp-cli fill "#amount" "12.00" PAGE --expect-value
+```
+
+The same rule applies to `target-fill`: it reports a non-empty normalization by
+default and only makes exact equality a failure with `--expect-value`. Its raw
+values also require `--show-value`.
 ```bash
 cdp-cli fill "input#email" "user@example.com" "example"
 cdp-cli fill "input[name='password']" "secret123" "example"
@@ -610,6 +812,10 @@ cdp-cli fill "#filter" "active" "example" --wait-for ".results-loaded"
 Wait options (shared with navigate):
 - `--wait-for <selector>`: Wait for CSS selector to appear after action
 - `--wait-for-text <text>`: Wait for text to appear in page body
+- `--wait-for-expression <js>`: Wait for a truthy JavaScript expression
+- `--wait-for-expression-file <path>` / `--wait-for-expression-stdin`: Read that expression from a file or stdin
+- `--wait-for-response <url-substring>`: Wait for an observed response armed before the action
+- `--wait-for-status <code>` / `--wait-for-body-text <text>`: Further constrain `--wait-for-response`
 - `--wait-for-idle`: Wait for network idle and document ready
 - `--wait-for-frame <spec>`: Target iframe for wait checks (by selector or index)
 - `--wait-for-navigation`: Wait for a real document replacement ([details](#wait-for-navigation))
@@ -681,7 +887,9 @@ cdp-cli press-key enter "example" --wait-for-navigation
 ```
 
 Wait options (shared with navigate): `--wait-for`, `--wait-for-text`,
-`--wait-for-idle`, `--wait-for-frame`, `--wait-for-navigation`, `--timeout`.
+`--wait-for-expression` (or `-file`/`-stdin`), `--wait-for-response`,
+`--wait-for-status`, `--wait-for-body-text`, `--wait-for-idle`,
+`--wait-for-frame`, `--wait-for-navigation`, `--timeout`.
 
 **emulate** - Emulate a device
 Presets `ipad`, `iphone`, and `desktop` (which clears all overrides), or a custom size via `--width`/`--height`/`--scale`/`--ua`/`--touch`.
@@ -773,6 +981,7 @@ cdp-cli eval "Array.from(document.querySelectorAll('.item')).map(el => ({
 ## Global Options
 
 - `--cdp-url <url>` - Chrome DevTools Protocol URL (default: `http://localhost:9222`)
+- `--session <name>` - Restrict page/target operations to one named workspace session (exact owned IDs only)
 - `--help` - Show help
 - `--version` - Show version
 
@@ -859,7 +1068,18 @@ npm run test:coverage
 
 # Run tests with interactive UI
 npm run test:ui
+
+# Run isolated real-Chrome contract tests
+npm run test:live
+
+# Add the opt-in foreground/focus contract
+npm run test:live:headful
 ```
+
+The live suite launches Chrome with a temporary profile and a random debugging
+port, owns only that browser process, and cleans it up after the run. The
+headful focus check is intentionally opt-in because it affects the visible
+desktop.
 
 ### Test Structure
 
@@ -930,6 +1150,25 @@ MIT
 **Built for LLM agents** - Every command outputs structured, parseable, grep-friendly data.
 
 ## Windows: which cdp-cli is actually running
+
+### Git Bash and WSL file paths
+
+When a Windows `.exe` receives a path from Git Bash or WSL, it now translates
+the drive-shaped forms before opening a file:
+
+```bash
+# Git Bash form
+cdp-cli screenshot PAGE --output /q/artifacts/page.png
+
+# WSL form
+cdp-cli eval _ PAGE --file /mnt/q/scripts/check.js
+```
+
+The command records the requested, normalized, and resolved paths in its
+success/error details. This makes a shell-path translation visible rather than
+silently writing or reading a different location. Only the unambiguous
+single-drive forms are translated; ordinary rooted paths such as `/tmp/file`
+keep their native Windows interpretation.
 
 An npm global install leaves four entries sharing one stem:
 

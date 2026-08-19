@@ -105,6 +105,41 @@ describe('Pages Commands', () => {
       expect(result.data.action).toBe('https://example.com');
     });
 
+    it('fails when Chrome returns a navigation errorText', async () => {
+      const capture = captureConsoleOutput();
+      const exitMock = mockProcessExit();
+      const context = new CDPContext();
+      const originalConnect = context.connect.bind(context);
+      context.connect = async (page) => {
+        const ws = await originalConnect(page) as MockWebSocket;
+        const originalSend = ws.send.bind(ws);
+        ws.send = (data: string) => {
+          const message = JSON.parse(data);
+          if (message.method === 'Page.navigate') {
+            ws.sentMessages.push(message);
+            setTimeout(() => ws.simulateMessage({
+              id: message.id,
+              result: { errorText: 'net::ERR_NAME_NOT_RESOLVED' }
+            }), 5);
+            return;
+          }
+          originalSend(data);
+        };
+        return ws;
+      };
+
+      try {
+        await pages.navigate(context, 'https://does-not-exist.invalid', 'page1');
+      } catch {
+        // Expected mocked process.exit.
+      }
+      const error = JSON.parse(capture.getLogs()[0]);
+      expect(exitMock.exitCode).toBe(1);
+      expect(error.message).toContain('ERR_NAME_NOT_RESOLVED');
+      capture.restore();
+      exitMock.restore();
+    });
+
     it('should navigate back', async () => {
       const capture = captureConsoleOutput();
       const context = new CDPContext();
@@ -277,6 +312,118 @@ describe('Pages Commands', () => {
 
       capture.restore();
       exitMock.restore();
+    });
+  });
+
+  describe('page health and activation', () => {
+    it('should collect focus, visibility, viewport, and browser window state without activating', async () => {
+      const capture = captureConsoleOutput();
+      const context = new CDPContext();
+      const originalConnect = context.connect.bind(context);
+      const sentMethods: string[] = [];
+
+      context.connect = async (page) => {
+        const ws = await originalConnect(page) as MockWebSocket;
+        const originalSend = ws.send.bind(ws);
+        ws.send = (data: string) => {
+          const msg = JSON.parse(data);
+          sentMethods.push(msg.method);
+
+          if (
+            msg.method === 'Runtime.evaluate' &&
+            msg.params?.expression?.includes('document.hasFocus()')
+          ) {
+            ws.sentMessages.push(msg);
+            setTimeout(() => ws.simulateMessage({
+              id: msg.id,
+              result: {
+                result: {
+                  value: {
+                    hasFocus: false,
+                    visibilityState: 'visible',
+                    outerWidth: 1440,
+                    outerHeight: 900,
+                    innerWidth: 1280,
+                    innerHeight: 720
+                  }
+                }
+              }
+            }), 5);
+            return;
+          }
+          if (msg.method === 'Browser.getWindowForTarget') {
+            ws.sentMessages.push(msg);
+            setTimeout(() => ws.simulateMessage({
+              id: msg.id,
+              result: {
+                windowId: 7,
+                bounds: {
+                  left: 20,
+                  top: 30,
+                  width: 1440,
+                  height: 900,
+                  windowState: 'normal'
+                }
+              }
+            }), 5);
+            return;
+          }
+          originalSend(data);
+        };
+        return ws;
+      };
+
+      await pages.pageHealth(context, 'page1');
+
+      const result = JSON.parse(capture.getLogs()[0]);
+      expect(result.success).toBe(true);
+      expect(result.data).toMatchObject({
+        page: 'page1',
+        hasFocus: false,
+        visibilityState: 'visible',
+        outerWidth: 1440,
+        outerHeight: 900,
+        innerWidth: 1280,
+        innerHeight: 720,
+        windowId: 7,
+        windowBounds: { left: 20, top: 30, width: 1440, height: 900 },
+        windowState: 'normal'
+      });
+      expect(sentMethods).not.toContain('Target.activateTarget');
+      expect(sentMethods).not.toContain('Page.bringToFront');
+      capture.restore();
+    });
+
+    it('should explicitly activate with both target and page primitives', async () => {
+      const capture = captureConsoleOutput();
+      const context = new CDPContext();
+      const originalConnect = context.connect.bind(context);
+      const sent: any[] = [];
+
+      context.connect = async (page) => {
+        const ws = await originalConnect(page) as MockWebSocket;
+        const originalSend = ws.send.bind(ws);
+        ws.send = (data: string) => {
+          sent.push(JSON.parse(data));
+          originalSend(data);
+        };
+        return ws;
+      };
+
+      await pages.activatePage(context, 'page1');
+
+      const methods = sent.map(message => message.method);
+      expect(methods.indexOf('Target.activateTarget')).toBeGreaterThanOrEqual(0);
+      expect(methods.indexOf('Page.bringToFront')).toBeGreaterThan(
+        methods.indexOf('Target.activateTarget')
+      );
+      expect(sent.find(message => message.method === 'Target.activateTarget')?.params)
+        .toEqual({ targetId: 'page1' });
+
+      const result = JSON.parse(capture.getLogs()[0]);
+      expect(result.success).toBe(true);
+      expect(result.data).toEqual({ page: 'page1', activated: true });
+      capture.restore();
     });
   });
 });

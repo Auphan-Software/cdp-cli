@@ -5,7 +5,17 @@
 import { CDPContext, type Page } from '../context.js';
 import { outputError, outputSuccess } from '../output.js';
 import { describeChar, describeKey, type KeyDescriptor } from '../keys.js';
-import { armNavigationWatcher, effectiveWaitFrame, handleWaitOptions, type NavigationWatcher, type WaitOptions } from './wait.js';
+import {
+  armNavigationWatcher,
+  armNetworkIdleWatcher,
+  armNetworkResponseWatcher,
+  effectiveWaitFrame,
+  handleWaitOptions,
+  type NavigationWatcher,
+  type NetworkIdleWatcher,
+  type NetworkResponseWatcher,
+  type WaitOptions
+} from './wait.js';
 
 type TextMatchMode = 'exact' | 'contains' | 'regex';
 
@@ -73,6 +83,17 @@ interface ClickPoint {
 }
 
 class ClickError extends Error {
+  code: string;
+  details: Record<string, unknown>;
+
+  constructor(message: string, code: string, details: Record<string, unknown> = {}) {
+    super(message);
+    this.code = code;
+    this.details = details;
+  }
+}
+
+class FillError extends Error {
   code: string;
   details: Record<string, unknown>;
 
@@ -177,6 +198,11 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
+}
+
+function isExecutionContextLoss(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /execution context|context.*destroyed|cannot find context|target closed|session closed|inspected target navigated|no frame with given id/i.test(message);
 }
 
 /**
@@ -592,6 +618,125 @@ async function verifyFrameReached(
       });
     } catch {
       // context destroyed by the click - nothing to clean up
+    }
+  }
+}
+
+/**
+ * Arm a capture listener in the document that owns an ordinary click target.
+ * CDP accepting Input.dispatchMouseEvent only proves that the browser process
+ * accepted the command. A background/focus-stolen window can accept it without
+ * the page ever receiving the corresponding mouse event.
+ */
+async function armDocumentClickWitness(
+  context: CDPContext,
+  ws: any,
+  objectId: string,
+  point: { x: number; y: number },
+  expectedEventType: 'mousedown' | 'touchstart'
+): Promise<void> {
+  await context.sendCommand(ws, 'Runtime.callFunctionOn', {
+    objectId,
+    functionDeclaration: `
+      function(expectedX, expectedY, expectedEventType) {
+        const doc = this.ownerDocument;
+        const expectedTarget = this;
+        doc.__cdpDocumentClickWitness = {
+          expectedX,
+          expectedY,
+          expectedEventType,
+          seen: false,
+          event: null
+        };
+        doc.__cdpDocumentClickWitnessListener = (event) => {
+          const witness = doc.__cdpDocumentClickWitness;
+          if (!witness || witness.seen) return;
+          if (event.type !== witness.expectedEventType) return;
+          const eventPoint = event.type === 'touchstart' ? event.touches[0] : event;
+          if (!eventPoint ||
+              (event.type === 'mousedown' && event.button !== 0) ||
+              Math.abs(eventPoint.clientX - witness.expectedX) > 1 ||
+              Math.abs(eventPoint.clientY - witness.expectedY) > 1) return;
+
+          const path = typeof event.composedPath === 'function' ? event.composedPath() : [];
+          const targetMatches = path.includes(expectedTarget) ||
+            (event.target && expectedTarget.contains(event.target));
+          if (!targetMatches) return;
+
+          const n = event.target;
+          let target = (n && n.tagName ? n.tagName : 'unknown').toLowerCase();
+          if (n && n.id) target += '#' + n.id;
+          witness.seen = true;
+          witness.event = {
+            type: event.type,
+            x: eventPoint.clientX,
+            y: eventPoint.clientY,
+            target
+          };
+        };
+        doc.addEventListener('mousedown', doc.__cdpDocumentClickWitnessListener, true);
+        doc.addEventListener('touchstart', doc.__cdpDocumentClickWitnessListener, true);
+      }
+    `,
+    arguments: [{ value: point.x }, { value: point.y }, { value: expectedEventType }]
+  });
+}
+
+/**
+ * Read and remove the ordinary-document click witness. A destroyed execution
+ * context means the click navigated or otherwise replaced the document, so the
+ * result is deliberately unverifiable rather than a false failure.
+ */
+async function verifyDocumentClickDelivered(
+  context: CDPContext,
+  ws: any,
+  objectId: string
+): Promise<{ delivered: boolean | null; event: Record<string, unknown> | null }> {
+  try {
+    const callResult = await context.sendCommand(ws, 'Runtime.callFunctionOn', {
+      objectId,
+      functionDeclaration: `
+        function() {
+          const doc = this.ownerDocument;
+          const witness = doc.__cdpDocumentClickWitness;
+          return {
+            documentSurvives: !!doc.defaultView && doc.defaultView.document === doc,
+            seen: witness ? witness.seen === true : null,
+            event: witness ? witness.event : null
+          };
+        }
+      `,
+      returnByValue: true
+    });
+
+    const value = callResult.result?.value;
+    if (value?.documentSurvives !== true || typeof value?.seen !== 'boolean') {
+      return { delivered: null, event: null };
+    }
+    return {
+      delivered: value.seen,
+      event: value.event && typeof value.event === 'object' ? value.event : null
+    };
+  } catch {
+    return { delivered: null, event: null };
+  } finally {
+    try {
+      await context.sendCommand(ws, 'Runtime.callFunctionOn', {
+        objectId,
+        functionDeclaration: `
+          function() {
+            const doc = this.ownerDocument;
+            if (doc.__cdpDocumentClickWitnessListener) {
+              doc.removeEventListener('mousedown', doc.__cdpDocumentClickWitnessListener, true);
+              doc.removeEventListener('touchstart', doc.__cdpDocumentClickWitnessListener, true);
+            }
+            delete doc.__cdpDocumentClickWitnessListener;
+            delete doc.__cdpDocumentClickWitness;
+          }
+        `
+      });
+    } catch {
+      // Navigation/context loss also removes the old document and its listener.
     }
   }
 }
@@ -1130,6 +1275,8 @@ export async function click(
 ): Promise<void> {
   let ws;
   let navigationWatcher: NavigationWatcher | undefined;
+  let networkIdleWatcher: NetworkIdleWatcher | undefined;
+  let networkResponseWatcher: NetworkResponseWatcher | undefined;
   const target: ClickTargetInput =
     typeof targetInput === 'string'
       ? { selector: targetInput }
@@ -1374,10 +1521,30 @@ export async function click(
       await armFrameWitness(context, ws, hitFrameObjectId);
     }
 
+    const documentWitnessObjectId = !clickPoint?.hitIsFrame ? chosen.objectId : undefined;
+    if (documentWitnessObjectId) {
+      const witnessPoint = options.frame
+        ? { x: rect.x + width / 2, y: rect.y + height / 2 }
+        : { x, y };
+      await armDocumentClickWitness(
+        context,
+        ws,
+        documentWitnessObjectId,
+        witnessPoint,
+        options.touch ? 'touchstart' : 'mousedown'
+      );
+    }
+
     // Armed before dispatch: a form POST can commit and load before a
     // post-action listener would have attached.
     if (options.waitForNavigation) {
       navigationWatcher = await armNavigationWatcher(context, ws, effectiveWaitFrame(options));
+    }
+    if (options.waitForIdle) {
+      networkIdleWatcher = await armNetworkIdleWatcher(context, ws);
+    }
+    if (options.waitForResponse) {
+      networkResponseWatcher = await armNetworkResponseWatcher(context, ws, options);
     }
 
     if (options.touch) {
@@ -1456,6 +1623,7 @@ export async function click(
     // does nothing at all. Confirm it arrived before calling this a click, the
     // same way occlusion is confirmed before dispatching.
     let frameReached: boolean | null = null;
+    let clickDelivered: boolean | null = null;
 
     if (clickPoint?.hitIsFrame && hitFrameObjectId) {
       const verdict = await verifyFrameReached(context, ws, hitFrameObjectId);
@@ -1483,6 +1651,31 @@ export async function click(
       }
     }
 
+    if (documentWitnessObjectId) {
+      const verdict = await verifyDocumentClickDelivered(
+        context,
+        ws,
+        documentWitnessObjectId
+      );
+      clickDelivered = verdict.delivered;
+
+      if (verdict.delivered === false) {
+        throw new ClickError(
+          `Chrome accepted the ${options.touch ? 'touch' : 'mouse'} dispatch, but no matching event reached the chosen element`,
+          'CLICK_NOT_DELIVERED',
+          {
+            selector: target.selector,
+            text: target.text,
+            frame: options.frame,
+            x: xRounded,
+            y: yRounded,
+            rect: roundedRect,
+            witnessedEvent: verdict.event
+          }
+        );
+      }
+    }
+
     // Handle post-action wait conditions
     await handleWaitOptions(
       context,
@@ -1490,12 +1683,18 @@ export async function click(
       {
         waitFor: options.waitFor,
         waitForText: options.waitForText,
+        waitForExpression: options.waitForExpression,
+        waitForResponse: options.waitForResponse,
+        waitForStatus: options.waitForStatus,
+        waitForBodyText: options.waitForBodyText,
         waitForIdle: options.waitForIdle,
         waitForFrame: effectiveWaitFrame(options),
         waitForNavigation: options.waitForNavigation,
         timeout: options.timeout
       },
-      navigationWatcher
+      navigationWatcher,
+      networkIdleWatcher,
+      networkResponseWatcher
     );
 
     outputSuccess('Click performed', {
@@ -1518,9 +1717,15 @@ export async function click(
       occludedBy,
       // null when the click point was not a frame, so there was nothing to reach
       frameReached,
+      // null when delivery could not be witnessed (frame/touch/navigation/context loss)
+      clickDelivered,
       ...(frameReached !== null && { hitFrame: clickPoint?.hit ?? null }),
       ...(options.waitFor && { waitedFor: options.waitFor }),
       ...(options.waitForText && { waitedForText: options.waitForText }),
+      ...(options.waitForExpression && { waitedForExpression: true }),
+      ...(options.waitForResponse && { waitedForResponse: options.waitForResponse }),
+      ...(options.waitForStatus !== undefined && { waitedForStatus: options.waitForStatus }),
+      ...(options.waitForBodyText && { waitedForBodyText: true }),
       ...(options.waitForIdle && { waitedForIdle: true }),
       ...(effectiveWaitFrame(options) && { waitedInFrame: effectiveWaitFrame(options) }),
       ...(options.waitForNavigation && { waitedForNavigation: true })
@@ -1540,10 +1745,17 @@ export async function click(
         }
       );
     }
+    await context.releaseSessionLeases();
     process.exit(1);
   } finally {
     if (navigationWatcher) {
       navigationWatcher.dispose();
+    }
+    if (networkIdleWatcher) {
+      networkIdleWatcher.dispose();
+    }
+    if (networkResponseWatcher) {
+      networkResponseWatcher.dispose();
     }
     if (ws) {
       ws.close();
@@ -1632,6 +1844,163 @@ async function focusAndClearField(
   };
 }
 
+type FillVerificationStatus = 'exact' | 'observable' | 'lost' | 'unverifiable';
+
+interface FillVerification {
+  requestedValue: string;
+  actualValue: string | null;
+  originalConnected: boolean | null;
+  replacementDetected: boolean | null;
+  valueApplied: boolean | null;
+  verification: FillVerificationStatus;
+}
+
+/**
+ * Inspect the live field selected by the same selector/nth/within/frame tuple.
+ * Reactive renderers commonly replace an input during its input/change handler,
+ * so inspecting only the retained handle can report a value from a detached,
+ * no-longer-visible node.
+ */
+async function verifyFilledField(
+  context: CDPContext,
+  ws: any,
+  originalObjectId: string,
+  selector: string,
+  requestedValue: string,
+  options: { nth?: number; within?: string; frame?: string },
+  initialContextId?: number
+): Promise<FillVerification> {
+  const unverifiable = (): FillVerification => ({
+    requestedValue,
+    actualValue: null,
+    originalConnected: null,
+    replacementDetected: null,
+    valueApplied: null,
+    verification: 'unverifiable'
+  });
+
+  try {
+    // Let change/input handlers and their queued reactive render complete. CDP
+    // awaits the promise, giving the document two microtask checkpoints without
+    // imposing a visible fixed delay on every fill.
+    await context.sendCommand(ws, 'Runtime.evaluate', {
+      expression: `new Promise((resolve) => {
+        queueMicrotask(() => queueMicrotask(resolve));
+      })`,
+      ...(initialContextId !== undefined ? { contextId: initialContextId } : {}),
+      awaitPromise: true,
+      returnByValue: true
+    });
+
+    let liveMatches: ElementMatch[];
+    if (options.frame) {
+      const liveContextId = await context.resolveFrameContext(ws, options.frame);
+      if (liveContextId === undefined) {
+        return unverifiable();
+      }
+      liveMatches = await resolveClickCandidatesInFrame(
+        context,
+        ws,
+        { selector, within: options.within },
+        liveContextId
+      );
+    } else {
+      liveMatches = await resolveBySelector(context, ws, selector, options.within);
+    }
+
+    let liveIndex = 0;
+    if (typeof options.nth === 'number') {
+      liveIndex = options.nth - 1;
+      if (liveIndex < 0 || liveIndex >= liveMatches.length) {
+        return unverifiable();
+      }
+    } else if (liveMatches.length !== 1) {
+      return unverifiable();
+    }
+
+    const liveObjectId = liveMatches[liveIndex]?.objectId;
+    if (!liveObjectId) {
+      return unverifiable();
+    }
+
+    const liveResult = await context.sendCommand(ws, 'Runtime.callFunctionOn', {
+      objectId: liveObjectId,
+      functionDeclaration: `
+        function() {
+          const tagName = (this.tagName || '').toLowerCase();
+          const editable = this.isContentEditable === true;
+          const actualValue = editable
+            ? (this.textContent || '')
+            : (typeof this.value === 'string' ? this.value : null);
+          return { actualValue, tagName };
+        }
+      `,
+      returnByValue: true
+    });
+    const rawActualValue = liveResult.result?.value?.actualValue;
+    if (typeof rawActualValue !== 'string') {
+      return unverifiable();
+    }
+
+    let originalConnected: boolean | null = null;
+    let replacementDetected: boolean | null = null;
+    try {
+      const identityResult = await context.sendCommand(ws, 'Runtime.callFunctionOn', {
+        objectId: originalObjectId,
+        functionDeclaration: `
+          function(liveField) {
+            return {
+              originalConnected: this.isConnected === true,
+              sameNode: this === liveField
+            };
+          }
+        `,
+        arguments: [{ objectId: liveObjectId }],
+        returnByValue: true
+      });
+      const identity = identityResult.result?.value;
+      if (typeof identity?.originalConnected === 'boolean') {
+        originalConnected = identity.originalConnected;
+      }
+      if (typeof identity?.sameNode === 'boolean') {
+        replacementDetected = !identity.sameNode;
+      } else if (originalConnected === false) {
+        replacementDetected = true;
+      }
+    } catch {
+      // The live value remains useful even if the old handle was invalidated.
+    }
+
+    let verification: FillVerificationStatus;
+    let valueApplied: boolean | null;
+    if (rawActualValue === requestedValue) {
+      verification = 'exact';
+      valueApplied = true;
+    } else if (requestedValue.length > 0 && rawActualValue.length === 0) {
+      verification = 'lost';
+      valueApplied = false;
+    } else {
+      // A non-empty differing value may be a mask/formatter normalization. It
+      // is observable, but exact application cannot be claimed or rejected.
+      verification = 'observable';
+      valueApplied = null;
+    }
+
+    return {
+      requestedValue,
+      actualValue: rawActualValue,
+      originalConnected,
+      replacementDetected,
+      valueApplied,
+      verification
+    };
+  } catch {
+    // Navigation or execution-context replacement makes post-fill inspection
+    // impossible. Typing may itself have caused it, so do not call that loss.
+    return unverifiable();
+  }
+}
+
 export interface SelectTargetInput {
   value?: string;
   text?: string;
@@ -1658,6 +2027,8 @@ export async function selectOption(
 ): Promise<void> {
   let ws;
   let navigationWatcher: NavigationWatcher | undefined;
+  let networkIdleWatcher: NetworkIdleWatcher | undefined;
+  let networkResponseWatcher: NetworkResponseWatcher | undefined;
 
   try {
     const page = await context.findPage(options.page);
@@ -1717,6 +2088,12 @@ export async function selectOption(
 
     if (options.waitForNavigation) {
       navigationWatcher = await armNavigationWatcher(context, ws, effectiveWaitFrame(options));
+    }
+    if (options.waitForIdle) {
+      networkIdleWatcher = await armNetworkIdleWatcher(context, ws);
+    }
+    if (options.waitForResponse) {
+      networkResponseWatcher = await armNetworkResponseWatcher(context, ws, options);
     }
 
     const callResult = await context.sendCommand(ws, 'Runtime.callFunctionOn', {
@@ -1833,12 +2210,18 @@ export async function selectOption(
       {
         waitFor: options.waitFor,
         waitForText: options.waitForText,
+        waitForExpression: options.waitForExpression,
+        waitForResponse: options.waitForResponse,
+        waitForStatus: options.waitForStatus,
+        waitForBodyText: options.waitForBodyText,
         waitForIdle: options.waitForIdle,
         waitForFrame: effectiveWaitFrame(options),
         waitForNavigation: options.waitForNavigation,
         timeout: options.timeout
       },
-      navigationWatcher
+      navigationWatcher,
+      networkIdleWatcher,
+      networkResponseWatcher
     );
 
     outputSuccess('Option selected', {
@@ -1857,6 +2240,10 @@ export async function selectOption(
       frame: options.frame ?? null,
       ...(options.waitFor && { waitedFor: options.waitFor }),
       ...(options.waitForText && { waitedForText: options.waitForText }),
+      ...(options.waitForExpression && { waitedForExpression: true }),
+      ...(options.waitForResponse && { waitedForResponse: options.waitForResponse }),
+      ...(options.waitForStatus !== undefined && { waitedForStatus: options.waitForStatus }),
+      ...(options.waitForBodyText && { waitedForBodyText: true }),
       ...(options.waitForIdle && { waitedForIdle: true }),
       ...(effectiveWaitFrame(options) && { waitedInFrame: effectiveWaitFrame(options) }),
       ...(options.waitForNavigation && { waitedForNavigation: true })
@@ -1867,10 +2254,17 @@ export async function selectOption(
       'SELECT_FAILED',
       { selector, value: target.value, text: target.text, index: target.index, frame: options.frame }
     );
+    await context.releaseSessionLeases();
     process.exit(1);
   } finally {
     if (navigationWatcher) {
       navigationWatcher.dispose();
+    }
+    if (networkIdleWatcher) {
+      networkIdleWatcher.dispose();
+    }
+    if (networkResponseWatcher) {
+      networkResponseWatcher.dispose();
     }
     if (ws) {
       ws.close();
@@ -1885,10 +2279,12 @@ export async function fill(
   context: CDPContext,
   selector: string,
   value: string,
-  options: { page: string; nth?: number; within?: string; frame?: string } & WaitOptions
+  options: { page: string; nth?: number; within?: string; frame?: string; expectValue?: boolean; showValue?: boolean } & WaitOptions
 ): Promise<void> {
   let ws;
   let navigationWatcher: NavigationWatcher | undefined;
+  let networkIdleWatcher: NetworkIdleWatcher | undefined;
+  let networkResponseWatcher: NetworkResponseWatcher | undefined;
 
   try {
     // Get page
@@ -1902,16 +2298,17 @@ export async function fill(
     await context.sendCommand(ws, 'Runtime.enable');
 
     let matches: ElementMatch[];
+    let initialContextId: number | undefined;
     if (options.frame) {
-      const contextId = await context.resolveFrameContext(ws, options.frame);
-      if (contextId === undefined) {
+      initialContextId = await context.resolveFrameContext(ws, options.frame);
+      if (initialContextId === undefined) {
         throw new Error(`Could not resolve frame context: ${options.frame}`);
       }
       matches = await resolveClickCandidatesInFrame(
         context,
         ws,
         { selector, within: options.within },
-        contextId
+        initialContextId
       );
     } else {
       matches = await resolveBySelector(context, ws, selector, options.within);
@@ -1952,6 +2349,12 @@ export async function fill(
     if (options.waitForNavigation) {
       navigationWatcher = await armNavigationWatcher(context, ws, effectiveWaitFrame(options));
     }
+    if (options.waitForIdle) {
+      networkIdleWatcher = await armNetworkIdleWatcher(context, ws);
+    }
+    if (options.waitForResponse) {
+      networkResponseWatcher = await armNetworkResponseWatcher(context, ws, options);
+    }
 
     for (const char of value) {
       await dispatchKey(context, ws, describeChar(char));
@@ -1959,15 +2362,70 @@ export async function fill(
 
     // Typing emits `input` per keystroke; `change` normally waits for blur, so
     // emit it here to match what a completed edit looks like to the page.
-    await context.sendCommand(ws, 'Runtime.callFunctionOn', {
-      objectId: chosen.objectId,
-      functionDeclaration: `
-        function() {
-          this.dispatchEvent(new Event('change', { bubbles: true }));
+    let changeContextLost = false;
+    try {
+      await context.sendCommand(ws, 'Runtime.callFunctionOn', {
+        objectId: chosen.objectId,
+        functionDeclaration: `
+          function() {
+            this.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        `,
+        returnByValue: true
+      });
+    } catch (error) {
+      if (!isExecutionContextLoss(error)) {
+        throw error;
+      }
+      changeContextLost = true;
+    }
+
+    const verification = changeContextLost
+      ? {
+          requestedValue: value,
+          actualValue: null,
+          originalConnected: null,
+          replacementDetected: null,
+          valueApplied: null,
+          verification: 'unverifiable' as const
         }
-      `,
-      returnByValue: true
-    });
+      : await verifyFilledField(
+          context,
+          ws,
+          chosen.objectId,
+          selector,
+          value,
+          options,
+          initialContextId
+        );
+
+    if (verification.verification === 'lost' || (options.expectValue && verification.verification !== 'exact')) {
+      throw new FillError(
+        verification.verification === 'lost'
+          ? 'The requested value was typed, but the live field is empty after the page processed the edit'
+          : 'The live field does not exactly equal the requested value',
+        'FILL_VALUE_NOT_APPLIED',
+        {
+          selector,
+          within: options.within,
+          frame: options.frame,
+          ...(options.showValue
+            ? {
+                requestedValue: verification.requestedValue,
+                actualValue: verification.actualValue
+              }
+            : {
+                requestedValueLength: verification.requestedValue.length,
+                actualValueLength: verification.actualValue?.length ?? null
+              }),
+          originalConnected: verification.originalConnected,
+          replacementDetected: verification.replacementDetected,
+          valueApplied: verification.valueApplied,
+          verification: verification.verification,
+          exactValueRequired: options.expectValue === true
+        }
+      );
+    }
 
     // Handle post-action wait conditions
     await handleWaitOptions(
@@ -1976,37 +2434,76 @@ export async function fill(
       {
         waitFor: options.waitFor,
         waitForText: options.waitForText,
+        waitForExpression: options.waitForExpression,
+        waitForResponse: options.waitForResponse,
+        waitForStatus: options.waitForStatus,
+        waitForBodyText: options.waitForBodyText,
         waitForIdle: options.waitForIdle,
         waitForFrame: effectiveWaitFrame(options),
         waitForNavigation: options.waitForNavigation,
         timeout: options.timeout
       },
-      navigationWatcher
+      navigationWatcher,
+      networkIdleWatcher,
+      networkResponseWatcher
     );
 
     outputSuccess('Fill performed', {
       selector,
-      value,
+      ...(options.showValue
+        ? {
+            value,
+            requestedValue: verification.requestedValue,
+            actualValue: verification.actualValue,
+            replaced: field.cleared
+          }
+        : {
+            requestedValueLength: verification.requestedValue.length,
+            actualValueLength: verification.actualValue?.length ?? null,
+            replacedLength: field.cleared.length
+          }),
+      originalConnected: verification.originalConnected,
+      replacementDetected: verification.replacementDetected,
+      valueApplied: verification.valueApplied,
+      verification: verification.verification,
       within: options.within ?? null,
       frame: options.frame ?? null,
       tagName: field.tagName,
-      replaced: field.cleared,
       ...(options.waitFor && { waitedFor: options.waitFor }),
       ...(options.waitForText && { waitedForText: options.waitForText }),
+      ...(options.waitForExpression && { waitedForExpression: true }),
+      ...(options.waitForResponse && { waitedForResponse: options.waitForResponse }),
+      ...(options.waitForStatus !== undefined && { waitedForStatus: options.waitForStatus }),
+      ...(options.waitForBodyText && { waitedForBodyText: true }),
       ...(options.waitForIdle && { waitedForIdle: true }),
       ...(effectiveWaitFrame(options) && { waitedInFrame: effectiveWaitFrame(options) }),
       ...(options.waitForNavigation && { waitedForNavigation: true })
     });
   } catch (error) {
-    outputError(
-      (error as Error).message,
-      'FILL_FAILED',
-      { selector, value, frame: options.frame }
-    );
+    if (error instanceof FillError) {
+      outputError(error.message, error.code, error.details);
+    } else {
+      outputError(
+        (error as Error).message,
+        'FILL_FAILED',
+        {
+          selector,
+          frame: options.frame,
+          ...(options.showValue ? { value } : { valueLength: value.length })
+        }
+      );
+    }
+    await context.releaseSessionLeases();
     process.exit(1);
   } finally {
     if (navigationWatcher) {
       navigationWatcher.dispose();
+    }
+    if (networkIdleWatcher) {
+      networkIdleWatcher.dispose();
+    }
+    if (networkResponseWatcher) {
+      networkResponseWatcher.dispose();
     }
     if (ws) {
       ws.close();
@@ -2024,6 +2521,8 @@ export async function pressKey(
 ): Promise<void> {
   let ws;
   let navigationWatcher: NavigationWatcher | undefined;
+  let networkIdleWatcher: NetworkIdleWatcher | undefined;
+  let networkResponseWatcher: NetworkResponseWatcher | undefined;
 
   try {
     // Get page
@@ -2040,6 +2539,12 @@ export async function pressKey(
     if (options.waitForNavigation) {
       navigationWatcher = await armNavigationWatcher(context, ws, effectiveWaitFrame(options));
     }
+    if (options.waitForIdle) {
+      networkIdleWatcher = await armNetworkIdleWatcher(context, ws);
+    }
+    if (options.waitForResponse) {
+      networkResponseWatcher = await armNetworkResponseWatcher(context, ws, options);
+    }
 
     await dispatchKey(context, ws, descriptor);
 
@@ -2049,12 +2554,18 @@ export async function pressKey(
       {
         waitFor: options.waitFor,
         waitForText: options.waitForText,
+        waitForExpression: options.waitForExpression,
+        waitForResponse: options.waitForResponse,
+        waitForStatus: options.waitForStatus,
+        waitForBodyText: options.waitForBodyText,
         waitForIdle: options.waitForIdle,
         waitForFrame: effectiveWaitFrame(options),
         waitForNavigation: options.waitForNavigation,
         timeout: options.timeout
       },
-      navigationWatcher
+      navigationWatcher,
+      networkIdleWatcher,
+      networkResponseWatcher
     );
 
     outputSuccess('Key pressed', {
@@ -2063,6 +2574,10 @@ export async function pressKey(
       keyCode: descriptor.keyCode,
       ...(options.waitFor && { waitedFor: options.waitFor }),
       ...(options.waitForText && { waitedForText: options.waitForText }),
+      ...(options.waitForExpression && { waitedForExpression: true }),
+      ...(options.waitForResponse && { waitedForResponse: options.waitForResponse }),
+      ...(options.waitForStatus !== undefined && { waitedForStatus: options.waitForStatus }),
+      ...(options.waitForBodyText && { waitedForBodyText: true }),
       ...(options.waitForIdle && { waitedForIdle: true }),
       ...(effectiveWaitFrame(options) && { waitedInFrame: effectiveWaitFrame(options) }),
       ...(options.waitForNavigation && { waitedForNavigation: true })
@@ -2073,10 +2588,17 @@ export async function pressKey(
       'PRESS_KEY_FAILED',
       { key }
     );
+    await context.releaseSessionLeases();
     process.exit(1);
   } finally {
     if (navigationWatcher) {
       navigationWatcher.dispose();
+    }
+    if (networkIdleWatcher) {
+      networkIdleWatcher.dispose();
+    }
+    if (networkResponseWatcher) {
+      networkResponseWatcher.dispose();
     }
     if (ws) {
       ws.close();
@@ -2389,6 +2911,7 @@ export async function drag(
         }
       );
     }
+    await context.releaseSessionLeases();
     process.exit(1);
   } finally {
     if (ws) {

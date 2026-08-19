@@ -3,7 +3,7 @@
  * Falls back to direct WebSocket connection when daemon is not running
  */
 
-import { CDPContext, Page } from '../context.js';
+import { CDPContext, Page, dialogBlockerError } from '../context.js';
 import { DaemonClient } from './client.js';
 import { WebSocket } from 'ws';
 
@@ -26,7 +26,7 @@ export interface ExecSession {
   /** Check if a JavaScript dialog is blocking the page */
   assertNoDialog: () => Promise<void>;
   /** Close the session */
-  close: () => void;
+  close: () => void | Promise<void>;
 }
 
 /**
@@ -75,14 +75,28 @@ export async function createExecSession(
     const sessions = await daemon.listSessions();
     const session = sessions.find(s => s.pageId === page.id && s.connected);
     if (session) {
+      await context.assertSessionTargetAccess(page.id);
+      const workspaceLease = await acquireDaemonOperationLease(
+        daemon,
+        context.workspaceSessionName,
+        page.id
+      );
       return {
         pageId: page.id,
         ws: null,
         useDaemon: true,
-        exec: (method: string, params?: any) => daemon.execCommand(page.id, method, params),
+        exec: (method: string, params?: any) => daemon.execCommand(
+          page.id,
+          method,
+          params,
+          workspaceLease?.workspace
+        ),
         assertNoDevTools: async () => {}, // Daemon handles its own connection - no check needed
-        assertNoDialog: async () => {}, // TODO: Add daemon dialog check support
-        close: () => {} // No cleanup needed for daemon
+        assertNoDialog: async () => {
+          const status = await daemon.getDialogStatus(page.id, context.workspaceSessionName);
+          if (status.open && status.dialog) throw dialogBlockerError(status.dialog);
+        },
+        close: () => workspaceLease?.release()
       };
     }
   } catch {
@@ -124,6 +138,8 @@ export async function createExecSessionByPageRef(
 ): Promise<ExecSession> {
   const daemon = new DaemonClient();
 
+  await context.assertSessionTargetAccess(pageIdOrTitle);
+
   // Try daemon path first (single HTTP call for both lookup and session)
   try {
     const sessions = await daemon.listSessions();
@@ -134,14 +150,27 @@ export async function createExecSessionByPageRef(
 
     if (session) {
       const sessionPageId = session.pageId;
+      const workspaceLease = await acquireDaemonOperationLease(
+        daemon,
+        context.workspaceSessionName,
+        sessionPageId
+      );
       return {
         pageId: sessionPageId,
         ws: null,
         useDaemon: true,
-        exec: (method: string, params?: any) => daemon.execCommand(sessionPageId, method, params),
+        exec: (method: string, params?: any) => daemon.execCommand(
+          sessionPageId,
+          method,
+          params,
+          workspaceLease?.workspace
+        ),
         assertNoDevTools: async () => {}, // Daemon handles its own connection - no check needed
-        assertNoDialog: async () => {}, // TODO: Add daemon dialog check support
-        close: () => {}
+        assertNoDialog: async () => {
+          const status = await daemon.getDialogStatus(sessionPageId, context.workspaceSessionName);
+          if (status.open && status.dialog) throw dialogBlockerError(status.dialog);
+        },
+        close: () => workspaceLease?.release()
       };
     }
   } catch {
@@ -193,4 +222,42 @@ export async function execBatch(
   } catch {
     return null;
   }
+}
+
+async function acquireDaemonOperationLease(
+  daemon: DaemonClient,
+  sessionName: string | undefined,
+  pageId: string
+): Promise<{
+  workspace: { sessionName: string; leaseId: string };
+  release(): Promise<void>;
+} | undefined> {
+  if (!sessionName) return undefined;
+  const lease = await daemon.acquireWorkspaceLease(sessionName, pageId);
+  const heartbeat = setInterval(() => {
+    void daemon.heartbeatWorkspaceLease(
+      sessionName,
+      pageId,
+      lease.leaseId,
+      lease.rootTargetId
+    ).catch(() => {
+      clearInterval(heartbeat);
+    });
+  }, 20_000);
+  heartbeat.unref();
+  let released = false;
+  return {
+    workspace: { sessionName, leaseId: lease.leaseId },
+    release: () => {
+      if (released) return Promise.resolve();
+      released = true;
+      clearInterval(heartbeat);
+      return daemon.releaseWorkspaceLease(
+        sessionName,
+        pageId,
+        lease.leaseId,
+        lease.rootTargetId
+      );
+    }
+  };
 }

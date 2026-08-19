@@ -6,6 +6,29 @@
 import { WebSocket } from 'ws';
 import { fetch as undiciFetch } from 'undici';
 import { getPageNotFoundHint } from './validation.js';
+import { BrowserConnection, type BrowserConnectionOptions } from './cdp/browser-connection.js';
+import { WorkspaceSessionService } from './sessions/workspace-session-service.js';
+import { SessionFoundationError } from './sessions/errors.js';
+import { DaemonClient } from './daemon/client.js';
+
+let defaultWorkspaceSession: string | undefined;
+const pendingWorkspaceReleases = new Set<Promise<void>>();
+
+process.on('beforeExit', async () => {
+  if (pendingWorkspaceReleases.size > 0) {
+    await Promise.allSettled([...pendingWorkspaceReleases]);
+  }
+});
+
+/** CLI parse hook; library callers should pass workspaceSession to the constructor. */
+export function setDefaultWorkspaceSession(name: string | undefined): void {
+  defaultWorkspaceSession = name;
+}
+
+export interface CDPContextOptions {
+  workspaceSession?: string;
+  sessionStorePath?: string;
+}
 
 export interface Page {
   id: string;
@@ -51,6 +74,20 @@ export interface DialogInfo {
   defaultPrompt?: string;
 }
 
+/**
+ * Build the one actionable dialog diagnosis used by direct and daemon-backed
+ * execution. Browser-owned UI (such as a client-certificate picker) is not a
+ * CDP JavaScript dialog and cannot be dismissed by this command.
+ */
+export function dialogBlockerError(dialog: DialogInfo): Error {
+  const typeLabel = dialog.type.charAt(0).toUpperCase() + dialog.type.slice(1);
+  const canDismiss = !dialog.message.includes('dismiss manually');
+  const hint = canDismiss
+    ? `Use 'cdp-cli dialog <page> --dismiss' to dismiss it, or '--accept' to accept.`
+    : 'Dismiss the dialog manually in the browser, or close and reopen the page. Browser-owned pickers (such as client-certificate selection) cannot be dismissed through CDP.';
+  return new Error(`${typeLabel} dialog is blocking the page: "${dialog.message}"\n${hint}`);
+}
+
 export interface NetworkRequest {
   id: string;
   url: string;
@@ -61,6 +98,15 @@ export interface NetworkRequest {
   timestamp: number;
   requestHeaders?: Record<string, string>;
   responseHeaders?: Record<string, string>;
+  failure?: NetworkFailure;
+}
+
+/** Details supplied when Chrome reports that a request did not complete. */
+export interface NetworkFailure {
+  errorText: string;
+  canceled: boolean;
+  blockedReason?: string;
+  corsErrorStatus?: unknown;
 }
 
 export interface FrameInfo {
@@ -90,15 +136,51 @@ export class CDPContext {
   // Collected data
   private consoleMessages: Map<number, ConsoleMessage> = new Map();
   private networkRequests: Map<string, NetworkRequest> = new Map();
+  private readonly activeWorkspaceLeases = new Set<{ release(): Promise<void> }>();
 
-  constructor(cdpUrl: string = 'http://localhost:9222') {
+  readonly workspaceSessionName?: string;
+  private readonly sessionStorePath?: string;
+
+  constructor(
+    cdpUrl: string = 'http://localhost:9222',
+    options: CDPContextOptions = {}
+  ) {
     this.cdpUrl = cdpUrl;
+    this.workspaceSessionName = options.workspaceSession ?? defaultWorkspaceSession;
+    this.sessionStorePath = options.sessionStorePath;
+  }
+
+  /** Connect to Chrome's browser target and discover flattened child targets. */
+  async connectBrowser(options: BrowserConnectionOptions = {}): Promise<BrowserConnection> {
+    return BrowserConnection.open(this.cdpUrl, options);
   }
 
   /**
    * Get list of all open pages
    */
   async getPages(): Promise<Page[]> {
+    const pages = await this.getRawPages();
+    if (!this.workspaceSessionName) return pages;
+
+    const service = await this.openWorkspaceService();
+    try {
+      await service.refresh();
+      const session = service.registry.getSession(this.workspaceSessionName);
+      if (!session) {
+        throw new SessionFoundationError(
+          'SESSION_NOT_FOUND',
+          `Session not found: ${this.workspaceSessionName}`,
+          { sessionName: this.workspaceSessionName }
+        );
+      }
+      const owned = new Set(session.pageIds);
+      return pages.filter((page) => owned.has(page.id));
+    } finally {
+      service.close();
+    }
+  }
+
+  private async getRawPages(): Promise<Page[]> {
     const response = await (globalThis.fetch ?? undiciFetch)(`${this.cdpUrl}/json`);
     if (!response.ok) {
       throw new Error(`Failed to fetch pages: ${response.statusText}`);
@@ -111,6 +193,15 @@ export class CDPContext {
    * Find a page by ID or title
    */
   async findPage(idOrTitle: string): Promise<Page> {
+    if (this.workspaceSessionName) {
+      const pages = await this.getRawPages();
+      const exact = pages.find((page) => page.id === idOrTitle);
+      await this.assertSessionTargetAccess(idOrTitle);
+      if (!exact) {
+        throw new Error(`Target not found by exact targetId: ${idOrTitle}`);
+      }
+      return exact;
+    }
     const pages = await this.getPages();
 
     if (pages.length === 0) {
@@ -162,7 +253,7 @@ export class CDPContext {
    * Connect to a page via WebSocket
    */
   async connect(page: Page): Promise<WebSocket> {
-    return new Promise((resolve, reject) => {
+    const ws = await new Promise<WebSocket>((resolve, reject) => {
       const ws = new WebSocket(page.webSocketDebuggerUrl);
 
       ws.on('open', () => {
@@ -173,6 +264,20 @@ export class CDPContext {
         reject(error);
       });
     });
+    if (this.workspaceSessionName) {
+      try {
+        const lease = await this.beginSessionTargetLease(page.id);
+        this.activeWorkspaceLeases.add(lease);
+        ws.once('close', () => {
+          this.activeWorkspaceLeases.delete(lease);
+          void lease.release();
+        });
+      } catch (error) {
+        ws.close();
+        throw error;
+      }
+    }
+    return ws;
   }
 
   /**
@@ -402,14 +507,10 @@ export class CDPContext {
       // If we get here, no dialog is blocking
       return null;
     } catch {
-      // Execution blocked - likely a dialog. Return generic info since we can't get message
-      // Note: CDP limitation - we can't dismiss dialogs that were already open before we connected
-      return {
-        type: 'alert',
-        message: '(dialog blocking page - dismiss manually or restart page)',
-        url: '',
-        defaultPrompt: undefined
-      };
+      // A timeout or execution error is not proof of a dialog: navigation,
+      // target teardown, and a busy renderer look identical here. Only the
+      // Page.javascriptDialogOpening event is a trustworthy positive signal.
+      return null;
     }
   }
 
@@ -440,12 +541,7 @@ export class CDPContext {
   async assertNoDialog(ws: WebSocket): Promise<void> {
     const dialog = await this.checkForDialog(ws);
     if (dialog) {
-      const typeLabel = dialog.type.charAt(0).toUpperCase() + dialog.type.slice(1);
-      const canDismiss = !dialog.message.includes('dismiss manually');
-      const hint = canDismiss
-        ? `Use 'cdp-cli dialog <page> --dismiss' to dismiss it, or '--accept' to accept.`
-        : `Dismiss the dialog manually in the browser, or close and reopen the page.`;
-      throw new Error(`${typeLabel} dialog is blocking the page: "${dialog.message}"\n${hint}`);
+      throw dialogBlockerError(dialog);
     }
   }
 
@@ -523,7 +619,7 @@ export class CDPContext {
     ws: WebSocket,
     onRequest?: (
       request: NetworkRequest,
-      event: 'requestWillBeSent' | 'responseReceived' | 'loadingFinished'
+      event: 'requestWillBeSent' | 'responseReceived' | 'loadingFinished' | 'loadingFailed'
     ) => void
   ): void {
     const updateRequest = (requestId: string, patch: Partial<NetworkRequest>): NetworkRequest => {
@@ -538,7 +634,8 @@ export class CDPContext {
         status: patch.status ?? current?.status,
         size: patch.size ?? current?.size,
         requestHeaders: patch.requestHeaders ?? current?.requestHeaders,
-        responseHeaders: patch.responseHeaders ?? current?.responseHeaders
+        responseHeaders: patch.responseHeaders ?? current?.responseHeaders,
+        failure: patch.failure ?? current?.failure
       };
 
       this.networkRequests.set(requestId, next);
@@ -547,7 +644,7 @@ export class CDPContext {
 
     const emit = (
       requestId: string,
-      event: 'requestWillBeSent' | 'responseReceived' | 'loadingFinished'
+      event: 'requestWillBeSent' | 'responseReceived' | 'loadingFinished' | 'loadingFailed'
     ): void => {
       if (!onRequest) {
         return;
@@ -591,6 +688,19 @@ export class CDPContext {
         });
         emit(requestId, 'loadingFinished');
       }
+
+      if (message.method === 'Network.loadingFailed') {
+        const { requestId, errorText, canceled, blockedReason, corsErrorStatus } = message.params;
+        updateRequest(requestId, {
+          failure: {
+            errorText: typeof errorText === 'string' ? errorText : 'Request failed',
+            canceled: canceled === true,
+            ...(typeof blockedReason === 'string' ? { blockedReason } : {}),
+            ...(corsErrorStatus === undefined ? {} : { corsErrorStatus })
+          }
+        });
+        emit(requestId, 'loadingFailed');
+      }
     });
   }
 
@@ -614,16 +724,37 @@ export class CDPContext {
    * Close a page
    */
   async closePage(page: Page): Promise<void> {
-    const response = await fetch(`${this.cdpUrl}/json/close/${page.id}`);
-    if (!response.ok) {
-      throw new Error(`Failed to close page: ${response.statusText}`);
-    }
+    const close = async (): Promise<void> => {
+      const response = await fetch(`${this.cdpUrl}/json/close/${page.id}`);
+      if (!response.ok) {
+        throw new Error(`Failed to close page: ${response.statusText}`);
+      }
+    };
+    if (!this.workspaceSessionName) return close();
+    await this.withSessionTargetLease(page.id, close);
   }
 
   /**
    * Create a new page
    */
   async createPage(url?: string): Promise<Page> {
+    if (this.workspaceSessionName) {
+      const service = await this.openWorkspaceService();
+      try {
+        const pageId = await service.createTarget(this.workspaceSessionName, url ?? 'about:blank');
+        const deadline = Date.now() + 2_000;
+        for (;;) {
+          const page = (await this.getRawPages()).find((candidate) => candidate.id === pageId);
+          if (page) return page;
+          if (Date.now() >= deadline) {
+            throw new Error(`Created target did not appear in page list: ${pageId}`);
+          }
+          await new Promise((resolve) => setTimeout(resolve, 25));
+        }
+      } finally {
+        service.close();
+      }
+    }
     const endpoint = url
       // Chrome parses everything after '?' as a query string, so a URL passed
       // literally is cut at its first '&' and loses the rest, fragment included.
@@ -638,6 +769,92 @@ export class CDPContext {
     }
 
     return await response.json() as Page;
+  }
+
+  /** Enforce exact target ownership when this context has --session. */
+  async assertSessionTargetAccess(targetId: string): Promise<void> {
+    if (!this.workspaceSessionName) return;
+    const service = await this.openWorkspaceService();
+    try {
+      await service.assertAccess(this.workspaceSessionName, targetId);
+    } finally {
+      service.close();
+    }
+  }
+
+  async getSessionOwnedTargetIds(): Promise<Set<string> | undefined> {
+    if (!this.workspaceSessionName) return undefined;
+    const service = await this.openWorkspaceService();
+    try {
+      await service.refresh();
+      const session = service.registry.getSession(this.workspaceSessionName);
+      if (!session) {
+        throw new SessionFoundationError(
+          'SESSION_NOT_FOUND',
+          `Session not found: ${this.workspaceSessionName}`,
+          { sessionName: this.workspaceSessionName }
+        );
+      }
+      return new Set(session.pageIds);
+    } finally {
+      service.close();
+    }
+  }
+
+  async withSessionTargetLease<T>(targetId: string, operation: () => Promise<T>): Promise<T> {
+    if (!this.workspaceSessionName) return operation();
+    const lease = await this.beginSessionTargetLease(targetId);
+    try {
+      return await operation();
+    } finally {
+      await lease.release();
+    }
+  }
+
+  async beginSessionTargetLease(targetId: string): Promise<{ release(): Promise<void> }> {
+    if (!this.workspaceSessionName) return { release: async () => undefined };
+    await this.assertSessionTargetAccess(targetId);
+    const daemon = new DaemonClient();
+    if (!await daemon.isRunning()) {
+      await daemon.startDaemon({ cdpUrl: this.cdpUrl });
+    }
+    const owner = this.workspaceSessionName;
+    const lease = await daemon.acquireWorkspaceLease(owner, targetId);
+    const heartbeat = setInterval(() => {
+      void daemon.heartbeatWorkspaceLease(
+        owner,
+        targetId,
+        lease.leaseId,
+        lease.rootTargetId
+      ).catch(() => {
+        clearInterval(heartbeat);
+      });
+    }, 20_000);
+    heartbeat.unref();
+    let released = false;
+    return {
+      release: () => {
+        if (released) return Promise.resolve();
+        released = true;
+        clearInterval(heartbeat);
+        const pending = daemon
+          .releaseWorkspaceLease(owner, targetId, lease.leaseId, lease.rootTargetId)
+          .catch(() => undefined);
+        pendingWorkspaceReleases.add(pending);
+        void pending.finally(() => pendingWorkspaceReleases.delete(pending));
+        return pending;
+      }
+    };
+  }
+
+  async releaseSessionLeases(): Promise<void> {
+    const active = [...this.activeWorkspaceLeases];
+    this.activeWorkspaceLeases.clear();
+    await Promise.allSettled(active.map((lease) => lease.release()));
+  }
+
+  private openWorkspaceService(): Promise<WorkspaceSessionService> {
+    return WorkspaceSessionService.open(this.cdpUrl, { storePath: this.sessionStorePath });
   }
 
   /**

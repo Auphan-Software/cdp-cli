@@ -36,6 +36,7 @@ export async function listNetwork(
           ...(request.status !== undefined && { status: request.status }),
           ...(request.type && { type: request.type }),
           ...(request.size !== undefined && { size: request.size }),
+          ...(request.failure && { failure: request.failure }),
           timestamp: request.timestamp
         });
       }
@@ -72,6 +73,7 @@ export async function listNetwork(
       (error as Error).message,
       'LIST_NETWORK_FAILED'
     );
+    await context.releaseSessionLeases();
     process.exit(1);
   } finally {
     if (ws) {
@@ -79,4 +81,3 @@ export async function listNetwork(
     }
   }
 }
-

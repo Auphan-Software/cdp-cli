@@ -8,9 +8,10 @@
 
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { readFileSync } from 'node:fs';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
-import { CDPContext } from './context.js';
+import { CDPContext, setDefaultWorkspaceSession } from './context.js';
 import { versionString } from './version.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -22,8 +23,19 @@ import * as daemon from './commands/daemon.js';
 import * as logs from './commands/logs.js';
 import * as lifecycle from './commands/lifecycle.js';
 import * as doctor from './commands/doctor.js';
-import { outputError } from './output.js';
+import * as diagnose from './commands/diagnose.js';
+import * as targets from './commands/targets.js';
+import { waitForPageConditions } from './commands/wait.js';
+import { outputError, outputLines, outputSuccess } from './output.js';
 import { homedir } from 'os';
+import { describeCliPath } from './path.js';
+import {
+  WorkspaceSessionService,
+  defaultWorkspaceSessionStorePath
+} from './sessions/workspace-session-service.js';
+import { SessionFoundationError } from './sessions/errors.js';
+import { DaemonClient } from './daemon/client.js';
+import { SessionStore } from './sessions/session-store.js';
 import {
   validateNavigateParams,
   validateEvalParams,
@@ -36,24 +48,175 @@ import {
 
 const DEFAULT_CDP_URL = 'http://localhost:9222';
 
+/** Options shared by commands that can trigger page work and then wait. */
+function addAdvancedWaitOptions(yargs: any): any {
+  return yargs
+    .option('wait-for-expression', {
+      type: 'string',
+      description: 'Wait until this JavaScript expression resolves truthy'
+    })
+    .option('wait-for-expression-file', {
+      type: 'string',
+      description: 'Read the JavaScript wait expression from this file'
+    })
+    .option('wait-for-expression-stdin', {
+      type: 'boolean',
+      description: 'Read the JavaScript wait expression from standard input',
+      default: false
+    })
+    .option('wait-for-response', {
+      type: 'string',
+      description: 'Wait for a response whose URL contains this literal substring'
+    })
+    .option('wait-for-status', {
+      type: 'number',
+      description: 'With --wait-for-response, require this HTTP status'
+    })
+    .option('wait-for-body-text', {
+      type: 'string',
+      description: 'With --wait-for-response, require literal text in the first 64 KiB of the body (never printed)'
+    });
+}
+
+function waitOptionsFromArgv(argv: Record<string, unknown>) {
+  const waitForExpression = expressionFromArgv(
+    argv,
+    'wait-for-expression',
+    'wait-for-expression-file',
+    'wait-for-expression-stdin'
+  );
+
+  const waitForResponse = stringOption(argv, 'wait-for-response');
+  const waitForStatus = numberOption(argv, 'wait-for-status');
+  const waitForBodyText = stringOption(argv, 'wait-for-body-text');
+  if ((waitForStatus !== undefined || waitForBodyText !== undefined) && !waitForResponse) {
+    throw new Error('--wait-for-status and --wait-for-body-text require --wait-for-response');
+  }
+  if (waitForStatus !== undefined && (!Number.isInteger(waitForStatus) || waitForStatus < 100 || waitForStatus > 599)) {
+    throw new Error('--wait-for-status must be an HTTP status from 100 through 599');
+  }
+
+  return {
+    waitFor: stringOption(argv, 'wait-for'),
+    waitForText: stringOption(argv, 'wait-for-text'),
+    waitForExpression,
+    waitForResponse,
+    waitForStatus,
+    waitForBodyText,
+    waitForIdle: booleanOption(argv, 'wait-for-idle'),
+    waitForFrame: stringOption(argv, 'wait-for-frame'),
+    waitForNavigation: booleanOption(argv, 'wait-for-navigation'),
+    timeout: numberOption(argv, 'timeout')
+  };
+}
+
+function standaloneWaitOptionsFromArgv(argv: Record<string, unknown>) {
+  const waitForExpression = expressionFromArgv(argv, 'expression', 'expression-file', 'expression-stdin');
+  const waitForResponse = stringOption(argv, 'wait-for-response');
+  const waitForStatus = numberOption(argv, 'wait-for-status');
+  const waitForBodyText = stringOption(argv, 'wait-for-body-text');
+  if ((waitForStatus !== undefined || waitForBodyText !== undefined) && !waitForResponse) {
+    throw new Error('--wait-for-status and --wait-for-body-text require --wait-for-response');
+  }
+  if (waitForStatus !== undefined && (!Number.isInteger(waitForStatus) || waitForStatus < 100 || waitForStatus > 599)) {
+    throw new Error('--wait-for-status must be an HTTP status from 100 through 599');
+  }
+  return {
+    waitFor: stringOption(argv, 'wait-for'),
+    waitForText: stringOption(argv, 'wait-for-text'),
+    waitForExpression,
+    waitForResponse,
+    waitForStatus,
+    waitForBodyText,
+    waitForIdle: booleanOption(argv, 'wait-for-idle'),
+    waitForFrame: stringOption(argv, 'wait-for-frame'),
+    timeout: numberOption(argv, 'timeout')
+  };
+}
+
+function sessionRoots(
+  service: WorkspaceSessionService,
+  sessionName: string,
+  pageIds: readonly string[]
+): Map<string, string> {
+  const roots = new Map<string, string>();
+  for (const pageId of pageIds) {
+    const access = service.registry.assertPageAccess(sessionName, pageId);
+    roots.set(access.rootTargetId, pageId);
+  }
+  return roots;
+}
+
+function sameRootSnapshot(
+  left: ReadonlyMap<string, string>,
+  right: ReadonlyMap<string, string>
+): boolean {
+  if (left.size !== right.size) return false;
+  for (const [rootTargetId, pageId] of left) {
+    if (right.get(rootTargetId) !== pageId) return false;
+  }
+  return true;
+}
+
+function expressionFromArgv(
+  argv: Record<string, unknown>,
+  inlineOption: string,
+  fileOption: string,
+  stdinOption: string
+): string | undefined {
+  const inline = stringOption(argv, inlineOption);
+  const file = stringOption(argv, fileOption);
+  const stdin = booleanOption(argv, stdinOption);
+  const sources = Number(inline !== undefined) + Number(file !== undefined) + Number(stdin);
+  if (sources > 1) {
+    throw new Error(`Use only one of --${inlineOption}, --${fileOption}, or --${stdinOption}`);
+  }
+
+  let expression = inline;
+  if (file !== undefined) {
+    expression = readFileSync(describeCliPath(file).normalizedPath, 'utf8');
+  } else if (stdin) {
+    expression = readFileSync(0, 'utf8');
+  }
+  if (expression !== undefined && expression.trim().length === 0) {
+    throw new Error('The wait expression must not be empty');
+  }
+  return expression;
+}
+
+function stringOption(argv: Record<string, unknown>, name: string): string | undefined {
+  const value = argv[name] ?? argv[name.replace(/-([a-z])/g, (_, letter: string) => letter.toUpperCase())];
+  return typeof value === 'string' ? value : undefined;
+}
+
+function numberOption(argv: Record<string, unknown>, name: string): number | undefined {
+  const value = argv[name] ?? argv[name.replace(/-([a-z])/g, (_, letter: string) => letter.toUpperCase())];
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+function booleanOption(argv: Record<string, unknown>, name: string): boolean | undefined {
+  const value = argv[name] ?? argv[name.replace(/-([a-z])/g, (_, letter: string) => letter.toUpperCase())];
+  return typeof value === 'boolean' ? value : undefined;
+}
+
+function outputThrownError(error: unknown, fallbackCode: string, details?: Record<string, unknown>): void {
+  if (error instanceof SessionFoundationError) {
+    outputError(error.message, error.code, { ...error.details, ...details });
+    return;
+  }
+  outputError(error instanceof Error ? error.message : String(error), fallbackCode, details);
+}
+
 // Global error handler for unhandled exceptions
 process.on('uncaughtException', (error) => {
-  outputError(
-    error.message || 'An unexpected error occurred',
-    'UNCAUGHT_EXCEPTION',
-    { stack: error.stack }
-  );
+  outputThrownError(error, 'UNCAUGHT_EXCEPTION', { stack: error.stack });
   process.exit(1);
 });
 
 process.on('unhandledRejection', (reason) => {
   const message = reason instanceof Error ? reason.message : String(reason);
   const stack = reason instanceof Error ? reason.stack : undefined;
-  outputError(
-    message || 'An unhandled promise rejection occurred',
-    'UNHANDLED_REJECTION',
-    { stack }
-  );
+  outputThrownError(reason, 'UNHANDLED_REJECTION', { stack });
   process.exit(1);
 });
 
@@ -66,6 +229,15 @@ const cli = yargs(hideBin(process.argv))
     type: 'string',
     description: 'Chrome DevTools Protocol URL',
     default: DEFAULT_CDP_URL
+  })
+  .option('session', {
+    type: 'string',
+    description: 'Named workspace session; page and target references must be exact owned IDs'
+  })
+  .middleware((argv) => {
+    setDefaultWorkspaceSession(
+      typeof argv.session === 'string' && argv.session.length > 0 ? argv.session : undefined
+    );
   })
   .demandCommand(1)
   .strict()
@@ -96,11 +268,7 @@ Run "cdp-cli <command> --help" for command-specific options.`)
     // Custom error handler to output NDJSON format
     if (err) {
       // Validation error from .check() or coerce
-      outputError(
-        err.message,
-        'VALIDATION_ERROR',
-        { usage: yargs.help() }
-      );
+      outputThrownError(err, 'VALIDATION_ERROR', { usage: yargs.help() });
     } else if (msg) {
       // Yargs built-in error (missing command, missing required arg, etc)
       outputError(
@@ -111,6 +279,138 @@ Run "cdp-cli <command> --help" for command-specific options.`)
     }
     process.exit(1);
   });
+
+cli.command(
+  'session <action> [name] [targetId]',
+  'Create, list, adopt into, or remove named workspace sessions',
+  (yargs) => yargs
+    .positional('action', {
+      type: 'string',
+      choices: ['create', 'list', 'adopt', 'remove', 'reset'] as const
+    })
+    .positional('name', { type: 'string', description: 'Workspace session name' })
+    .positional('targetId', { type: 'string', description: 'Exact CDP target ID' })
+    .option('url', { type: 'string', description: 'Initial URL for session create' })
+    .option('shared', {
+      type: 'boolean',
+      default: false,
+      description: 'Use the default shared browser context for compatibility'
+    })
+    .option('force', {
+      type: 'boolean',
+      default: false,
+      description: 'Confirm removal and isolated-context disposal'
+    })
+    .check((argv) => {
+      const action = argv.action as string;
+      if (action !== 'list' && action !== 'reset' && typeof argv.name !== 'string') {
+        throw new Error(`session ${action} requires a name`);
+      }
+      if (action === 'adopt' && typeof argv.targetId !== 'string') {
+        throw new Error('session adopt requires an exact targetId');
+      }
+      if ((action === 'remove' || action === 'reset') && argv.force !== true) {
+        throw new Error(`session ${action} requires --force to confirm destructive metadata changes`);
+      }
+      return true;
+    }),
+  async (argv) => {
+    let service: WorkspaceSessionService | undefined;
+    try {
+      const action = argv.action as 'create' | 'list' | 'adopt' | 'remove' | 'reset';
+      if (action === 'reset') {
+        const store = new SessionStore(defaultWorkspaceSessionStorePath(
+          argv['cdp-url'] as string
+        ));
+        await store.reset({ force: true });
+        outputSuccess('Persisted workspace session metadata reset', {
+          contextsDisposed: false,
+          note: 'No claim is made about browser context disposal.'
+        });
+        return;
+      }
+      service = await WorkspaceSessionService.open(argv['cdp-url'] as string);
+      if (action === 'list') {
+        outputLines(service.listSessions().map((session) => ({
+          ...session,
+          boundary: 'BrowserContext provides accident isolation, not a security boundary.'
+        })));
+      } else if (action === 'create') {
+        const created = await service.createSession(argv.name as string, {
+          isolation: argv.shared === true ? 'shared' : 'isolated',
+          url: argv.url as string | undefined
+        });
+        outputSuccess('Workspace session created', created);
+      } else if (action === 'adopt') {
+        const adopted = await service.adoptTarget(
+          argv.name as string,
+          argv.targetId as string
+        );
+        outputSuccess('Target adopted by exact ID', adopted);
+      } else {
+        const name = argv.name as string;
+        const daemonClient = new DaemonClient();
+        if (!await daemonClient.isRunning()) {
+          await daemonClient.startDaemon({ cdpUrl: argv['cdp-url'] as string });
+        }
+        let removed = false;
+        for (let attempt = 0; attempt < 3 && !removed; attempt += 1) {
+          await service.refresh();
+          const session = service.registry.getSession(name);
+          if (!session) service.registry.removeSession(name);
+          const snapshot = sessionRoots(service, name, session!.pageIds);
+
+          // The daemon must open and validate the store itself before granting
+          // each lease, so release our snapshot lock while it does so.
+          service.close();
+          service = undefined;
+          const held: Array<{ pageId: string; leaseId: string; rootTargetId: string }> = [];
+          try {
+            for (const pageId of snapshot.values()) {
+              const lease = await daemonClient.acquireWorkspaceLease(name, pageId);
+              held.push({ pageId, leaseId: lease.leaseId, rootTargetId: lease.rootTargetId });
+            }
+
+            // Reacquire the store lock and prove the leased snapshot is still
+            // current. If another writer added/removed a root in the gap,
+            // release and retry instead of disposing an unleased context.
+            service = await WorkspaceSessionService.open(argv['cdp-url'] as string);
+            await service.refresh();
+            const current = service.registry.getSession(name);
+            if (!current) service.registry.removeSession(name);
+            const currentRoots = sessionRoots(service, name, current!.pageIds);
+            if (!sameRootSnapshot(snapshot, currentRoots)) {
+              continue;
+            }
+            const result = await service.removeSession(name, { force: true });
+            outputSuccess('Workspace session removed', result);
+            removed = true;
+          } finally {
+            await Promise.allSettled(held.map((lease) =>
+              daemonClient.releaseWorkspaceLease(
+                name,
+                lease.pageId,
+                lease.leaseId,
+                lease.rootTargetId
+              )
+            ));
+          }
+        }
+        if (!removed) {
+          throw new SessionFoundationError(
+            'SESSION_STORE_CONFLICT',
+            `Workspace session ${name} changed repeatedly during removal; retry the command`
+          );
+        }
+      }
+    } catch (error) {
+      outputThrownError(error, 'SESSION_COMMAND_FAILED');
+      process.exitCode = 1;
+    } finally {
+      service?.close();
+    }
+  }
+);
 
 // Page management commands
 cli.command(
@@ -140,9 +440,9 @@ cli.command(
 
 cli.command(
   'navigate <action> <page>',
-  'Navigate page (URL, back, forward, reload). Options: --wait-for, --wait-for-text, --wait-for-idle, --wait-for-frame, --timeout',
+  'Navigate page (URL, back, forward, reload). Supports selector, text, expression, idle, and response waits.',
   (yargs) => {
-    return yargs
+    return addAdvancedWaitOptions(yargs
       .positional('action', {
         describe: 'URL or action (back, forward, reload)',
         type: 'string'
@@ -186,22 +486,16 @@ cli.command(
           throw new Error(buildErrorWithHint('Invalid parameter order', hint));
         }
         return true;
-      });
+      }));
   },
   async (argv) => {
     const context = new CDPContext(argv['cdp-url'] as string);
+    const waitOptions = waitOptionsFromArgv(argv as Record<string, unknown>);
     await pages.navigate(
       context,
       argv.action as string,
       argv.page as string,
-      {
-        waitFor: argv['wait-for'] as string | undefined,
-        waitForText: argv['wait-for-text'] as string | undefined,
-        waitForIdle: argv['wait-for-idle'] as boolean,
-        timeout: argv.timeout as number,
-        waitForFrame: argv['wait-for-frame'] as string | undefined,
-        waitForNavigation: argv['wait-for-navigation'] as boolean
-      }
+      waitOptions
     );
   }
 );
@@ -218,6 +512,38 @@ cli.command(
   async (argv) => {
     const context = new CDPContext(argv['cdp-url'] as string);
     await pages.closePage(context, argv.idOrTitle as string);
+  }
+);
+
+cli.command(
+  'wait <page>',
+  'Wait on an existing page without dispatching an action',
+  (yargs) => yargs
+    .positional('page', { type: 'string', description: 'Page ID or title (exact page ID when --session is set)' })
+    .option('wait-for', { type: 'string', description: 'Wait for a CSS selector' })
+    .option('wait-for-text', { type: 'string', description: 'Wait for page-body text' })
+    .option('expression', { type: 'string', description: 'Wait until this JavaScript expression resolves truthy' })
+    .option('expression-file', { type: 'string', description: 'Read the JavaScript expression from this file' })
+    .option('expression-stdin', { type: 'boolean', default: false, description: 'Read the JavaScript expression from standard input' })
+    .option('wait-for-idle', { type: 'boolean', default: false, description: 'Wait for network idle and document ready' })
+    .option('wait-for-frame', { type: 'string', description: 'Frame selector or index for selector/text/expression waits' })
+    .option('wait-for-response', { type: 'string', description: 'Wait for a response whose URL contains this literal substring' })
+    .option('wait-for-status', { type: 'number', description: 'With --wait-for-response, require this HTTP status' })
+    .option('wait-for-body-text', { type: 'string', description: 'With --wait-for-response, require literal body text (never printed)' })
+    .option('timeout', { type: 'number', default: 10000, description: 'Timeout for each wait condition in ms' }),
+  async (argv) => {
+    const context = new CDPContext(argv['cdp-url'] as string);
+    try {
+      const result = await waitForPageConditions(
+        context,
+        argv.page as string,
+        standaloneWaitOptionsFromArgv(argv as Record<string, unknown>)
+      );
+      outputSuccess('Wait complete', result);
+    } catch (error) {
+      outputThrownError(error, 'WAIT_FAILED', { page: argv.page as string });
+      process.exitCode = 1;
+    }
   }
 );
 
@@ -269,6 +595,32 @@ cli.command(
         state: argv.state as 'normal' | 'maximized' | 'minimized' | 'fullscreen' | undefined
       }
     );
+  }
+);
+
+cli.command(
+  'page-health <page>',
+  'Inspect page focus, visibility, viewport, and browser window state without activating it',
+  (yargs) => yargs.positional('page', {
+    describe: 'Page ID or title',
+    type: 'string'
+  }),
+  async (argv) => {
+    const context = new CDPContext(argv['cdp-url'] as string);
+    await pages.pageHealth(context, argv.page as string);
+  }
+);
+
+cli.command(
+  'activate-page <page>',
+  'Explicitly activate a page and bring it to the foreground',
+  (yargs) => yargs.positional('page', {
+    describe: 'Page ID or title',
+    type: 'string'
+  }),
+  async (argv) => {
+    const context = new CDPContext(argv['cdp-url'] as string);
+    await pages.activatePage(context, argv.page as string);
   }
 );
 
@@ -509,9 +861,9 @@ cli.command(
 // Input commands
 cli.command(
   'click [selector] <page>',
-  'Click an element. Options: --text, --nth, --within, --frame, --double, --longpress, --touch, --force',
+  'Click an element. Supports targeting options plus selector, text, expression, idle, and response waits.',
   (yargs) => {
-    return yargs
+    return addAdvancedWaitOptions(yargs
       .positional('selector', {
         describe: 'CSS selector',
         type: 'string'
@@ -639,10 +991,11 @@ cli.command(
           throw new Error('--touch cannot be combined with --double');
         }
         return true;
-      });
+      }));
   },
   async (argv) => {
     const context = new CDPContext(argv['cdp-url'] as string);
+    const waitOptions = waitOptionsFromArgv(argv as Record<string, unknown>);
     await input.click(
       context,
       {
@@ -660,12 +1013,7 @@ cli.command(
         touch: argv.touch as boolean,
         frame: argv.frame as string | undefined,
         force: argv.force as boolean,
-        waitFor: argv.waitFor as string | undefined,
-        waitForText: argv.waitForText as string | undefined,
-        waitForIdle: argv.waitForIdle as boolean | undefined,
-        waitForFrame: argv.waitForFrame as string | undefined,
-        waitForNavigation: argv.waitForNavigation as boolean | undefined,
-        timeout: argv.timeout as number | undefined
+        ...waitOptions
       }
     );
   }
@@ -673,9 +1021,9 @@ cli.command(
 
 cli.command(
   'fill <selector> <value> <page>',
-  'Fill an input element. Options: --nth, --within, --frame',
+  'Fill an input element. Supports targeting options plus selector, text, expression, idle, and response waits.',
   (yargs) => {
-    return yargs
+    return addAdvancedWaitOptions(yargs
       .positional('selector', {
         describe: 'CSS selector',
         type: 'string'
@@ -699,6 +1047,16 @@ cli.command(
       .option('frame', {
         type: 'string',
         description: 'Target iframe by selector (e.g. "#myframe") or index (1 = first iframe)'
+      })
+      .option('expect-value', {
+        type: 'boolean',
+        description: 'Require the final live value to exactly equal the requested value',
+        default: false
+      })
+      .option('show-value', {
+        type: 'boolean',
+        description: 'Include requested, actual, and replaced field values in NDJSON (may expose secrets)',
+        default: false
       })
       .option('wait-for', {
         type: 'string',
@@ -736,10 +1094,11 @@ cli.command(
           throw new Error(buildErrorWithHint('Invalid parameter order', hint));
         }
         return true;
-      });
+      }));
   },
   async (argv) => {
     const context = new CDPContext(argv['cdp-url'] as string);
+    const waitOptions = waitOptionsFromArgv(argv as Record<string, unknown>);
     await input.fill(
       context,
       argv.selector as string,
@@ -749,12 +1108,9 @@ cli.command(
         nth: argv.nth as number | undefined,
         within: argv.within as string | undefined,
         frame: argv.frame as string | undefined,
-        waitFor: argv.waitFor as string | undefined,
-        waitForText: argv.waitForText as string | undefined,
-        waitForIdle: argv.waitForIdle as boolean | undefined,
-        waitForFrame: argv.waitForFrame as string | undefined,
-        waitForNavigation: argv.waitForNavigation as boolean | undefined,
-        timeout: argv.timeout as number | undefined
+        expectValue: argv['expect-value'] as boolean | undefined,
+        showValue: argv['show-value'] as boolean | undefined,
+        ...waitOptions
       }
     );
   }
@@ -762,9 +1118,9 @@ cli.command(
 
 cli.command(
   'select <selector> <valueOrPage> [page]',
-  'Set a <select> element. Usage: select <selector> <value> <page>  OR  select <selector> <page> --text "Label" | --index N',
+  'Set a <select> element; supports selector, text, expression, idle, and response waits.',
   (yargs) => {
-    return yargs
+    return addAdvancedWaitOptions(yargs
       .positional('selector', {
         describe: 'CSS selector for the <select> element',
         type: 'string'
@@ -871,10 +1227,11 @@ cli.command(
         }
 
         return true;
-      });
+      }));
   },
   async (argv) => {
     const context = new CDPContext(argv['cdp-url'] as string);
+    const waitOptions = waitOptionsFromArgv(argv as Record<string, unknown>);
 
     // Resolved by arity: with three positionals the middle one is the value,
     // with two the second is the page and --text/--index names the option.
@@ -897,12 +1254,7 @@ cli.command(
         nth: argv.nth as number | undefined,
         within: argv.within as string | undefined,
         frame: argv.frame as string | undefined,
-        waitFor: argv.waitFor as string | undefined,
-        waitForText: argv.waitForText as string | undefined,
-        waitForIdle: argv.waitForIdle as boolean | undefined,
-        waitForFrame: argv.waitForFrame as string | undefined,
-        waitForNavigation: argv.waitForNavigation as boolean | undefined,
-        timeout: argv.timeout as number | undefined
+        ...waitOptions
       }
     );
   }
@@ -910,9 +1262,9 @@ cli.command(
 
 cli.command(
   'press-key <key> <page>',
-  'Press a keyboard key. Options: --wait-for, --wait-for-text, --wait-for-navigation, --timeout',
+  'Press a keyboard key. Supports selector, text, expression, idle, response, and navigation waits.',
   (yargs) => {
-    return yargs
+    return addAdvancedWaitOptions(yargs
       .positional('key', {
         describe: 'Key name (enter, tab, escape, etc)',
         type: 'string'
@@ -953,18 +1305,14 @@ cli.command(
           throw new Error(buildErrorWithHint('Invalid parameter order', hint));
         }
         return true;
-      });
+      }));
   },
   async (argv) => {
     const context = new CDPContext(argv['cdp-url'] as string);
+    const waitOptions = waitOptionsFromArgv(argv as Record<string, unknown>);
     await input.pressKey(context, argv.key as string, {
       page: argv.page as string,
-      waitFor: argv.waitFor as string | undefined,
-      waitForText: argv.waitForText as string | undefined,
-      waitForIdle: argv.waitForIdle as boolean | undefined,
-      waitForFrame: argv.waitForFrame as string | undefined,
-      waitForNavigation: argv.waitForNavigation as boolean | undefined,
-      timeout: argv.timeout as number | undefined
+      ...waitOptions
     });
   }
 );
@@ -1153,6 +1501,26 @@ cli.command(
         description: 'Filter by type (log/error/warn for console, xhr/fetch/etc for network)',
         alias: 'f'
       })
+      .option('url', {
+        type: 'string',
+        description: 'For network logs, require this URL substring'
+      })
+      .option('method', {
+        type: 'string',
+        description: 'For network logs, require this HTTP method'
+      })
+      .option('status', {
+        type: 'number',
+        description: 'For network logs, require this response status'
+      })
+      .option('failed', {
+        type: 'boolean',
+        description: 'For network logs, include only failed requests'
+      })
+      .option('since', {
+        type: 'number',
+        description: 'For network logs, include entries at or after this epoch-millisecond timestamp'
+      })
       .check((argv) => {
         const hint = validateLogsParams(argv.type as string, argv.page as string);
         if (hint.likely) {
@@ -1175,7 +1543,12 @@ cli.command(
       await logs.getNetworkLogs(context, {
         page: argv.page as string,
         last: argv.last as number | undefined,
-        type: argv.filter as string | undefined
+        type: argv.filter as string | undefined,
+        url: argv.url as string | undefined,
+        method: argv.method as string | undefined,
+        status: argv.status as number | undefined,
+        failed: argv.failed as boolean | undefined,
+        since: argv.since as number | undefined
       });
     } else if (logType === 'clear') {
       await logs.clearLogs(context, {
@@ -1211,6 +1584,39 @@ cli.command(
     await logs.getConsoleDetail(context, {
       page: argv.page as string,
       messageId: argv.messageId as number
+    });
+  }
+);
+
+cli.command(
+  'network-detail <requestId> <page>',
+  'Get the complete recorded lifecycle for one network request',
+  (yargs) => yargs
+    .positional('requestId', {
+      describe: 'Chrome network request ID',
+      type: 'string'
+    })
+    .positional('page', {
+      describe: 'Page ID or title',
+      type: 'string'
+    })
+    .option('body', {
+      type: 'boolean',
+      description: 'Include a bounded response body (may contain sensitive application data)',
+      default: false
+    })
+    .option('max-body-bytes', {
+      type: 'number',
+      description: 'Maximum response-body bytes to emit',
+      default: 65536
+    }),
+  async (argv) => {
+    const context = new CDPContext(argv['cdp-url'] as string);
+    await logs.getNetworkDetail(context, {
+      page: argv.page as string,
+      requestId: argv.requestId as string,
+      body: argv.body as boolean,
+      maxBodyBytes: argv['max-body-bytes'] as number
     });
   }
 );
@@ -1428,6 +1834,209 @@ cli.command(
       page: argv.page as string,
       frame: argv.frame as string | undefined
     });
+  }
+);
+
+cli.command(
+  'diagnose <page>',
+  'Collect a bounded, redacted diagnostic bundle; optionally persist a manifest and screenshot',
+  (yargs) => yargs
+    .positional('page', {
+      describe: 'Page ID or title',
+      type: 'string'
+    })
+    .option('output-dir', {
+      type: 'string',
+      description: 'Write manifest.json and screenshot.png into this directory'
+    }),
+  async (argv) => {
+    const context = new CDPContext(argv['cdp-url'] as string);
+    await diagnose.diagnosePage(context, {
+      page: argv.page as string,
+      outputDir: argv['output-dir'] as string | undefined
+    });
+  }
+);
+
+cli.command(
+  'targets',
+  'List exact page and out-of-process iframe targets',
+  (yargs) => yargs,
+  async (argv) => {
+    const context = new CDPContext(argv['cdp-url'] as string);
+    try {
+      outputLines(await targets.listTargets(context));
+    } catch (error) {
+      outputThrownError(error, 'TARGETS_FAILED');
+      process.exitCode = 1;
+    }
+  }
+);
+
+cli.command(
+  'target <targetId>',
+  'Resolve one literal target ID (titles and URLs are never accepted)',
+  (yargs) => yargs.positional('targetId', { type: 'string', demandOption: true }),
+  async (argv) => {
+    const context = new CDPContext(argv['cdp-url'] as string);
+    try {
+      outputSuccess('Target resolved', await targets.resolveTarget(context, argv.targetId as string));
+    } catch (error) {
+      outputThrownError(error, 'TARGET_RESOLVE_FAILED', { targetId: argv.targetId });
+      process.exitCode = 1;
+    }
+  }
+);
+
+cli.command(
+  'target-frame <parentTargetId> <selector>',
+  'Resolve an iframe selector to its exact OOPIF target',
+  (yargs) => yargs
+    .positional('parentTargetId', { type: 'string', demandOption: true })
+    .positional('selector', { type: 'string', demandOption: true }),
+  async (argv) => {
+    const context = new CDPContext(argv['cdp-url'] as string);
+    try {
+      outputSuccess('Iframe target resolved', await targets.resolveIframeTarget(
+        context,
+        argv.parentTargetId as string,
+        argv.selector as string
+      ));
+    } catch (error) {
+      outputThrownError(error, 'TARGET_FRAME_RESOLVE_FAILED');
+      process.exitCode = 1;
+    }
+  }
+);
+
+cli.command(
+  'target-eval <expression> <targetId>',
+  'Evaluate JavaScript in the exact target default context',
+  (yargs) => yargs
+    .positional('expression', { type: 'string', demandOption: true })
+    .positional('targetId', { type: 'string', demandOption: true }),
+  async (argv) => {
+    const context = new CDPContext(argv['cdp-url'] as string);
+    try {
+      outputSuccess('Target evaluation complete', await targets.evaluateTarget(
+        context,
+        argv.targetId as string,
+        argv.expression as string
+      ));
+    } catch (error) {
+      outputThrownError(error, 'TARGET_EVAL_FAILED');
+      process.exitCode = 1;
+    }
+  }
+);
+
+cli.command(
+  'target-query <selector> <targetId>',
+  'Inspect one unique element in an exact page or OOPIF target',
+  (yargs) => yargs
+    .positional('selector', { type: 'string', demandOption: true })
+    .positional('targetId', { type: 'string', demandOption: true })
+    .option('show-value', {
+      type: 'boolean',
+      description: 'Include the field value in NDJSON (may expose payment or credential data)',
+      default: false
+    }),
+  async (argv) => {
+    const context = new CDPContext(argv['cdp-url'] as string);
+    try {
+      const result = await targets.queryTarget(
+        context,
+        argv.targetId as string,
+        argv.selector as string
+      );
+      outputSuccess('Target element inspected', argv['show-value'] === true
+        ? result
+        : { ...result, value: null, valueRedacted: true });
+    } catch (error) {
+      outputThrownError(error, 'TARGET_QUERY_FAILED');
+      process.exitCode = 1;
+    }
+  }
+);
+
+cli.command(
+  'target-fill <selector> <value> <targetId>',
+  'Fill and read back one unique element in an exact page or OOPIF target',
+  (yargs) => yargs
+    .positional('selector', { type: 'string', demandOption: true })
+    .positional('value', { type: 'string', demandOption: true })
+    .positional('targetId', { type: 'string', demandOption: true })
+    .option('expect-value', {
+      type: 'boolean',
+      description: 'Require exact equality after target-local formatting',
+      default: false
+    })
+    .option('show-value', {
+      type: 'boolean',
+      description: 'Include field values in NDJSON (may expose payment or credential data)',
+      default: false
+    }),
+  async (argv) => {
+    const context = new CDPContext(argv['cdp-url'] as string);
+    try {
+      const result = await targets.fillTarget(
+        context,
+        argv.targetId as string,
+        argv.selector as string,
+        argv.value as string
+      );
+      const valueLost = result.requestedValue.length > 0 && result.actualValue === '';
+      const publicResult = argv['show-value'] === true
+        ? result
+        : {
+            ...result,
+            requestedValue: undefined,
+            previousValue: undefined,
+            actualValue: undefined,
+            requestedValueLength: result.requestedValue.length,
+            previousValueLength: result.previousValue?.length ?? null,
+            actualValueLength: result.actualValue?.length ?? null,
+            valueRedacted: true,
+            state: {
+              ...result.state,
+              value: null,
+              valueRedacted: true,
+              valueLength: result.state.valueLength
+            }
+          };
+      if (valueLost || (argv['expect-value'] === true && !result.valueApplied)) {
+        outputError('Target fill value was not applied', 'FILL_VALUE_NOT_APPLIED', publicResult);
+        process.exitCode = 1;
+        return;
+      }
+      outputSuccess('Target fill performed', publicResult);
+    } catch (error) {
+      outputThrownError(error, 'TARGET_FILL_FAILED');
+      process.exitCode = 1;
+    }
+  }
+);
+
+cli.command(
+  'target-press-key <key> <targetId>',
+  'Dispatch one key pair in an exact page or OOPIF target',
+  (yargs) => yargs
+    .positional('key', { type: 'string', demandOption: true })
+    .positional('targetId', { type: 'string', demandOption: true })
+    .option('selector', { type: 'string', description: 'Focus this unique target-local element first' }),
+  async (argv) => {
+    const context = new CDPContext(argv['cdp-url'] as string);
+    try {
+      outputSuccess('Target key dispatched', await targets.pressKeyTarget(
+        context,
+        argv.targetId as string,
+        argv.key as string,
+        { selector: argv.selector as string | undefined }
+      ));
+    } catch (error) {
+      outputThrownError(error, 'TARGET_KEY_FAILED');
+      process.exitCode = 1;
+    }
   }
 );
 

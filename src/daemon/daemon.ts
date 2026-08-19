@@ -6,6 +6,9 @@ import { createServer, IncomingMessage, ServerResponse } from 'http';
 import { WebSocket } from 'ws';
 import { PageSession } from './page-session.js';
 import { CDPContext, Page, CDPMessage } from '../context.js';
+import { WorkspaceSessionService } from '../sessions/workspace-session-service.js';
+import { OperationLeaseManager } from '../sessions/operation-lease-manager.js';
+import { SessionFoundationError } from '../sessions/errors.js';
 
 const DEFAULT_DAEMON_PORT = 9223;
 const DEFAULT_CDP_URL = 'http://localhost:9222';
@@ -15,6 +18,7 @@ interface DaemonConfig {
   port: number;
   cdpUrl: string;
   bufferSize: number;
+  workspaceRootResolver?: (sessionName: string, pageId: string) => Promise<string>;
 }
 
 interface SessionInfo {
@@ -32,14 +36,21 @@ export class CDPDaemon {
   private healthCheckInterval: NodeJS.Timeout | null = null;
   private browserWs: WebSocket | null = null;
   private browserMessageId = 1;
+  private readonly workspaceLeases = new OperationLeaseManager();
 
   constructor(config: Partial<DaemonConfig> = {}) {
     this.config = {
       port: config.port ?? DEFAULT_DAEMON_PORT,
       cdpUrl: config.cdpUrl ?? DEFAULT_CDP_URL,
-      bufferSize: config.bufferSize ?? DEFAULT_BUFFER_SIZE
+      bufferSize: config.bufferSize ?? DEFAULT_BUFFER_SIZE,
+      workspaceRootResolver: config.workspaceRootResolver
     };
     this.context = new CDPContext(this.config.cdpUrl);
+  }
+
+  get listeningPort(): number {
+    const address = this.server?.address();
+    return typeof address === 'object' && address ? address.port : this.config.port;
   }
 
   /**
@@ -259,6 +270,45 @@ export class CDPDaemon {
         return;
       }
 
+      if (method === 'POST' && path === '/workspace-leases') {
+        const body = await this.readBody(req);
+        const { action, sessionName, pageId, leaseId, rootTargetId: suppliedRootTargetId } = body;
+        if (
+          typeof action !== 'string' ||
+          typeof sessionName !== 'string' ||
+          typeof pageId !== 'string'
+        ) {
+          this.sendJson(res, 400, { error: 'action, sessionName, and pageId are required' });
+          return;
+        }
+        if (action === 'acquire') {
+          // Never trust a caller-provided root for acquisition: ownership and
+          // structural-root mapping are derived from the persisted registry.
+          const rootTargetId = await this.workspaceRoot(sessionName, pageId);
+          const lease = this.workspaceLeases.acquire(rootTargetId, sessionName, 60_000);
+          this.sendJson(res, 201, { lease });
+        } else if (
+          action === 'heartbeat' &&
+          typeof leaseId === 'string' &&
+          typeof suppliedRootTargetId === 'string'
+        ) {
+          const rootTargetId = suppliedRootTargetId;
+          const lease = this.workspaceLeases.heartbeat(rootTargetId, sessionName, leaseId);
+          this.sendJson(res, 200, { lease });
+        } else if (
+          action === 'release' &&
+          typeof leaseId === 'string' &&
+          typeof suppliedRootTargetId === 'string'
+        ) {
+          const rootTargetId = suppliedRootTargetId;
+          this.workspaceLeases.release(rootTargetId, sessionName, leaseId);
+          this.sendJson(res, 200, { released: true });
+        } else {
+          this.sendJson(res, 400, { error: 'Invalid lease action or missing leaseId' });
+        }
+        return;
+      }
+
       // List sessions
       if (method === 'GET' && path === '/sessions') {
         const sessions: SessionInfo[] = [];
@@ -278,11 +328,15 @@ export class CDPDaemon {
       // Create session for page
       if (method === 'POST' && path === '/sessions') {
         const body = await this.readBody(req);
-        const { pageId, webSocketUrl } = body;
+        const { pageId, webSocketUrl, workspaceSession } = body;
 
         if (!pageId || !webSocketUrl) {
           this.sendJson(res, 400, { error: 'pageId and webSocketUrl required' });
           return;
+        }
+
+        if (typeof workspaceSession === 'string') {
+          await this.assertWorkspaceAccess(workspaceSession, pageId);
         }
 
         // Check if session already exists
@@ -312,9 +366,26 @@ export class CDPDaemon {
         return;
       }
 
+      // Return dialog state for daemon-backed execution. This intentionally
+      // uses PageSession's short bounded probe for modals that predate the
+      // daemon connection.
+      if (method === 'GET' && path.startsWith('/sessions/') && path.endsWith('/dialog-status')) {
+        const pageId = decodeURIComponent(path.slice('/sessions/'.length, -'/dialog-status'.length));
+        const workspaceSession = url.searchParams.get('session');
+        const session = this.sessions.get(pageId);
+        if (!session) {
+          this.sendJson(res, 404, { error: 'Session not found' });
+          return;
+        }
+        await this.assertOptionalWorkspaceAccess(workspaceSession, pageId);
+        this.sendJson(res, 200, { dialog: await session.getDialogStatus() });
+        return;
+      }
+
       // Delete session
       if (method === 'DELETE' && path.startsWith('/sessions/')) {
         const pageId = decodeURIComponent(path.slice('/sessions/'.length));
+        const workspaceSession = url.searchParams.get('session');
         const session = this.sessions.get(pageId);
 
         if (!session) {
@@ -322,8 +393,10 @@ export class CDPDaemon {
           return;
         }
 
-        session.close();
-        this.sessions.delete(pageId);
+        await this.withWorkspaceLease(workspaceSession, pageId, async () => {
+          session.close();
+          this.sessions.delete(pageId);
+        });
         this.sendJson(res, 200, { status: 'deleted', pageId });
         return;
       }
@@ -333,6 +406,7 @@ export class CDPDaemon {
         const rest = path.slice('/logs/detail/'.length);
         const [pageId, messageIdStr] = rest.split('/').map(decodeURIComponent);
         const messageId = parseInt(messageIdStr, 10);
+        const workspaceSession = url.searchParams.get('session');
 
         if (!pageId || isNaN(messageId)) {
           this.sendJson(res, 400, { error: 'Invalid page ID or message ID' });
@@ -345,6 +419,7 @@ export class CDPDaemon {
           return;
         }
 
+        await this.assertOptionalWorkspaceAccess(workspaceSession, pageId);
         const message = session.getConsoleMessage(messageId);
         if (!message) {
           this.sendJson(res, 404, { error: 'Message not found' });
@@ -358,6 +433,7 @@ export class CDPDaemon {
       // Get console logs
       if (method === 'GET' && path.startsWith('/logs/console/')) {
         const pageId = decodeURIComponent(path.slice('/logs/console/'.length));
+        const workspaceSession = url.searchParams.get('session');
         const session = this.sessions.get(pageId);
 
         if (!session) {
@@ -365,6 +441,7 @@ export class CDPDaemon {
           return;
         }
 
+        await this.assertOptionalWorkspaceAccess(workspaceSession, pageId);
         const lastParam = url.searchParams.get('last');
         const last = lastParam ? parseInt(lastParam, 10) : undefined;
         const typeFilter = url.searchParams.get('type');
@@ -381,6 +458,7 @@ export class CDPDaemon {
       // Get network logs
       if (method === 'GET' && path.startsWith('/logs/network/')) {
         const pageId = decodeURIComponent(path.slice('/logs/network/'.length));
+        const workspaceSession = url.searchParams.get('session');
         const session = this.sessions.get(pageId);
 
         if (!session) {
@@ -388,6 +466,7 @@ export class CDPDaemon {
           return;
         }
 
+        await this.assertOptionalWorkspaceAccess(workspaceSession, pageId);
         const lastParam = url.searchParams.get('last');
         const last = lastParam ? parseInt(lastParam, 10) : undefined;
         const typeFilter = url.searchParams.get('type');
@@ -404,6 +483,7 @@ export class CDPDaemon {
       // Clear logs
       if (method === 'DELETE' && path.startsWith('/logs/')) {
         const pageId = decodeURIComponent(path.slice('/logs/'.length));
+        const workspaceSession = url.searchParams.get('session');
         const session = this.sessions.get(pageId);
 
         if (!session) {
@@ -411,7 +491,7 @@ export class CDPDaemon {
           return;
         }
 
-        session.clearLogs();
+        await this.withWorkspaceLease(workspaceSession, pageId, async () => session.clearLogs());
         this.sendJson(res, 200, { status: 'cleared', pageId });
         return;
       }
@@ -432,7 +512,7 @@ export class CDPDaemon {
         }
 
         const body = await this.readBody(req);
-        const { method: cdpMethod, params: cdpParams } = body;
+        const { method: cdpMethod, params: cdpParams, workspaceSession, workspaceLeaseId } = body;
 
         if (!cdpMethod) {
           this.sendJson(res, 400, { error: 'CDP method required' });
@@ -440,9 +520,15 @@ export class CDPDaemon {
         }
 
         try {
-          const result = await session.sendCommand(cdpMethod, cdpParams);
+          const result = await this.withWorkspaceLease(
+            typeof workspaceSession === 'string' ? workspaceSession : null,
+            pageId,
+            () => session.sendCommand(cdpMethod, cdpParams),
+            typeof workspaceLeaseId === 'string' ? workspaceLeaseId : undefined
+          );
           this.sendJson(res, 200, { result });
         } catch (err) {
+          if (err instanceof SessionFoundationError) throw err;
           this.sendJson(res, 500, { error: (err as Error).message });
         }
         return;
@@ -451,7 +537,7 @@ export class CDPDaemon {
       // Batch execute multiple CDP commands
       if (method === 'POST' && path === '/exec-batch') {
         const body = await this.readBody(req);
-        const { pageId, commands } = body;
+        const { pageId, commands, workspaceSession, workspaceLeaseId } = body;
 
         if (!pageId || !Array.isArray(commands)) {
           this.sendJson(res, 400, { error: 'pageId and commands array required' });
@@ -469,15 +555,23 @@ export class CDPDaemon {
           return;
         }
 
-        const results: any[] = [];
-        for (const cmd of commands) {
-          try {
-            const result = await session.sendCommand(cmd.method, cmd.params);
-            results.push({ success: true, result });
-          } catch (err) {
-            results.push({ success: false, error: (err as Error).message });
-          }
-        }
+        const results: any[] = await this.withWorkspaceLease(
+          typeof workspaceSession === 'string' ? workspaceSession : null,
+          pageId,
+          async () => {
+            const batch: any[] = [];
+            for (const cmd of commands) {
+              try {
+                const result = await session.sendCommand(cmd.method, cmd.params);
+                batch.push({ success: true, result });
+              } catch (err) {
+                batch.push({ success: false, error: (err as Error).message });
+              }
+            }
+            return batch;
+          },
+          typeof workspaceLeaseId === 'string' ? workspaceLeaseId : undefined
+        );
 
         this.sendJson(res, 200, { results });
         return;
@@ -486,7 +580,64 @@ export class CDPDaemon {
       // Not found
       this.sendJson(res, 404, { error: 'Not found' });
     } catch (err) {
-      this.sendJson(res, 500, { error: (err as Error).message });
+      if (err instanceof SessionFoundationError) {
+        this.sendJson(res, workspaceStatus(err.code), {
+          error: true,
+          message: err.message,
+          code: err.code,
+          details: err.details
+        });
+      } else {
+        this.sendJson(res, 500, { error: (err as Error).message });
+      }
+    }
+  }
+
+  private async assertOptionalWorkspaceAccess(
+    workspaceSession: string | null,
+    pageId: string
+  ): Promise<void> {
+    if (workspaceSession) await this.assertWorkspaceAccess(workspaceSession, pageId);
+  }
+
+  private async assertWorkspaceAccess(workspaceSession: string, pageId: string): Promise<void> {
+    await this.workspaceRoot(workspaceSession, pageId);
+  }
+
+  private async workspaceRoot(workspaceSession: string, pageId: string): Promise<string> {
+    if (this.config.workspaceRootResolver) {
+      return this.config.workspaceRootResolver(workspaceSession, pageId);
+    }
+    const service = await WorkspaceSessionService.open(this.config.cdpUrl, {
+      leases: this.workspaceLeases
+    });
+    try {
+      const access = await service.assertAccess(workspaceSession, pageId);
+      return access.rootTargetId;
+    } finally {
+      service.close();
+    }
+  }
+
+  private async withWorkspaceLease<T>(
+    workspaceSession: string | null,
+    pageId: string,
+    operation: () => Promise<T> | T,
+    existingLeaseId?: string
+  ): Promise<T> {
+    if (!workspaceSession) return operation();
+    const service = await WorkspaceSessionService.open(this.config.cdpUrl, {
+      leases: this.workspaceLeases
+    });
+    try {
+      if (existingLeaseId) {
+        const { rootTargetId } = await service.assertAccess(workspaceSession, pageId);
+        this.workspaceLeases.heartbeat(rootTargetId, workspaceSession, existingLeaseId);
+        return await operation();
+      }
+      return await service.withTargetLease(workspaceSession, pageId, async () => operation());
+    } finally {
+      service.close();
     }
   }
 
@@ -515,6 +666,13 @@ export class CDPDaemon {
     res.statusCode = status;
     res.end(JSON.stringify(data));
   }
+}
+
+function workspaceStatus(code: string): number {
+  if (code === 'PAGE_NOT_OWNED') return 403;
+  if (code === 'SESSION_NOT_FOUND' || code === 'TARGET_NOT_FOUND') return 404;
+  if (code.startsWith('LEASE_') || code === 'OWNERSHIP_CONFLICT') return 409;
+  return 400;
 }
 
 /**

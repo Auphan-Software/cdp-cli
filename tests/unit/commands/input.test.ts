@@ -119,6 +119,112 @@ describe('Input Commands', () => {
       expect(result.success).toBe(true);
     });
 
+    it('arms the delivery witness against the chosen element, including touch events', async () => {
+      const capture = captureConsoleOutput();
+      const context = new CDPContext();
+      const originalConnect = context.connect.bind(context);
+      let witnessSource = '';
+      context.connect = async (page) => {
+        const ws = await originalConnect(page) as MockWebSocket;
+        const originalSend = ws.send.bind(ws);
+        ws.send = (data: string) => {
+          const message = JSON.parse(data);
+          const source = message.params?.functionDeclaration ?? '';
+          if (source.includes('doc.__cdpDocumentClickWitness =')) witnessSource = source;
+          originalSend(data);
+        };
+        return ws;
+      };
+
+      await input.click(context, 'button', { page: 'page1', touch: true });
+      expect(witnessSource).toContain('path.includes(expectedTarget)');
+      expect(witnessSource).toContain("addEventListener('touchstart'");
+      capture.restore();
+    });
+
+    it('should report CLICK_NOT_DELIVERED for the Mako focus-theft regression', async () => {
+      const capture = captureConsoleOutput();
+      const exitMock = mockProcessExit();
+      const context = new CDPContext();
+      const originalConnect = context.connect.bind(context);
+      let witnessRemoved = false;
+
+      context.connect = async (page) => {
+        const ws = await originalConnect(page) as MockWebSocket;
+        const originalSend = ws.send.bind(ws);
+        ws.send = (data: string) => {
+          const msg = JSON.parse(data);
+          const fn = msg.params?.functionDeclaration ?? '';
+          const reply = (result: unknown) => {
+            ws.sentMessages.push(msg);
+            setTimeout(() => ws.simulateMessage({ id: msg.id, result: { result } }), 5);
+          };
+
+          if (msg.method === 'Runtime.callFunctionOn' && fn.includes('documentSurvives')) {
+            reply({ value: { documentSurvives: true, seen: false, event: null } });
+            return;
+          }
+          if (msg.method === 'Runtime.callFunctionOn' && fn.includes('delete doc.__cdpDocumentClickWitness')) {
+            witnessRemoved = true;
+            reply({});
+            return;
+          }
+          if (msg.method === 'Runtime.callFunctionOn' && fn.includes('doc.__cdpDocumentClickWitness =')) {
+            reply({});
+            return;
+          }
+          originalSend(data);
+        };
+        return ws;
+      };
+
+      try {
+        await input.click(context, 'button#submit', { page: 'page1' });
+      } catch {
+        // Expected process.exit
+      }
+
+      const error = JSON.parse(capture.getLogs()[0]);
+      expect(exitMock.exitCode).toBe(1);
+      expect(error.code).toBe('CLICK_NOT_DELIVERED');
+      expect(witnessRemoved).toBe(true);
+
+      capture.restore();
+      exitMock.restore();
+    });
+
+    it('should keep ordinary click delivery unverifiable when navigation destroys the witness context', async () => {
+      const capture = captureConsoleOutput();
+      const context = new CDPContext();
+      const originalConnect = context.connect.bind(context);
+
+      context.connect = async (page) => {
+        const ws = await originalConnect(page) as MockWebSocket;
+        const originalSend = ws.send.bind(ws);
+        ws.send = (data: string) => {
+          const msg = JSON.parse(data);
+          const fn = msg.params?.functionDeclaration ?? '';
+          if (msg.method === 'Runtime.callFunctionOn' && fn.includes('documentSurvives')) {
+            ws.sentMessages.push(msg);
+            setTimeout(() => ws.simulateMessage({
+              id: msg.id,
+              error: { message: 'Execution context was destroyed' }
+            }), 5);
+            return;
+          }
+          originalSend(data);
+        };
+        return ws;
+      };
+
+      await input.click(context, 'button#submit', { page: 'page1' });
+
+      const result = JSON.parse(capture.getLogs()[0]);
+      expect(result.success).toBe(true);
+      expect(result.data.clickDelivered).toBe(null);
+      capture.restore();
+    });
+
     it('should recover when selector and page arguments are swapped', async () => {
       const capture = captureConsoleOutput();
       const context = new CDPContext();
@@ -945,7 +1051,8 @@ describe('Input Commands', () => {
       expect(result.success).toBe(true);
       expect(result.message).toBe('Fill performed');
       expect(result.data.selector).toBe('input#email');
-      expect(result.data.value).toBe('test@example.com');
+      expect(result.data.value).toBeUndefined();
+      expect(result.data.requestedValueLength).toBe('test@example.com'.length);
     });
 
     // Skipped: Runtime.evaluate now used for clearing - security review needed
@@ -1024,7 +1131,7 @@ describe('Input Commands', () => {
       const capture = captureConsoleOutput();
       const context = new CDPContext();
 
-      await input.fill(context, 'input', 'test123', { page: 'page1' });
+      await input.fill(context, 'input', 'test123', { page: 'page1', showValue: true });
 
       const result = JSON.parse(capture.getLogs()[0]);
       expect(result.success).toBe(true);
@@ -1128,6 +1235,123 @@ describe('Input Commands', () => {
   });
 
   describe('fill value replacement', () => {
+    function stubLiveFillVerification(
+      context: CDPContext,
+      actualValue: string,
+      identity: { originalConnected: boolean; sameNode: boolean }
+    ): void {
+      const originalConnect = context.connect.bind(context);
+      let resolveCount = 0;
+
+      context.connect = async (page) => {
+        const ws = await originalConnect(page) as MockWebSocket;
+        const originalSend = ws.send.bind(ws);
+        ws.send = (data: string) => {
+          const msg = JSON.parse(data);
+          const fn = msg.params?.functionDeclaration ?? '';
+          const reply = (result: unknown) => {
+            ws.sentMessages.push(msg);
+            setTimeout(() => ws.simulateMessage({ id: msg.id, result }), 5);
+          };
+
+          if (msg.method === 'DOM.resolveNode') {
+            resolveCount += 1;
+            reply({ object: { objectId: resolveCount === 1 ? 'original-field' : 'live-field' } });
+            return;
+          }
+          if (msg.method === 'Runtime.callFunctionOn' && fn.includes('const actualValue = editable')) {
+            reply({ result: { value: { actualValue, tagName: 'input' } } });
+            return;
+          }
+          if (msg.method === 'Runtime.callFunctionOn' && fn.includes('sameNode: this === liveField')) {
+            reply({ result: { value: identity } });
+            return;
+          }
+          originalSend(data);
+        };
+        return ws;
+      };
+    }
+
+    it('should inspect the WhiteTip reactive replacement and allow formatter normalization', async () => {
+      const capture = captureConsoleOutput();
+      const context = new CDPContext();
+      stubLiveFillVerification(context, '12.34', {
+        originalConnected: false,
+        sameNode: false
+      });
+
+      await input.fill(context, 'input.amount', '1234', { page: 'page1' });
+
+      const result = JSON.parse(capture.getLogs()[0]);
+      expect(result.success).toBe(true);
+      expect(result.data.requestedValue).toBeUndefined();
+      expect(result.data.actualValue).toBeUndefined();
+      expect(result.data.requestedValueLength).toBe(4);
+      expect(result.data.actualValueLength).toBe(5);
+      expect(result.data.originalConnected).toBe(false);
+      expect(result.data.replacementDetected).toBe(true);
+      expect(result.data.valueApplied).toBe(null);
+      expect(result.data.verification).toBe('observable');
+      capture.restore();
+    });
+
+    it('should fail with FILL_VALUE_NOT_APPLIED when the resulting live field is empty', async () => {
+      const capture = captureConsoleOutput();
+      const exitMock = mockProcessExit();
+      const context = new CDPContext();
+      stubLiveFillVerification(context, '', {
+        originalConnected: false,
+        sameNode: false
+      });
+
+      try {
+        await input.fill(context, 'input.amount', '1234', { page: 'page1' });
+      } catch {
+        // Expected process.exit
+      }
+
+      const error = JSON.parse(capture.getLogs()[0]);
+      expect(exitMock.exitCode).toBe(1);
+      expect(error.code).toBe('FILL_VALUE_NOT_APPLIED');
+      expect(error.details.requestedValue).toBeUndefined();
+      expect(error.details.actualValue).toBeUndefined();
+      expect(error.details.requestedValueLength).toBe(4);
+      expect(error.details.actualValueLength).toBe(0);
+      expect(error.details.replacementDetected).toBe(true);
+
+      capture.restore();
+      exitMock.restore();
+    });
+
+    it('should require exact equality only when expectValue is enabled', async () => {
+      const capture = captureConsoleOutput();
+      const exitMock = mockProcessExit();
+      const context = new CDPContext();
+      stubLiveFillVerification(context, '12.34', {
+        originalConnected: false,
+        sameNode: false
+      });
+
+      try {
+        await input.fill(context, 'input.amount', '1234', {
+          page: 'page1',
+          expectValue: true
+        });
+      } catch {
+        // Expected process.exit
+      }
+
+      const error = JSON.parse(capture.getLogs()[0]);
+      expect(exitMock.exitCode).toBe(1);
+      expect(error.code).toBe('FILL_VALUE_NOT_APPLIED');
+      expect(error.details.verification).toBe('observable');
+      expect(error.details.exactValueRequired).toBe(true);
+
+      capture.restore();
+      exitMock.restore();
+    });
+
     it('should clear through the value property, not the value attribute', async () => {
       const capture = captureConsoleOutput();
       const context = new CDPContext();

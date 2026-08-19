@@ -272,6 +272,33 @@ describe('CDPContext', () => {
       expect(requests[0].size).toBe(4567);
     });
 
+    it('emits structured terminal failures for streaming network consumers', async () => {
+      const context = new CDPContext();
+      const page = await context.findPage('page1');
+      const ws = await context.connect(page) as MockWebSocket;
+      const events: string[] = [];
+      context.setupNetworkCollection(ws, (_request, event) => events.push(event));
+
+      ws.simulateMessage(networkEvents.requestWillBeSent);
+      ws.simulateMessage({
+        method: 'Network.loadingFailed',
+        params: {
+          requestId: networkEvents.requestWillBeSent.params.requestId,
+          errorText: 'net::ERR_ABORTED',
+          canceled: true,
+          blockedReason: 'inspector'
+        }
+      });
+      await waitFor(20);
+
+      expect(context.getNetworkRequests()[0].failure).toEqual({
+        errorText: 'net::ERR_ABORTED',
+        canceled: true,
+        blockedReason: 'inspector'
+      });
+      expect(events).toContain('loadingFailed');
+    });
+
     it('should handle responseReceived before requestWillBeSent', async () => {
       const context = new CDPContext();
       const page = await context.findPage('page1');

@@ -6,7 +6,16 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { CDPContext } from '../../../src/context.js';
 import { installMockFetch } from '../../mocks/fetch.mock.js';
 import { MockWebSocket } from '../../mocks/websocket.mock.js';
-import { waitForSelector, waitForText, handleWaitOptions, armNavigationWatcher } from '../../../src/commands/wait.js';
+import {
+  waitForSelector,
+  waitForText,
+  waitForExpression,
+  waitForPageConditions,
+  handleWaitOptions,
+  armNavigationWatcher,
+  armNetworkIdleWatcher,
+  armNetworkResponseWatcher
+} from '../../../src/commands/wait.js';
 
 describe('Wait Utilities', () => {
   beforeEach(() => {
@@ -192,6 +201,30 @@ describe('Wait Utilities', () => {
       await expect(
         handleWaitOptions(context, ws as any, { waitForNavigation: true, timeout: 200 })
       ).rejects.toThrow('requires a navigation watcher armed before the action');
+    });
+
+    it('rejects when network is idle but the document never becomes complete', async () => {
+      const context = new CDPContext();
+      const page = await context.findPage('page1');
+      const ws = await context.connect(page) as unknown as MockWebSocket;
+      const originalSend = ws.send.bind(ws);
+      ws.send = (data: string) => {
+        const msg = JSON.parse(data);
+        if (msg.method === 'Runtime.evaluate' && msg.params.expression.includes('readyState')) {
+          setTimeout(() => ws.simulateMessage({ id: msg.id, result: { result: { value: false } } }), 5);
+          ws.sentMessages.push(msg);
+          return;
+        }
+        originalSend(data);
+      };
+
+      await expect(handleWaitOptions(
+        context,
+        ws as any,
+        { waitForIdle: true, timeout: 150 },
+        undefined,
+        { wait: async () => undefined, dispose: () => undefined }
+      )).rejects.toThrow('Timeout waiting for document ready state');
     });
 
     it('should resolve navigation before checking text so text is read on the new document', async () => {
@@ -426,6 +459,212 @@ describe('Wait Utilities', () => {
       ws.simulateMessage({ method: 'Page.loadEventFired', params: {} });
 
       await expect(watcher.wait(200)).rejects.toThrow('never replaced its document');
+    });
+  });
+
+  describe('waitForExpression', () => {
+    it('awaits a promise in the requested frame and resolves when truthy', async () => {
+      const context = new CDPContext();
+      const page = await context.findPage('page1');
+      const ws = await context.connect(page) as unknown as MockWebSocket;
+      let attempts = 0;
+      const originalSend = ws.send.bind(ws);
+
+      ws.send = (data: string) => {
+        const msg = JSON.parse(data);
+        if (msg.method === 'Runtime.evaluate' && msg.params.expression === 'window.ready()') {
+          attempts++;
+          setTimeout(() => ws.simulateMessage({
+            id: msg.id,
+            result: attempts === 1
+              ? { exceptionDetails: { text: 'not ready yet' } }
+              : { result: { value: 'ready' } }
+          }), 5);
+          ws.sentMessages.push(msg);
+          return;
+        }
+        originalSend(data);
+      };
+
+      await expect(waitForExpression(context, ws as any, 'window.ready()', 1_000, 71)).resolves.toBe('ready');
+      const evaluations = ws.sentMessages.filter(message => message.method === 'Runtime.evaluate');
+      expect(evaluations).toHaveLength(2);
+      expect(evaluations[0].params).toMatchObject({ contextId: 71, awaitPromise: true, returnByValue: true });
+    });
+
+    it('includes the last value when an expression times out', async () => {
+      const context = new CDPContext();
+      const page = await context.findPage('page1');
+      const ws = await context.connect(page) as unknown as MockWebSocket;
+      const originalSend = ws.send.bind(ws);
+      ws.send = (data: string) => {
+        const msg = JSON.parse(data);
+        if (msg.method === 'Runtime.evaluate' && msg.params.expression.includes('window.pending')) {
+          setTimeout(() => ws.simulateMessage({ id: msg.id, result: { result: { value: false } } }), 5);
+          ws.sentMessages.push(msg);
+          return;
+        }
+        originalSend(data);
+      };
+
+      const source = 'window.pending /* private-source-marker */';
+      await expect(waitForExpression(context, ws as any, source, 200))
+        .rejects.toThrow('Last value: false');
+      const evaluations = ws.sentMessages.filter(message => message.method === 'Runtime.evaluate');
+      expect(evaluations.every(message => message.params.timeout <= 200)).toBe(true);
+      try {
+        await waitForExpression(context, ws as any, source, 1);
+      } catch (error) {
+        expect((error as Error).message).not.toContain('private-source-marker');
+      }
+    });
+
+    it('bounds exception details in timeout output', async () => {
+      const context = new CDPContext();
+      const page = await context.findPage('page1');
+      const ws = await context.connect(page) as unknown as MockWebSocket;
+      const originalSend = ws.send.bind(ws);
+      ws.send = (data: string) => {
+        const msg = JSON.parse(data);
+        if (msg.method === 'Runtime.evaluate') {
+          setTimeout(() => ws.simulateMessage({
+            id: msg.id,
+            result: { exceptionDetails: { text: `${'x'.repeat(2_000)}tail-marker` } }
+          }), 1);
+          ws.sentMessages.push(msg);
+          return;
+        }
+        originalSend(data);
+      };
+
+      let message = '';
+      try {
+        await waitForExpression(context, ws as any, 'throw privateData', 120);
+      } catch (error) {
+        message = (error as Error).message;
+      }
+      expect(message).toContain('Last exception:');
+      expect(message.length).toBeLessThan(550);
+      expect(message).not.toContain('tail-marker');
+      expect(message).not.toContain('privateData');
+    });
+  });
+
+  describe('waitForPageConditions', () => {
+    it('waits on an existing page without requiring an action', async () => {
+      const context = new CDPContext();
+      const originalConnect = context.connect.bind(context);
+      let ws: MockWebSocket | undefined;
+      context.connect = async (page) => {
+        ws = await originalConnect(page) as unknown as MockWebSocket;
+        const originalSend = ws.send.bind(ws);
+        ws.send = (data: string) => {
+          const msg = JSON.parse(data);
+          if (msg.method === 'Runtime.evaluate' && msg.params.expression.includes('querySelector')) {
+            setTimeout(() => ws!.simulateMessage({ id: msg.id, result: { result: { value: true } } }), 5);
+            ws!.sentMessages.push(msg);
+            return;
+          }
+          originalSend(data);
+        };
+        return ws as any;
+      };
+
+      await expect(waitForPageConditions(context, 'page1', { waitFor: '#ready', timeout: 500 }))
+        .resolves.toMatchObject({ page: 'page1', waitedFor: { selector: '#ready' } });
+      expect(ws?.readyState).toBe(3);
+    });
+
+    it('requires at least one standalone wait condition before connecting', async () => {
+      const context = new CDPContext();
+      await expect(waitForPageConditions(context, 'page1', {}))
+        .rejects.toThrow('Provide at least one wait condition');
+    });
+  });
+
+  describe('armNetworkIdleWatcher', () => {
+    it('observes a request emitted immediately after arming until its terminal event', async () => {
+      vi.useFakeTimers();
+      try {
+        const ws = new MockWebSocket('ws://example.test');
+        const context = { sendCommand: vi.fn().mockResolvedValue({}) } as unknown as CDPContext;
+        const watcher = await armNetworkIdleWatcher(context, ws as any);
+        let settled = false;
+
+        // This is the event an action can emit immediately after the watcher is armed.
+        ws.simulateMessage({ method: 'Network.requestWillBeSent', params: { requestId: 'request-1' } });
+        // Duplicate protocol messages do not make an ID count twice.
+        ws.simulateMessage({ method: 'Network.requestWillBeSent', params: { requestId: 'request-1' } });
+
+        const wait = watcher.wait(2_000).then(() => { settled = true; });
+        await vi.advanceTimersByTimeAsync(600);
+        expect(settled).toBe(false);
+
+        ws.simulateMessage({ method: 'Network.loadingFinished', params: { requestId: 'request-1' } });
+        // A duplicate terminal event cannot make the watcher underflow.
+        ws.simulateMessage({ method: 'Network.loadingFailed', params: { requestId: 'request-1' } });
+        await vi.advanceTimersByTimeAsync(550);
+        await wait;
+
+        expect(settled).toBe(true);
+        watcher.dispose();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
+  describe('armNetworkResponseWatcher', () => {
+    it('observes a matching response emitted immediately after arming', async () => {
+      const context = new CDPContext();
+      const page = await context.findPage('page1');
+      const ws = await context.connect(page) as unknown as MockWebSocket;
+      const watcher = await armNetworkResponseWatcher(context, ws as any, {
+        waitForResponse: '/save',
+        waitForStatus: 201
+      });
+
+      ws.simulateMessage({
+        method: 'Network.responseReceived',
+        params: { requestId: 'save-1', response: { url: 'https://example.com/api/save?token=secret', status: 201 } }
+      });
+
+      await expect(watcher.wait(500)).resolves.toMatchObject({
+        requestId: 'save-1',
+        status: 201
+      });
+      watcher.dispose();
+    });
+
+    it('does not let URL or status mismatches satisfy the watcher', async () => {
+      const context = new CDPContext();
+      const page = await context.findPage('page1');
+      const ws = await context.connect(page) as unknown as MockWebSocket;
+      const watcher = await armNetworkResponseWatcher(context, ws as any, {
+        waitForResponse: '/save',
+        waitForStatus: 201
+      });
+      let settled = false;
+      const wait = watcher.wait(1_000).then(() => { settled = true; });
+
+      ws.simulateMessage({
+        method: 'Network.responseReceived',
+        params: { requestId: 'wrong-url', response: { url: 'https://example.com/api/list', status: 201 } }
+      });
+      ws.simulateMessage({
+        method: 'Network.responseReceived',
+        params: { requestId: 'wrong-status', response: { url: 'https://example.com/api/save', status: 500 } }
+      });
+      await new Promise(resolve => setTimeout(resolve, 100));
+      expect(settled).toBe(false);
+
+      ws.simulateMessage({
+        method: 'Network.responseReceived',
+        params: { requestId: 'correct', response: { url: 'https://example.com/api/save', status: 201 } }
+      });
+      await wait;
+      expect(settled).toBe(true);
+      watcher.dispose();
     });
   });
 });

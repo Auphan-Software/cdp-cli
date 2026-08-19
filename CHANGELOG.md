@@ -1,5 +1,141 @@
 # Changelog
 
+## 1.12.0
+
+### Actions and waits now report what the browser actually did
+
+`click` verifies that an ordinary target document received the pointer event,
+rather than treating a successful CDP dispatch as proof of delivery. It fails
+with **`CLICK_NOT_DELIVERED`** when that postcondition is disproven. The
+existing iframe-delivery check remains in place for clicks whose point lands on
+a frame.
+
+`fill` resolves the live field again after typing. Its result says whether the
+original element remained connected, whether a reactive renderer replaced it,
+the live value length, and whether the requested value was applied. Raw input
+values are redacted by default and require explicit `--show-value` output.
+If a non-empty requested value is demonstrably lost, it fails with
+**`FILL_VALUE_NOT_APPLIED`** rather than claiming success.
+
+A differing but non-empty live value is observable rather than automatically
+wrong: field masks and normalizers are common. Use `fill --expect-value` or
+`target-fill --expect-value` when the caller needs strict exact equality.
+
+### Pre-armed waits cover the events that used to be missed
+
+`--wait-for-idle` is armed before `navigate`, `click`, `fill`, `select`, or
+`press-key` sends its triggering action. It tracks request IDs, including
+redirects and failures, so an immediately-started fetch cannot finish before
+the listener exists.
+
+The same commands gain:
+
+```bash
+# A truthy JavaScript predicate; async expressions are supported
+cdp-cli click "#save" PAGE --wait-for-expression "window.saved === true"
+
+# Keep JavaScript out of a shell command line
+cdp-cli click "#save" PAGE --wait-for-expression-file waits/saved.js
+Get-Content waits/saved.js | cdp-cli click "#save" PAGE --wait-for-expression-stdin
+
+# Wait for a particular observed response, optionally constrained further
+cdp-cli click "#save" PAGE --wait-for-response "/api/order" --wait-for-status 201
+cdp-cli click "#save" PAGE --wait-for-response "/api/order" --wait-for-body-text '"ok":true'
+```
+
+Response URL matching is a literal substring, status is exact, and body
+matching reads at most 64 KiB internally. Response bodies are never emitted by
+the wait or included in its timeout message. Exactly one expression source may
+be supplied. `--wait-for-status` and `--wait-for-body-text` require
+`--wait-for-response`.
+
+`wait PAGE` exposes the same checks without first dispatching an action. It
+uses `--expression` (or file/stdin) and retains the existing `--wait-for*`
+spellings for selector, text, idle, frame, and response checks. Expression
+timeouts report the last bounded value or exception.
+
+### Network history retains lifecycle, redirects, and failures
+
+Daemon network records are updated in place as Chrome reports response,
+completion, redirect, or failure events. A failed request therefore stays
+failed in later log queries instead of looking like an unfinished request.
+
+```bash
+cdp-cli logs network PAGE --url /api/ --method POST --status 500
+cdp-cli logs network PAGE --failed --since 1787059200000
+cdp-cli network-detail REQUEST_ID PAGE
+cdp-cli network-detail REQUEST_ID PAGE --body --max-body-bytes 32768
+```
+
+`network-detail` emits the complete retained redirect/lifecycle chain and
+redacts sensitive request/response headers. Response-body output is explicit
+and bounded; use it only where that data is permitted.
+
+### Focus and failure evidence are deliberate, bounded, and redacted
+
+`page-health PAGE` reports focus, visibility, viewport, active element, and
+available browser-window state without activating the page. `activate-page
+PAGE` performs foreground activation only when a workflow explicitly needs it;
+ordinary inspection no longer steals focus.
+
+`diagnose PAGE [--output-dir DIR]` collects a bounded diagnostic bundle:
+redacted URL/frame state, dialog state, page health, a small DOM summary, and
+recent console/network failures when the daemon is running. With `--output-dir`
+it writes `manifest.json` and a screenshot without deleting existing contents,
+and refuses to overwrite either artifact if it already exists. Diagnostic
+bundles can still contain page-derived data and should be reviewed before sharing.
+
+### Windows shell paths preserve intent and provenance
+
+File-taking commands recognize Git Bash `/q/...` and WSL `/mnt/q/...` path
+forms when the CLI runs as a Windows executable. Results and errors retain the
+requested, normalized, and resolved path so an agent can distinguish a shell
+translation problem from a missing file. Native Windows paths and ordinary
+rooted paths keep their previous meaning.
+
+### Real-browser contract tests
+
+`npm run test:live` launches an isolated Chrome profile and verifies the
+high-risk browser contracts: reactive field replacement, immediate network
+activity, request success/failure capture, and same- and cross-origin iframe
+discovery. `npm run test:live:headful` additionally exercises focus behavior
+when explicitly enabled on Windows.
+
+### Exact OOPIF target operations
+
+`targets` lists page and out-of-process iframe targets; `target-frame` maps an
+iframe selector in a known parent target through Chrome's exact frame ID.
+`target`, `target-eval`, `target-query`, `target-fill`, and
+`target-press-key` then operate only on a literal target ID. This avoids the
+old ambiguity where a page-target connection had no execution context in an
+OOPIF. Target-local selectors must match exactly one element; the initial set
+intentionally provides no mouse-coordinate click primitive. Topology URLs omit
+credentials, query strings, and fragments.
+`target-query` and `target-fill` redact raw values by default while retaining
+lengths and verification state; `--show-value` is an explicit opt-in.
+
+### Named sessions isolate agent work and make ownership explicit
+
+`session create`, `session list`, `session adopt`, `session remove --force`,
+and `session reset --force`
+manage named workspace sessions. New sessions get an isolated Chrome
+`BrowserContext` by default; `--shared` is an explicit compatibility mode.
+`--session NAME` scopes page/target work to exact IDs owned by that session, so
+title/URL lookup is deliberately unavailable and cross-owner access yields
+**`PAGE_NOT_OWNED`**.
+
+The internal session layer provides per-root operation leases, durable
+validation of metadata, and fail-closed browser-instance checks. Persisted
+state holds IDs and session metadata only—not titles, URLs, logs, credentials,
+or storage. Context disposal requires explicit `--force`, and a shared
+compatibility context cannot be disposed by a session. BrowserContext is
+accident isolation, not a security boundary.
+
+Lock creation, dead-owner recovery, and release are serialized so a stale
+holder cannot delete a successor's lock. A crash inside that tiny mutation
+guard fails closed and reports the exact guard path for deliberate manual
+recovery; `session reset --force` never guesses that a guard is abandoned.
+
 ## 1.11.0
 
 ### A click into a frame is now confirmed, not assumed
@@ -109,14 +245,6 @@ Any harness that shells out and compares versions wants the `status` field.
 
 The `status` payload gained the `cli` key; `daemon` and `chrome` are unchanged,
 so existing readers of those keep working.
-
-### Known gaps
-
-- **No JS-predicate wait** (`cdp-cli-3p5`). `--wait-for` takes a CSS selector and
-  `--wait-for-text` takes body text; a caller waiting on anything else — a flag
-  on a frame's `window`, say — has to poll from outside with repeated `eval`.
-  A `--wait-for-expression` would close it. Deferred deliberately rather than
-  added mid-flight.
 
 ## 1.9.0
 
