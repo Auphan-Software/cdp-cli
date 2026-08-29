@@ -380,7 +380,17 @@ cdp-cli session adopt checkout EXACT_TARGET_ID
 
 # This is destructive: it closes the isolated context and its pages.
 cdp-cli session remove checkout --force
+
+# Reset one named isolated session. This closes its old context and pages,
+# then creates one fresh about:blank page without touching other sessions.
+# A forced reset also supersedes a wedged operation lease owned by that same
+# session; it never supersedes another session's lease.
+cdp-cli session reset checkout --force
 ```
+
+If Chrome accepts disposal but cannot create the fresh replacement target,
+reset fails with `SESSION_RESET_INCOMPLETE`. The old context is already gone;
+rerun `session create NAME` or `session ensure NAME` after correcting Chrome.
 
 Within `--session NAME`, page and target references must be exact IDs owned by
 that session; title/URL matching is deliberately disabled and cross-owner
@@ -394,9 +404,18 @@ accidental interference; it is not a security boundary.
 Session-store writes fail closed. If a process crashes during the tiny lock
 mutation critical section, the error reports an exact `*.lock.guard` path.
 First confirm that no cdp-cli process is using that endpoint's session store,
-then remove only that reported guard file and retry. `session reset --force`
+then remove only that reported guard file and retry. `session reset NAME --force`
 does not bypass or delete a guard, because doing so automatically could admit
 two writers.
+
+If the persisted session file belongs to a Chrome instance that no longer
+exists, first stop the dedicated CDP Chrome and daemon, then use the explicit
+metadata-only recovery command. It cannot dispose live contexts and therefore
+requires both acknowledgements:
+
+```bash
+cdp-cli session metadata-reset --force --metadata-only
+```
 
 ### Log Queries
 

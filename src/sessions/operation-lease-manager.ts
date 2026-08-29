@@ -66,6 +66,34 @@ export class OperationLeaseManager {
     return cloneLease(lease);
   }
 
+  /**
+   * Atomically replace a live lease held by the same owner during an explicit
+   * forced reset. A different owner remains protected from teardown.
+   */
+  replaceOwned(rootTargetId: string, owner: string, ttlMs = this.defaultTtlMs): OperationLease {
+    validateTtl(ttlMs);
+    const now = this.clock.now();
+    const current = this.leases.get(rootTargetId);
+    if (current && !this.isStale(current, now) && current.owner !== owner) {
+      throw new SessionFoundationError(
+        'LEASE_NOT_OWNED',
+        `Only ${current.owner} may reset root target ${rootTargetId}`,
+        { rootTargetId, requestedOwner: owner, currentOwner: current.owner }
+      );
+    }
+
+    const lease: OperationLease = {
+      leaseId: this.leaseId(),
+      rootTargetId,
+      owner,
+      acquiredAt: now,
+      lastHeartbeatAt: now,
+      ttlMs
+    };
+    this.leases.set(rootTargetId, lease);
+    return cloneLease(lease);
+  }
+
   heartbeat(rootTargetId: string, owner: string, leaseId: string): OperationLease {
     const lease = this.requireOwnedLease(rootTargetId, owner, leaseId);
     const now = this.clock.now();

@@ -28,6 +28,11 @@ export interface RemoveWorkspaceSessionResult {
   affectedPageIds: string[];
 }
 
+export interface ResetWorkspaceSessionResult extends RemoveWorkspaceSessionResult {
+  replacement: SessionMetadata;
+  pageId: string;
+}
+
 /** Stateful orchestration over the strict session foundation and browser CDP. */
 export class WorkspaceSessionService {
   readonly registry: WorkspaceSessionRegistry;
@@ -167,22 +172,68 @@ export class WorkspaceSessionService {
     name: string,
     options: { confirmed?: boolean; force?: boolean }
   ): Promise<RemoveWorkspaceSessionResult> {
+    if (options?.confirmed !== true && options?.force !== true) {
+      throw new SessionFoundationError(
+        'CONTEXT_DISPOSAL_NOT_CONFIRMED',
+        'Session removal requires confirmed: true or force: true',
+        { sessionName: name }
+      );
+    }
     const session = this.registry.getSession(name);
     if (!session) {
       // Reuse the registry's structured SESSION_NOT_FOUND contract.
       this.registry.removeSession(name);
       throw new Error('unreachable');
     }
-    if (options?.confirmed !== true && options?.force !== true) {
-      await this.contexts.disposeSessionContext(name, options);
-    }
-
     const affectedPageIds = session.isolation === 'isolated'
       ? await this.contexts.disposeSessionContext(name, options)
       : [...session.pageIds].sort();
     const removed = this.registry.removeSession(name);
     await this.persist();
     return { session: removed, affectedPageIds };
+  }
+
+  /**
+   * Reset one named session by disposing the same isolated browser context that
+   * removal would dispose. Reset must never erase the global session store or
+   * leave an untracked context running in Chrome.
+   */
+  async resetSession(
+    name: string,
+    options: { confirmed?: boolean; force?: boolean }
+  ): Promise<ResetWorkspaceSessionResult> {
+    const current = this.registry.getSession(name);
+    if (!current) {
+      this.registry.removeSession(name);
+      throw new Error('unreachable');
+    }
+    if (current.isolation === 'shared') {
+      throw new SessionFoundationError(
+        'SHARED_CONTEXT_DISPOSAL_FORBIDDEN',
+        'A shared compatibility session cannot be reset because its pages share the default context',
+        { sessionName: name }
+      );
+    }
+    const removed = await this.removeSession(name, options);
+    let replacement: SessionMetadata;
+    try {
+      replacement = await this.createSession(name, { isolation: current.isolation });
+    } catch (error) {
+      throw new SessionFoundationError(
+        'SESSION_RESET_INCOMPLETE',
+        `Session ${name} was disposed but its replacement could not be created`,
+        {
+          sessionName: name,
+          affectedPageIds: removed.affectedPageIds,
+          cause: error instanceof Error ? error.message : String(error)
+        }
+      );
+    }
+    return {
+      ...removed,
+      replacement,
+      pageId: replacement.pageIds[0]
+    };
   }
 
   async checkAccess(name: string, targetId: string): Promise<PageAccessResult> {

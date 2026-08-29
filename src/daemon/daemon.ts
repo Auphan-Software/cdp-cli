@@ -287,6 +287,12 @@ export class CDPDaemon {
           const rootTargetId = await this.workspaceRoot(sessionName, pageId);
           const lease = this.workspaceLeases.acquire(rootTargetId, sessionName, 60_000);
           this.sendJson(res, 201, { lease });
+        } else if (action === 'replace-owned') {
+          // Forced reset may supersede only this same named session's live
+          // operation. Root mapping is still derived server-side.
+          const rootTargetId = await this.workspaceRoot(sessionName, pageId);
+          const lease = this.workspaceLeases.replaceOwned(rootTargetId, sessionName, 60_000);
+          this.sendJson(res, 201, { lease });
         } else if (
           action === 'heartbeat' &&
           typeof leaseId === 'string' &&

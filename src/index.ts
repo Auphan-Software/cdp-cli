@@ -36,6 +36,7 @@ import {
 import { SessionFoundationError } from './sessions/errors.js';
 import { DaemonClient } from './daemon/client.js';
 import { SessionStore } from './sessions/session-store.js';
+import { coordinateWorkspaceSessionDisposal } from './sessions/session-disposal-coordinator.js';
 import {
   validateNavigateParams,
   validateEvalParams,
@@ -132,30 +133,6 @@ function standaloneWaitOptionsFromArgv(argv: Record<string, unknown>) {
     waitForFrame: stringOption(argv, 'wait-for-frame'),
     timeout: numberOption(argv, 'timeout')
   };
-}
-
-function sessionRoots(
-  service: WorkspaceSessionService,
-  sessionName: string,
-  pageIds: readonly string[]
-): Map<string, string> {
-  const roots = new Map<string, string>();
-  for (const pageId of pageIds) {
-    const access = service.registry.assertPageAccess(sessionName, pageId);
-    roots.set(access.rootTargetId, pageId);
-  }
-  return roots;
-}
-
-function sameRootSnapshot(
-  left: ReadonlyMap<string, string>,
-  right: ReadonlyMap<string, string>
-): boolean {
-  if (left.size !== right.size) return false;
-  for (const [rootTargetId, pageId] of left) {
-    if (right.get(rootTargetId) !== pageId) return false;
-  }
-  return true;
 }
 
 function expressionFromArgv(
@@ -286,7 +263,7 @@ cli.command(
   (yargs) => yargs
     .positional('action', {
       type: 'string',
-      choices: ['create', 'list', 'adopt', 'remove', 'reset'] as const
+      choices: ['create', 'list', 'adopt', 'remove', 'reset', 'metadata-reset'] as const
     })
     .positional('name', { type: 'string', description: 'Workspace session name' })
     .positional('targetId', { type: 'string', description: 'Exact CDP target ID' })
@@ -301,31 +278,42 @@ cli.command(
       default: false,
       description: 'Confirm removal and isolated-context disposal'
     })
+    .option('metadata-only', {
+      type: 'boolean',
+      default: false,
+      description: 'Acknowledge that metadata-reset cannot dispose browser contexts'
+    })
     .check((argv) => {
       const action = argv.action as string;
-      if (action !== 'list' && action !== 'reset' && typeof argv.name !== 'string') {
+      if (action !== 'list' && action !== 'metadata-reset' && typeof argv.name !== 'string') {
         throw new Error(`session ${action} requires a name`);
       }
       if (action === 'adopt' && typeof argv.targetId !== 'string') {
         throw new Error('session adopt requires an exact targetId');
       }
-      if ((action === 'remove' || action === 'reset') && argv.force !== true) {
+      if ((action === 'remove' || action === 'reset' || action === 'metadata-reset') && argv.force !== true) {
         throw new Error(`session ${action} requires --force to confirm destructive metadata changes`);
+      }
+      if (action === 'metadata-reset' && argv['metadata-only'] !== true) {
+        throw new Error('session metadata-reset requires --metadata-only acknowledgment');
       }
       return true;
     }),
   async (argv) => {
     let service: WorkspaceSessionService | undefined;
     try {
-      const action = argv.action as 'create' | 'list' | 'adopt' | 'remove' | 'reset';
-      if (action === 'reset') {
+      const action = argv.action as 'create' | 'list' | 'adopt' | 'remove' | 'reset' | 'metadata-reset';
+      if (action === 'metadata-reset') {
+        if (typeof argv.name === 'string') {
+          throw new Error('session metadata-reset does not accept a session name; it resets endpoint metadata');
+        }
         const store = new SessionStore(defaultWorkspaceSessionStorePath(
           argv['cdp-url'] as string
         ));
         await store.reset({ force: true });
         outputSuccess('Persisted workspace session metadata reset', {
           contextsDisposed: false,
-          note: 'No claim is made about browser context disposal.'
+          warning: 'Use only after the dedicated CDP Chrome has stopped; live contexts are not disposed.'
         });
         return;
       }
@@ -353,55 +341,19 @@ cli.command(
         if (!await daemonClient.isRunning()) {
           await daemonClient.startDaemon({ cdpUrl: argv['cdp-url'] as string });
         }
-        let removed = false;
-        for (let attempt = 0; attempt < 3 && !removed; attempt += 1) {
-          await service.refresh();
-          const session = service.registry.getSession(name);
-          if (!session) service.registry.removeSession(name);
-          const snapshot = sessionRoots(service, name, session!.pageIds);
-
-          // The daemon must open and validate the store itself before granting
-          // each lease, so release our snapshot lock while it does so.
-          service.close();
-          service = undefined;
-          const held: Array<{ pageId: string; leaseId: string; rootTargetId: string }> = [];
-          try {
-            for (const pageId of snapshot.values()) {
-              const lease = await daemonClient.acquireWorkspaceLease(name, pageId);
-              held.push({ pageId, leaseId: lease.leaseId, rootTargetId: lease.rootTargetId });
-            }
-
-            // Reacquire the store lock and prove the leased snapshot is still
-            // current. If another writer added/removed a root in the gap,
-            // release and retry instead of disposing an unleased context.
-            service = await WorkspaceSessionService.open(argv['cdp-url'] as string);
-            await service.refresh();
-            const current = service.registry.getSession(name);
-            if (!current) service.registry.removeSession(name);
-            const currentRoots = sessionRoots(service, name, current!.pageIds);
-            if (!sameRootSnapshot(snapshot, currentRoots)) {
-              continue;
-            }
-            const result = await service.removeSession(name, { force: true });
-            outputSuccess('Workspace session removed', result);
-            removed = true;
-          } finally {
-            await Promise.allSettled(held.map((lease) =>
-              daemonClient.releaseWorkspaceLease(
-                name,
-                lease.pageId,
-                lease.leaseId,
-                lease.rootTargetId
-              )
-            ));
-          }
-        }
-        if (!removed) {
-          throw new SessionFoundationError(
-            'SESSION_STORE_CONFLICT',
-            `Workspace session ${name} changed repeatedly during removal; retry the command`
-          );
-        }
+        const ownedService = service;
+        service = undefined;
+        const result = await coordinateWorkspaceSessionDisposal({
+          action,
+          name,
+          service: ownedService,
+          daemonClient,
+          openService: () => WorkspaceSessionService.open(argv['cdp-url'] as string)
+        });
+        outputSuccess(
+          action === 'reset' ? 'Workspace session reset' : 'Workspace session removed',
+          result
+        );
       }
     } catch (error) {
       outputThrownError(error, 'SESSION_COMMAND_FAILED');

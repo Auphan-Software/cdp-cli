@@ -155,6 +155,13 @@ export class DaemonClient {
     return this.workspaceLeaseRequest('acquire', sessionName, pageId);
   }
 
+  async replaceOwnedWorkspaceLease(
+    sessionName: string,
+    pageId: string
+  ): Promise<OperationLease> {
+    return this.workspaceLeaseRequest('replace-owned', sessionName, pageId);
+  }
+
   async heartbeatWorkspaceLease(
     sessionName: string,
     pageId: string,
@@ -381,7 +388,7 @@ export class DaemonClient {
   }
 
   private async workspaceLeaseRequest(
-    action: 'acquire' | 'heartbeat' | 'release',
+    action: 'acquire' | 'replace-owned' | 'heartbeat' | 'release',
     sessionName: string,
     pageId: string,
     leaseId?: string,

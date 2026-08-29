@@ -53,6 +53,23 @@ describe('OperationLeaseManager', () => {
     expect(leases.inspect('root')?.owner).toBe('alpha');
   });
 
+  it('lets an explicit reset atomically replace only the same owner lease', () => {
+    let id = 0;
+    const leases = new OperationLeaseManager({ leaseId: () => `lease-${++id}` });
+    const running = leases.acquire('root', 'alpha');
+
+    expect(() => leases.replaceOwned('root', 'beta')).toThrowError(
+      expect.objectContaining({ code: 'LEASE_NOT_OWNED' })
+    );
+    const reset = leases.replaceOwned('root', 'alpha');
+
+    expect(reset.leaseId).not.toBe(running.leaseId);
+    expect(leases.inspect('root')?.leaseId).toBe(reset.leaseId);
+    expect(() => leases.heartbeat('root', 'alpha', running.leaseId)).toThrowError(
+      expect.objectContaining({ code: 'LEASE_NOT_FOUND' })
+    );
+  });
+
   it('holds the lease for the entire async callback and releases it on failure', async () => {
     const leases = new OperationLeaseManager({ leaseId: () => 'lease' });
     await expect(leases.withLease('root', 'alpha', async (handle) => {
