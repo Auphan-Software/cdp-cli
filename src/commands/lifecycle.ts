@@ -63,7 +63,7 @@ async function getPages(port: number): Promise<any[]> {
 /**
  * Launch Chrome with debugging enabled
  */
-function launchChrome(chromePath: string, profile: string, port: number): ChildProcess {
+function launchChrome(chromePath: string, profile: string, port: number, headless: boolean): ChildProcess {
   const args = [
     `--remote-debugging-port=${port}`,
     `--user-data-dir=${profile}`,
@@ -73,11 +73,12 @@ function launchChrome(chromePath: string, profile: string, port: number): ChildP
     '--disable-features=TranslateUI',
     '--disable-extensions',
   ];
+  if (headless) args.push('--headless=new', '--disable-gpu');
 
   const child = spawn(chromePath, args, {
     detached: true,
     stdio: 'ignore',
-    windowsHide: false,
+    windowsHide: headless,
   });
 
   child.unref();
@@ -91,8 +92,9 @@ export async function ready(options: {
   profile: string;
   port: number;
   cdpUrl: string;
+  headless?: boolean;
 }): Promise<void> {
-  const { profile, port, cdpUrl } = options;
+  const { profile, port, cdpUrl, headless = false } = options;
 
   try {
     let chromeStarted = false;
@@ -104,7 +106,7 @@ export async function ready(options: {
         throw new Error('Chrome not found. Install Chrome or specify path.');
       }
 
-      launchChrome(chromePath, profile, port);
+      launchChrome(chromePath, profile, port, headless);
       chromeStarted = true;
 
       // Poll for Chrome to be ready
@@ -143,6 +145,7 @@ export async function ready(options: {
     outputSuccess('Ready', {
       chromeStarted,
       daemonStarted,
+      headless,
       pages: pages.length,
     });
   } catch (error) {

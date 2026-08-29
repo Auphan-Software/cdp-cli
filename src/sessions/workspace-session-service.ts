@@ -21,11 +21,23 @@ export interface WorkspaceSessionServiceOptions {
 export interface CreateWorkspaceSessionOptions {
   isolation?: SessionIsolation;
   url?: string;
+  background?: boolean;
+}
+
+export interface EnsureWorkspaceSessionResult {
+  session: SessionMetadata;
+  pageId: string;
+  created: boolean;
 }
 
 export interface RemoveWorkspaceSessionResult {
   session: SessionMetadata;
   affectedPageIds: string[];
+}
+
+export interface ResetWorkspaceSessionResult extends RemoveWorkspaceSessionResult {
+  replacement: SessionMetadata;
+  pageId: string;
 }
 
 /** Stateful orchestration over the strict session foundation and browser CDP. */
@@ -113,7 +125,11 @@ export class WorkspaceSessionService {
         browserContextId: managed.browserContextId,
         isolation
       });
-      const pageId = await this.contexts.createTarget(name, options.url ?? 'about:blank');
+      const pageId = await this.contexts.createTarget(
+        name,
+        options.url ?? 'about:blank',
+        options.background ?? true
+      );
       const target = await this.browser.waitForTarget((candidate) => candidate.targetId === pageId, 2_000);
       if (!target) throw new Error(`Chrome did not publish created target: ${pageId}`);
       this.registry.adoptTarget(name, pageId, identities(this.browser.registry.list()));
@@ -126,6 +142,34 @@ export class WorkspaceSessionService {
       if (this.registry.getSession(name)) this.registry.removeSession(name);
       throw error;
     }
+  }
+
+  /**
+   * Return a stable page for a named session, creating the isolated session and
+   * its first page atomically when absent. Existing pages are never replaced or
+   * multiplied merely because a caller re-runs ensure.
+   */
+  async ensureSession(
+    name: string,
+    options: CreateWorkspaceSessionOptions = {}
+  ): Promise<EnsureWorkspaceSessionResult> {
+    await this.refresh();
+    let session = this.registry.getSession(name);
+    if (!session) {
+      session = await this.createSession(name, options);
+      return { session, pageId: session.pageIds[0], created: true };
+    }
+
+    let pageId = session.pageIds[0];
+    if (!pageId) {
+      pageId = await this.createTarget(
+        name,
+        options.url ?? 'about:blank',
+        { background: options.background ?? true }
+      );
+      session = this.registry.getSession(name)!;
+    }
+    return { session, pageId, created: false };
   }
 
   async adoptTarget(name: string, targetId: string): Promise<SessionMetadata> {
@@ -167,22 +211,62 @@ export class WorkspaceSessionService {
     name: string,
     options: { confirmed?: boolean; force?: boolean }
   ): Promise<RemoveWorkspaceSessionResult> {
+    if (options?.confirmed !== true && options?.force !== true) {
+      throw new SessionFoundationError(
+        'CONTEXT_DISPOSAL_NOT_CONFIRMED',
+        'Session removal requires confirmed: true or force: true',
+        { sessionName: name }
+      );
+    }
     const session = this.registry.getSession(name);
     if (!session) {
       // Reuse the registry's structured SESSION_NOT_FOUND contract.
       this.registry.removeSession(name);
       throw new Error('unreachable');
     }
-    if (options?.confirmed !== true && options?.force !== true) {
-      await this.contexts.disposeSessionContext(name, options);
-    }
-
     const affectedPageIds = session.isolation === 'isolated'
       ? await this.contexts.disposeSessionContext(name, options)
       : [...session.pageIds].sort();
     const removed = this.registry.removeSession(name);
     await this.persist();
     return { session: removed, affectedPageIds };
+  }
+
+  async resetSession(
+    name: string,
+    options: { confirmed?: boolean; force?: boolean }
+  ): Promise<ResetWorkspaceSessionResult> {
+    const current = this.registry.getSession(name);
+    if (!current) {
+      this.registry.removeSession(name);
+      throw new Error('unreachable');
+    }
+    if (current.isolation === 'shared') {
+      throw new SessionFoundationError(
+        'SHARED_CONTEXT_DISPOSAL_FORBIDDEN',
+        'A shared compatibility session cannot be reset because its pages share the default context',
+        { sessionName: name }
+      );
+    }
+    const removed = await this.removeSession(name, options);
+    let replacement: SessionMetadata;
+    try {
+      replacement = await this.createSession(name, {
+        isolation: current.isolation,
+        background: true
+      });
+    } catch (error) {
+      throw new SessionFoundationError(
+        'SESSION_RESET_INCOMPLETE',
+        `Session ${name} was disposed but its replacement could not be created`,
+        {
+          sessionName: name,
+          affectedPageIds: removed.affectedPageIds,
+          cause: error instanceof Error ? error.message : String(error)
+        }
+      );
+    }
+    return { ...removed, replacement, pageId: replacement.pageIds[0] };
   }
 
   async checkAccess(name: string, targetId: string): Promise<PageAccessResult> {
@@ -199,8 +283,12 @@ export class WorkspaceSessionService {
     return { rootTargetId: result.rootTargetId };
   }
 
-  async createTarget(name: string, url = 'about:blank'): Promise<string> {
-    const pageId = await this.contexts.createTarget(name, url);
+  async createTarget(
+    name: string,
+    url = 'about:blank',
+    options: { background?: boolean } = {}
+  ): Promise<string> {
+    const pageId = await this.contexts.createTarget(name, url, options.background ?? true);
     const target = await this.browser.waitForTarget((candidate) => candidate.targetId === pageId, 2_000);
     if (!target) throw new Error(`Chrome did not publish created target: ${pageId}`);
     this.registry.adoptTarget(name, pageId, identities(this.browser.registry.list()));

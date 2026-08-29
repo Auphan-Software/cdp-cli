@@ -323,6 +323,7 @@ cdp-cli status
 cdp-cli ready                                    # Uses defaults
 cdp-cli ready --port 9333                        # Custom CDP port
 cdp-cli ready --profile ~/my-chrome-profile     # Custom profile dir
+CDP_DAEMON_URL=http://127.0.0.1:9334 cdp-cli ready --port 9333 --cdp-url http://127.0.0.1:9333 --headless
 ```
 
 This command:
@@ -369,6 +370,7 @@ default:
 
 ```bash
 cdp-cli session create checkout --url https://example.test/checkout
+cdp-cli session ensure checkout --url https://example.test/checkout  # idempotent; returns stable pageId
 cdp-cli session list
 
 # Work only with that session's exact owned target IDs.
@@ -380,6 +382,9 @@ cdp-cli session adopt checkout EXACT_TARGET_ID
 
 # This is destructive: it closes the isolated context and its pages.
 cdp-cli session remove checkout --force
+
+# Dispose and recreate only this named isolated session.
+cdp-cli session reset checkout --force
 ```
 
 Within `--session NAME`, page and target references must be exact IDs owned by
@@ -391,12 +396,33 @@ only—never page titles, URLs, logs, credentials, or storage—and fails closed
 it belongs to another browser instance. BrowserContext isolation prevents
 accidental interference; it is not a security boundary.
 
+`session ensure` is the automation-friendly entry point: it atomically creates
+the session and one background page when absent, returns the existing primary
+page on later calls, and recreates a primary page only if every owned page was
+closed. `CDP_URL`, `CDP_DAEMON_URL`, and `CDP_SESSION` can supply the defaults
+for unattended callers. Use a distinct daemon URL for each distinct Chrome CDP
+endpoint (for example 9333/9334 for a headless automation instance).
+
+`session reset NAME --force` closes that named isolated context and all of its
+pages, then creates exactly one fresh `about:blank` page. It never wipes other
+session metadata. A shared compatibility session cannot be reset because its
+pages share Chrome's default context. If replacement creation fails after the
+old context is gone, the command reports `SESSION_RESET_INCOMPLETE`.
+
 Session-store writes fail closed. If a process crashes during the tiny lock
 mutation critical section, the error reports an exact `*.lock.guard` path.
 First confirm that no cdp-cli process is using that endpoint's session store,
-then remove only that reported guard file and retry. `session reset --force`
+then remove only that reported guard file and retry. `session reset NAME --force`
 does not bypass or delete a guard, because doing so automatically could admit
 two writers.
+
+For a stale persisted store whose Chrome instance no longer exists, stop the
+dedicated CDP Chrome and daemon first, then run the explicit metadata-only
+recovery command:
+
+```bash
+cdp-cli session metadata-reset --force --metadata-only
+```
 
 ### Log Queries
 

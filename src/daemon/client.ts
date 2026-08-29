@@ -13,6 +13,11 @@ import type { OperationLease } from '../sessions/operation-lease-manager.js';
 const DEFAULT_DAEMON_PORT = 9223;
 const DEFAULT_DAEMON_URL = `http://127.0.0.1:${DEFAULT_DAEMON_PORT}`;
 
+function configuredDaemonUrl(): string {
+  const value = process.env.CDP_DAEMON_URL?.trim();
+  return value || DEFAULT_DAEMON_URL;
+}
+
 export interface DaemonClientOptions {
   daemonUrl?: string;
 }
@@ -29,7 +34,7 @@ export class DaemonClient {
   private baseUrl: string;
 
   constructor(options: DaemonClientOptions = {}) {
-    this.baseUrl = options.daemonUrl ?? DEFAULT_DAEMON_URL;
+    this.baseUrl = options.daemonUrl ?? configuredDaemonUrl();
   }
 
   /**
@@ -74,6 +79,8 @@ export class DaemonClient {
     if (options.bufferSize) {
       args.push('--buffer-size', String(options.bufferSize));
     }
+    const daemonPort = Number(new URL(this.baseUrl).port || DEFAULT_DAEMON_PORT);
+    args.push('--port', String(daemonPort));
 
     // Spawn detached process
     const child: ChildProcess = spawn(process.execPath, args, {
@@ -155,6 +162,13 @@ export class DaemonClient {
     return this.workspaceLeaseRequest('acquire', sessionName, pageId);
   }
 
+  async replaceOwnedWorkspaceLease(
+    sessionName: string,
+    pageId: string
+  ): Promise<OperationLease> {
+    return this.workspaceLeaseRequest('replace-owned', sessionName, pageId);
+  }
+
   async heartbeatWorkspaceLease(
     sessionName: string,
     pageId: string,
@@ -228,7 +242,7 @@ export class DaemonClient {
   async getDialogStatus(pageId: string, workspaceSession?: string): Promise<DaemonDialogStatus> {
     const url = `${this.baseUrl}/sessions/${encodeURIComponent(pageId)}/dialog-status${sessionQuery(workspaceSession)}`;
     const res = await (globalThis.fetch ?? undiciFetch)(url, {
-      signal: AbortSignal.timeout(1_000)
+      signal: AbortSignal.timeout(10_000)
     });
     const data = await res.json() as { dialog?: DaemonDialogStatus } & RemoteError;
     if (!res.ok) throwRemoteError(data, 'Failed to get dialog status');
@@ -381,7 +395,7 @@ export class DaemonClient {
   }
 
   private async workspaceLeaseRequest(
-    action: 'acquire' | 'heartbeat' | 'release',
+    action: 'acquire' | 'replace-owned' | 'heartbeat' | 'release',
     sessionName: string,
     pageId: string,
     leaseId?: string,

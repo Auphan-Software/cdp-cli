@@ -330,12 +330,10 @@ export class CDPContext {
     // Check if daemon is connected - if so, skip (daemon connection is benign)
     if (skipIfDaemonConnected) {
       try {
-        const response = await (globalThis.fetch ?? undiciFetch)('http://127.0.0.1:9223/sessions');
-        if (response.ok) {
-          const data = await response.json() as { sessions: Array<{ pageId: string; connected: boolean }> };
-          if (data.sessions?.some(s => s.pageId === pageId && s.connected)) {
-            return;
-          }
+        const daemon = new DaemonClient();
+        if (await daemon.isRunning()) {
+          const sessions = await daemon.listSessions();
+          if (sessions.some(s => s.pageId === pageId && s.connected)) return;
         }
       } catch {
         // Daemon not running

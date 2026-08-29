@@ -78,6 +78,24 @@ describe('daemon workspace lease authority', () => {
     expect(legitimate.rootTargetId).toBe('root-1');
   });
 
+  it('lets forced reset replace a same-owner lease but rejects another owner', async () => {
+    globalThis.fetch = undiciFetch as unknown as typeof fetch;
+    daemon = new CDPDaemon({
+      port: 0,
+      cdpUrl: 'http://127.0.0.1:1',
+      workspaceRootResolver: async (_sessionName, pageId) => pageId
+    });
+    await daemon.start();
+    const client = new DaemonClient({ daemonUrl: `http://127.0.0.1:${daemon.listeningPort}` });
+    const running = await client.acquireWorkspaceLease('alpha', 'root-1');
+    await expect(client.replaceOwnedWorkspaceLease('beta', 'root-1')).rejects.toMatchObject({
+      code: 'LEASE_NOT_OWNED'
+    });
+    const reset = await client.replaceOwnedWorkspaceLease('alpha', 'root-1');
+    expect(reset.leaseId).not.toBe(running.leaseId);
+    await client.releaseWorkspaceLease('alpha', 'root-1', reset.leaseId, reset.rootTargetId);
+  });
+
   it('exposes persisted dialog state through the page status endpoint', async () => {
     globalThis.fetch = undiciFetch as unknown as typeof fetch;
     daemon = new CDPDaemon({ port: 0, cdpUrl: 'http://127.0.0.1:1' });

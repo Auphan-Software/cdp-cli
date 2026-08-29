@@ -349,8 +349,8 @@ export async function snapshot(
       'SNAPSHOT_FAILED',
       { format: options.format }
     );
-    await context.releaseSessionLeases();
     await session?.close();
+    await context.releaseSessionLeases();
     session = undefined;
     process.exit(1);
   } finally {
@@ -410,6 +410,7 @@ export async function evaluate(
           'EVAL_EXCEPTION',
           result.exceptionDetails
         );
+        await session?.close();
         await context.releaseSessionLeases();
         process.exit(1);
       }
@@ -440,6 +441,7 @@ export async function evaluate(
           'EVAL_EXCEPTION',
           result.exceptionDetails
         );
+        await session?.close();
         await context.releaseSessionLeases();
         process.exit(1);
       }
@@ -460,6 +462,7 @@ export async function evaluate(
         ...(filePath && { file: filePath })
       }
     );
+    await session?.close();
     await context.releaseSessionLeases();
     process.exit(1);
   } finally {
@@ -920,6 +923,7 @@ export async function query(
         'QUERY_EXCEPTION',
         evalResult.exceptionDetails
       );
+      await session?.close();
       await context.releaseSessionLeases();
       process.exit(1);
     }
@@ -934,8 +938,8 @@ export async function query(
       'QUERY_FAILED',
       { selector }
     );
-    await context.releaseSessionLeases();
     await session?.close();
+    await context.releaseSessionLeases();
     session = undefined;
     process.exit(1);
   } finally {
@@ -1036,6 +1040,7 @@ export async function styles(
         'STYLES_EXCEPTION',
         evalResult.exceptionDetails
       );
+      await session?.close();
       await context.releaseSessionLeases();
       process.exit(1);
     }
@@ -1047,8 +1052,8 @@ export async function styles(
       'STYLES_FAILED',
       { selector }
     );
-    await context.releaseSessionLeases();
     await session?.close();
+    await context.releaseSessionLeases();
     session = undefined;
     process.exit(1);
   } finally {
@@ -1206,8 +1211,8 @@ export async function emulate(
       'EMULATE_FAILED',
       { device }
     );
-    await context.releaseSessionLeases();
     await session?.close();
+    await context.releaseSessionLeases();
     session = undefined;
     process.exit(1);
   } finally {
@@ -1278,6 +1283,7 @@ export async function dismissOverlays(
         'DISMISS_OVERLAYS_EXCEPTION',
         evalResult.exceptionDetails
       );
+      await session?.close();
       await context.releaseSessionLeases();
       process.exit(1);
     }
@@ -1289,8 +1295,8 @@ export async function dismissOverlays(
       'DISMISS_OVERLAYS_FAILED',
       {}
     );
-    await context.releaseSessionLeases();
     await session?.close();
+    await context.releaseSessionLeases();
     session = undefined;
     process.exit(1);
   } finally {

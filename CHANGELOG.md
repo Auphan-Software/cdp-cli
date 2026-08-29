@@ -1,5 +1,39 @@
 # Changelog
 
+## 1.13.0
+
+### Headless, idempotent named sessions for unattended agents
+
+`cdp-cli ready --headless` launches a hidden Chrome, while `CDP_URL`,
+`CDP_DAEMON_URL`, and `CDP_SESSION` provide explicit per-agent endpoint and
+session defaults. `session ensure NAME` is idempotent: repeated calls return the
+same primary page rather than multiplying tabs, and created targets remain in
+the background.
+
+### Named reset now disposes the named browser context
+
+`session reset NAME --force` previously ignored `NAME`, erased all persisted
+session metadata, and left the corresponding Chrome contexts and pages alive.
+Repeated recovery attempts therefore accumulated invisible pages and Chrome
+processes. Reset now acquires or replaces only the named session's own leases,
+disposes that isolated context, and creates one fresh `about:blank` page without
+touching other sessions. Shared-context sessions fail closed because their
+pages cannot be disposed independently.
+
+The old metadata-only recovery behavior is now the explicit
+`session metadata-reset --force --metadata-only` command. It is intended only
+after the dedicated Chrome and daemon are stopped. If Chrome disposes the old
+context but replacement creation fails, reset reports
+`SESSION_RESET_INCOMPLETE` instead of claiming an atomic success.
+
+### Failed commands release browser and operation sessions
+
+Snapshot, evaluation, query, styles, emulation, and overlay failures close their
+CDP sessions before exiting. Daemon endpoint selection now honors
+`CDP_DAEMON_URL`, including lifecycle and debugger-attachment checks, so agents
+using separate browser endpoints do not accidentally coordinate through the
+default daemon.
+
 ## 1.12.0
 
 ### Actions and waits now report what the browser actually did

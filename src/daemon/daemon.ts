@@ -287,6 +287,10 @@ export class CDPDaemon {
           const rootTargetId = await this.workspaceRoot(sessionName, pageId);
           const lease = this.workspaceLeases.acquire(rootTargetId, sessionName, 60_000);
           this.sendJson(res, 201, { lease });
+        } else if (action === 'replace-owned') {
+          const rootTargetId = await this.workspaceRoot(sessionName, pageId);
+          const lease = this.workspaceLeases.replaceOwned(rootTargetId, sessionName, 60_000);
+          this.sendJson(res, 201, { lease });
         } else if (
           action === 'heartbeat' &&
           typeof leaseId === 'string' &&

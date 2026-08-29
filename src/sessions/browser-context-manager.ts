@@ -6,7 +6,7 @@ export const BROWSER_CONTEXT_BOUNDARY_NOTICE =
 
 export interface BrowserContextProtocol {
   createBrowserContext(): Promise<{ browserContextId: string }>;
-  createTarget(params: { url: string; browserContextId?: string }): Promise<{ targetId: string }>;
+  createTarget(params: { url: string; browserContextId?: string; background?: boolean }): Promise<{ targetId: string }>;
   disposeBrowserContext(params: { browserContextId: string }): Promise<void>;
   getTargets?(): Promise<readonly TargetIdentity[]>;
 }
@@ -111,9 +111,9 @@ export class BrowserContextManager {
     return toManaged(context);
   }
 
-  async createTarget(sessionName: string, url = 'about:blank'): Promise<string> {
+  async createTarget(sessionName: string, url = 'about:blank', background = true): Promise<string> {
     const context = this.requireContext(sessionName);
-    const params: { url: string; browserContextId?: string } = { url };
+    const params: { url: string; browserContextId?: string; background?: boolean } = { url, background };
     if (context.browserContextId) params.browserContextId = context.browserContextId;
 
     let targetId: string;

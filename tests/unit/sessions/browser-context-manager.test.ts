@@ -8,7 +8,7 @@ import {
 
 class FakeProtocol implements BrowserContextProtocol {
   createContextCalls = 0;
-  createTargetCalls: Array<{ url: string; browserContextId?: string }> = [];
+  createTargetCalls: Array<{ url: string; browserContextId?: string; background?: boolean }> = [];
   disposeCalls: Array<{ browserContextId: string }> = [];
   targets: TargetIdentity[] = [];
 
@@ -17,7 +17,7 @@ class FakeProtocol implements BrowserContextProtocol {
     return { browserContextId: `context-${this.createContextCalls}` };
   }
 
-  async createTarget(params: { url: string; browserContextId?: string }): Promise<{ targetId: string }> {
+  async createTarget(params: { url: string; browserContextId?: string; background?: boolean }): Promise<{ targetId: string }> {
     this.createTargetCalls.push(params);
     return { targetId: `page-${this.createTargetCalls.length}` };
   }
@@ -47,7 +47,7 @@ describe('BrowserContextManager', () => {
     });
     expect(pageId).toBe('page-1');
     expect(protocol.createTargetCalls).toEqual([
-      { url: 'https://example.test', browserContextId: 'context-1' }
+      { url: 'https://example.test', browserContextId: 'context-1', background: true }
     ]);
   });
 
@@ -60,7 +60,19 @@ describe('BrowserContextManager', () => {
     expect(protocol.createContextCalls).toBe(0);
     expect(metadata.isolation).toBe('shared');
     expect(metadata.browserContextId).toBeNull();
-    expect(protocol.createTargetCalls).toEqual([{ url: 'about:blank' }]);
+    expect(protocol.createTargetCalls).toEqual([{ url: 'about:blank', background: true }]);
+
+  });
+
+  it('allows an explicit foreground target while defaulting to background', async () => {
+    const protocol = new FakeProtocol();
+    const manager = new BrowserContextManager(protocol);
+    await manager.createSessionContext('headed');
+    await manager.createTarget('headed', 'https://example.test', false);
+
+    expect(protocol.createTargetCalls).toEqual([
+      { url: 'https://example.test', browserContextId: 'context-1', background: false }
+    ]);
   });
 
   it('requires explicit disposal confirmation and returns every affected page ID', async () => {
