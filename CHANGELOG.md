@@ -1,6 +1,48 @@
 # Changelog
 
-## 1.13.0
+## 2.0.0
+
+### Live monitors are bounded by default (breaking)
+
+`list-network` and `list-console` previously defaulted `--duration` to `0`,
+which meant "stream until interrupted". A bare `cdp-cli list-network PAGE`
+therefore never returned, and the top-level help ("List network requests") read
+like a bounded query. An agent that force-killed such a process left the page
+unusable, because the stream held the named session's exclusive operation lease
+and a hard kill skips graceful release.
+
+- A bare invocation now collects a bounded 30-second window and exits.
+- `--duration 0` is rejected with **`STREAM_DURATION_INVALID`**; the message
+  names `--follow` and the buffered `logs network` / `logs console` queries.
+  `--duration` accepts 0 < seconds <= 3600.
+- Unbounded streaming requires the explicit `--follow` opt-in. `--follow` and
+  `--duration` together fail with **`STREAM_OPTIONS_CONFLICT`**.
+- Both commands end with a terminating
+  `{"event":"monitor-stopped","command":...,"reason":"duration"|"interrupted"}`
+  line, so a clean stop is distinguishable from a killed process.
+- Help text for both commands now routes callers to `logs network` /
+  `logs console` for buffered queries.
+
+**Migration:** replace `list-network PAGE` with `logs network PAGE` for queries,
+`list-network PAGE --duration N` for a bounded capture, and
+`list-network PAGE --follow` where a script genuinely relied on the old
+stream-forever behavior. `--duration 0` must be changed; it no longer runs.
+
+### Passive monitoring no longer takes the exclusive page lease
+
+`context.connect()` unconditionally acquired the named-workspace operation lease
+and heartbeat it every 20 seconds against a 60-second TTL, so a live monitor
+held the page for as long as it ran. `list-network` and `list-console` only
+enable a CDP domain and print events, so they now connect with `{ lease: false }`:
+they still assert that the named session owns the target, but they take no
+exclusive lease. Other commands can use the same page while a monitor runs, and
+a force-killed monitor no longer wedges that page for the lease TTL. Interaction
+commands are unchanged and still serialize through the exclusive lease.
+
+Normal completion and SIGINT/SIGTERM both close the WebSocket and release any
+session leases before exiting (130 for SIGINT, 143 for SIGTERM).
+
+ 1.13.0
 
 ### Headless, idempotent named sessions for unattended agents
 

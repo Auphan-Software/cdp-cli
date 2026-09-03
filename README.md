@@ -476,18 +476,27 @@ cdp-cli logs-detail 5 "example"    # Get message ID 5 with stack trace
 
 ### Debugging
 
-**list-console** - Stream console messages (real-time)
-> For querying buffered logs, use `logs console` with the daemon instead.
+**list-console** - Stream console messages (real-time, bounded)
+> Prefer `logs console`: the daemon already buffers messages, so a query returns
+> immediately instead of occupying a terminal. Use `list-console` only when you
+> need events as they happen.
 ```bash
-# Stream messages continuously until interrupted
+# Collect a bounded 30-second window and exit (default)
 cdp-cli list-console "example"
 
-# Collect for duration 2 seconds and quit
+# Collect for 2 seconds and quit
 cdp-cli list-console "example" --duration 2
+
+# Stream until interrupted - explicit opt-in, never the default
+cdp-cli list-console "example" --follow
 
 # Filter by type
 cdp-cli list-console "example" --type error
 ```
+A bare invocation is always bounded: it stops after 30 seconds and prints a
+final `{"event":"monitor-stopped","reason":"duration",...}` line. `--duration 0`
+is rejected; unbounded streaming requires `--follow`. `--duration` may not be
+combined with `--follow`, and the bounded maximum is 3600 seconds.
 
 **snapshot** - Get page content snapshot
 ```bash
@@ -598,19 +607,33 @@ When a dialog is blocking, commands like `screenshot`, `eval`, `click`, etc. wil
 
 ### Network Inspection
 
-**list-network** - Stream network requests (real-time)
-> For querying buffered logs, use `logs network` with the daemon instead.
+**list-network** - Stream network requests (real-time, bounded)
+> Prefer `logs network`: the daemon already buffers requests, so a query returns
+> immediately instead of occupying a terminal. Use `list-network` only when you
+> need events as they happen.
 ```bash
-# Stream requests continuously until interrupted
+# Collect a bounded 30-second window and exit (default)
 cdp-cli list-network "example"
 
-# Collect for duration (5 seconds and quit)
+# Collect for 5 seconds and quit
 cdp-cli list-network "example" --duration 5
+
+# Stream until interrupted - explicit opt-in, never the default
+cdp-cli list-network "example" --follow
 
 # Filter by type
 cdp-cli list-network "example" --type fetch
 cdp-cli list-network "example" --type xhr
 ```
+A bare invocation is always bounded: it stops after 30 seconds and prints a
+final `{"event":"monitor-stopped","reason":"duration",...}` line. `--duration 0`
+is rejected; unbounded streaming requires `--follow`. `--duration` may not be
+combined with `--follow`, and the bounded maximum is 3600 seconds.
+
+Both monitors are passive: they enable a CDP domain and print events without
+taking the exclusive named-session operation lease, so ordinary commands keep
+working on the same page while a monitor runs, and killing a monitor cannot
+wedge that page.
 
 ### Working with iframes
 
@@ -1028,7 +1051,7 @@ cdp-cli eval "Array.from(document.querySelectorAll('.item')).map(el => ({
    const objects = lines.map(l => JSON.parse(l));
    ```
 
-3. **Query logs instead of streaming**: Use `logs console` and `logs network` to query buffered logs instead of running background streaming processes.
+3. **Query logs instead of streaming**: Use `logs console` and `logs network` to query buffered logs instead of running background streaming processes. `list-console`/`list-network` are live monitors: they are bounded to 30 seconds by default and stream indefinitely only with an explicit `--follow`.
    ```bash
    cdp-cli logs console "example" --last 20
    cdp-cli logs network "example" --filter xhr

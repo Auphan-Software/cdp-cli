@@ -587,7 +587,7 @@ cli.command(
 // Debug commands
 cli.command(
   'list-console <page>',
-  'List console messages',
+  'Stream live console messages for a bounded window (default 30s). Use `logs console` to query buffered logs; --follow streams until interrupted.',
   (yargs) => {
     return yargs
       .positional('page', {
@@ -601,9 +601,14 @@ cli.command(
       })
       .option('duration', {
         type: 'number',
-        description: 'Collection duration in seconds (0 to stream until interrupted)',
-        alias: 'd',
-        default: 0
+        description: 'Bounded collection window in seconds (default 30, max 3600)',
+        alias: 'd'
+      })
+      .option('follow', {
+        type: 'boolean',
+        description: 'Stream until interrupted (SIGINT/SIGTERM). Prefer `logs console` for queries.',
+        alias: 'f',
+        default: false
       });
   },
   async (argv) => {
@@ -611,7 +616,8 @@ cli.command(
     await debug.listConsole(context, {
       type: argv.type as string | undefined,
       page: argv.page as string,
-      duration: argv.duration as number
+      duration: argv.duration as number | undefined,
+      follow: argv.follow as boolean
     });
   }
 );
@@ -789,7 +795,7 @@ cli.command(
 // Network commands
 cli.command(
   'list-network <page>',
-  'List network requests',
+  'Stream live network events for a bounded window (default 30s). Use `logs network` to query buffered requests; --follow streams until interrupted.',
   (yargs) => {
     return yargs
       .positional('page', {
@@ -803,9 +809,14 @@ cli.command(
       })
       .option('duration', {
         type: 'number',
-        description: 'Collection duration in seconds (0 to stream until interrupted)',
-        alias: 'd',
-        default: 0
+        description: 'Bounded collection window in seconds (default 30, max 3600)',
+        alias: 'd'
+      })
+      .option('follow', {
+        type: 'boolean',
+        description: 'Stream until interrupted (SIGINT/SIGTERM). Prefer `logs network` for queries.',
+        alias: 'f',
+        default: false
       });
   },
   async (argv) => {
@@ -813,7 +824,8 @@ cli.command(
     await network.listNetwork(context, {
       type: argv.type as string | undefined,
       page: argv.page as string,
-      duration: argv.duration as number
+      duration: argv.duration as number | undefined,
+      follow: argv.follow as boolean
     });
   }
 );

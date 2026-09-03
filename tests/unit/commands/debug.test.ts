@@ -41,7 +41,13 @@ describe('Debug Commands', () => {
       const logs = capture.getLogs();
       capture.restore();
 
-      expect(logs).toHaveLength(2);
+      expect(logs).toHaveLength(3);
+
+      const stopped = JSON.parse(logs[2]);
+      expect(stopped.event).toBe('monitor-stopped');
+      expect(stopped.command).toBe('list-console');
+      expect(stopped.reason).toBe('duration');
+      expect(stopped.follow).toBe(false);
 
       const logMsg = JSON.parse(logs[0]);
       expect(logMsg.type).toBe('log');
@@ -77,11 +83,13 @@ describe('Debug Commands', () => {
       const logs = capture.getLogs();
       capture.restore();
 
-      expect(logs).toHaveLength(2); // error + exception (both type 'error')
-      logs.forEach(log => {
+      // error + exception (both type 'error'), plus the terminating stop line
+      expect(logs).toHaveLength(3);
+      logs.slice(0, 2).forEach(log => {
         const msg = JSON.parse(log);
         expect(msg.type).toBe('error');
       });
+      expect(JSON.parse(logs[2]).event).toBe('monitor-stopped');
     });
 
     it('should respect duration parameter', async () => {

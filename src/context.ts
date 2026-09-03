@@ -251,8 +251,19 @@ export class CDPContext {
 
   /**
    * Connect to a page via WebSocket
+   *
+   * Interaction commands take the exclusive workspace operation lease so that
+   * multi-command operations on one root target stay serialized. Passive
+   * event-only monitors pass `{ lease: false }`: they still must own the
+   * target, but they hold no exclusive lease, so ordinary commands keep
+   * working while a monitor runs and a force-killed monitor cannot strand the
+   * page for the lease TTL.
    */
-  async connect(page: Page): Promise<WebSocket> {
+  async connect(page: Page, options: { lease?: boolean } = {}): Promise<WebSocket> {
+    const acquireLease = options.lease !== false;
+    if (!acquireLease) {
+      await this.assertSessionTargetAccess(page.id);
+    }
     const ws = await new Promise<WebSocket>((resolve, reject) => {
       const ws = new WebSocket(page.webSocketDebuggerUrl);
 
@@ -264,7 +275,7 @@ export class CDPContext {
         reject(error);
       });
     });
-    if (this.workspaceSessionName) {
+    if (acquireLease && this.workspaceSessionName) {
       try {
         const lease = await this.beginSessionTargetLease(page.id);
         this.activeWorkspaceLeases.add(lease);

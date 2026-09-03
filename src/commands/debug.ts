@@ -9,6 +9,12 @@ import { extname } from 'node:path';
 import { resizePngBuffer } from '../resize.js';
 import { describeCliPath, normalizeCliPath } from '../path.js';
 import { createExecSession, createExecSessionByPageRef } from '../daemon/exec.js';
+import {
+  awaitStreamWindow,
+  outputStreamStopped,
+  resolveStreamWindow,
+  type StreamWindowOptions
+} from './stream-monitor.js';
 import { DaemonClient } from '../daemon/client.js';
 import { fetch as undiciFetch } from 'undici';
 import {
@@ -207,21 +213,23 @@ function formatAxElements(elements: any[]): string {
 }
 
 /**
- * List console messages
+ * Stream live console messages for a bounded window (or until interrupted with
+ * `--follow`). Passive monitor: no exclusive workspace lease is held.
  */
 export async function listConsole(
   context: CDPContext,
-  options: { type?: string; page: string; duration?: number }
+  options: { type?: string; page: string } & StreamWindowOptions
 ): Promise<void> {
   let ws;
-  const duration = options.duration ?? 0;
   try {
+    const window = resolveStreamWindow(options, 'list-console');
+
     // Get page to monitor
     const page = await context.findPage(options.page);
     await context.assertNoDevTools(page.id);
 
     // Connect and enable Runtime domain
-    ws = await context.connect(page);
+    ws = await context.connect(page, { lease: false });
 
     context.setupConsoleCollection(ws, (message: ConsoleMessage) => {
       if (options.type && message.type !== options.type) {
@@ -239,42 +247,23 @@ export async function listConsole(
     });
     await context.sendCommand(ws, 'Runtime.enable');
 
-    if (duration > 0) {
-      await new Promise(resolve => setTimeout(resolve, duration * 1000));
-    } else {
-      await new Promise<void>((resolve) => {
-        function cleanup(): void {
-          process.off('SIGINT', onSigint);
-          process.off('SIGTERM', onSigterm);
-        }
-
-        function onSigint(): void {
-          process.exitCode = 130;
-          cleanup();
-          resolve();
-        }
-
-        function onSigterm(): void {
-          process.exitCode = 143;
-          cleanup();
-          resolve();
-        }
-
-        process.on('SIGINT', onSigint);
-        process.on('SIGTERM', onSigterm);
-      });
-    }
+    const reason = await awaitStreamWindow(window);
+    outputStreamStopped('list-console', window, reason);
   } catch (error) {
     outputError(
       (error as Error).message,
-      'LIST_CONSOLE_FAILED'
+      (error as { code?: string }).code ?? 'LIST_CONSOLE_FAILED'
     );
+    if (ws) {
+      ws.close();
+    }
     await context.releaseSessionLeases();
     process.exit(1);
   } finally {
     if (ws) {
       ws.close();
     }
+    await context.releaseSessionLeases();
   }
 }
 
