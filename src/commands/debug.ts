@@ -13,6 +13,8 @@ import {
   awaitStreamWindow,
   outputStreamStopped,
   resolveStreamWindow,
+  withSetupDeadline,
+  type MonitorSocket,
   type StreamWindowOptions
 } from './stream-monitor.js';
 import { DaemonClient } from '../daemon/client.js';
@@ -220,34 +222,53 @@ export async function listConsole(
   context: CDPContext,
   options: { type?: string; page: string } & StreamWindowOptions
 ): Promise<void> {
-  let ws;
+  let ws: Awaited<ReturnType<typeof context.connect>> | undefined;
+  let pageId: string | undefined;
   try {
     const window = resolveStreamWindow(options, 'list-console');
 
-    // Get page to monitor
-    const page = await context.findPage(options.page);
-    await context.assertNoDevTools(page.id);
+    // The bounded window only starts once we are listening, so bound the
+    // connection phase too.
+    ws = await withSetupDeadline(
+      (async () => {
+        const page = await context.findPage(options.page);
+        pageId = page.id;
+        await context.ensureDaemonPageSession(page);
+        await context.assertNoDevTools(page.id);
 
-    // Connect and enable Runtime domain
-    ws = await context.connect(page, { lease: false });
+        // Passive monitor: assert ownership, but take no exclusive lease.
+        const socket = await context.connect(page, { lease: false });
 
-    context.setupConsoleCollection(ws, (message: ConsoleMessage) => {
-      if (options.type && message.type !== options.type) {
-        return;
-      }
+        context.setupConsoleCollection(
+          socket,
+          (message: ConsoleMessage) => {
+            if (options.type && message.type !== options.type) {
+              return;
+            }
 
-      outputLine({
-        type: message.type,
-        timestamp: message.timestamp,
-        text: message.text,
-        source: message.source,
-        ...(message.line !== undefined && { line: message.line }),
-        ...(message.url && { url: message.url })
-      });
+            outputLine({
+              type: message.type,
+              timestamp: message.timestamp,
+              text: message.text,
+              source: message.source,
+              ...(message.line !== undefined && { line: message.line }),
+              ...(message.url && { url: message.url })
+            });
+          },
+          { retain: false }
+        );
+        await context.sendCommand(socket, 'Runtime.enable');
+        return socket;
+      })(),
+      'list-console'
+    );
+
+    const reason = await awaitStreamWindow(window, {
+      socket: ws as unknown as MonitorSocket,
+      ...(context.workspaceSessionName
+        ? { revalidate: () => context.assertSessionTargetAccess(pageId as string) }
+        : {})
     });
-    await context.sendCommand(ws, 'Runtime.enable');
-
-    const reason = await awaitStreamWindow(window);
     outputStreamStopped('list-console', window, reason);
   } catch (error) {
     outputError(
@@ -257,13 +278,13 @@ export async function listConsole(
     if (ws) {
       ws.close();
     }
-    await context.releaseSessionLeases();
     process.exit(1);
   } finally {
+    // A passive monitor holds no lease of its own, so it must not release
+    // leases another operation on this context may still hold.
     if (ws) {
       ws.close();
     }
-    await context.releaseSessionLeases();
   }
 }
 

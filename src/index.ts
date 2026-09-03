@@ -18,6 +18,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 import * as pages from './commands/pages.js';
 import * as debug from './commands/debug.js';
 import * as network from './commands/network.js';
+import {
+  LIST_CONSOLE_DESCRIPTION,
+  LIST_NETWORK_DESCRIPTION
+} from './commands/stream-monitor.js';
 import * as input from './commands/input.js';
 import * as daemon from './commands/daemon.js';
 import * as logs from './commands/logs.js';
@@ -587,7 +591,7 @@ cli.command(
 // Debug commands
 cli.command(
   'list-console <page>',
-  'Stream live console messages for a bounded window (default 30s). Use `logs console` to query buffered logs; --follow streams until interrupted.',
+  LIST_CONSOLE_DESCRIPTION,
   (yargs) => {
     return yargs
       .positional('page', {
@@ -795,7 +799,7 @@ cli.command(
 // Network commands
 cli.command(
   'list-network <page>',
-  'Stream live network events for a bounded window (default 30s). Use `logs network` to query buffered requests; --follow streams until interrupted.',
+  LIST_NETWORK_DESCRIPTION,
   (yargs) => {
     return yargs
       .positional('page', {

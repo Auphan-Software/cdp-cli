@@ -27,7 +27,71 @@ export type StreamWindow =
   | { follow: true }
   | { follow: false; durationSeconds: number };
 
-export type StreamStopReason = 'duration' | 'interrupted';
+export type StreamStopReason =
+  | 'duration'
+  | 'interrupted'
+  | 'disconnected'
+  | 'ownership-revoked';
+
+/** Total wall-clock bound for connecting before the collection window starts. */
+export const SETUP_DEADLINE_SECONDS = 30;
+
+/** How often a running monitor re-checks that its session still owns the page. */
+export const OWNERSHIP_RECHECK_INTERVAL_MS = 10_000;
+
+/** Minimal view of the monitor's socket; keeps this module free of a ws import. */
+export interface MonitorSocket {
+  on(event: 'close' | 'error', listener: () => void): unknown;
+  off(event: 'close' | 'error', listener: () => void): unknown;
+}
+
+export interface StreamStopSignals {
+  /** Settle when Chrome closes the target or the connection breaks. */
+  socket?: MonitorSocket;
+  /** Re-assert that the named session still owns the page while monitoring. */
+  revalidate?: () => Promise<void>;
+  revalidateIntervalMs?: number;
+}
+
+export class StreamMonitorError extends Error {
+  readonly code: string;
+
+  constructor(code: string, message: string) {
+    super(message);
+    this.name = 'StreamMonitorError';
+    this.code = code;
+  }
+}
+
+/**
+ * Bound the connection phase too. Without this, a hung fetch or WebSocket
+ * handshake would leave a "bounded" invocation running indefinitely before the
+ * collection window ever starts.
+ */
+export async function withSetupDeadline<T>(
+  operation: Promise<T>,
+  command: string,
+  seconds: number = SETUP_DEADLINE_SECONDS
+): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      operation,
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => {
+          reject(
+            new StreamMonitorError(
+              'STREAM_SETUP_TIMEOUT',
+              `${command}: timed out after ${seconds}s while connecting to the page.`
+            )
+          );
+        }, seconds * 1000);
+      })
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 
 export class StreamOptionError extends Error {
   readonly code: string;
@@ -101,35 +165,66 @@ export function resolveStreamWindow(
  * Signal handlers are always removed so the process exits normally and the
  * caller's `finally` block runs its cleanup.
  */
-export function awaitStreamWindow(window: StreamWindow): Promise<StreamStopReason> {
+export function awaitStreamWindow(
+  window: StreamWindow,
+  signals: StreamStopSignals = {}
+): Promise<StreamStopReason> {
   return new Promise<StreamStopReason>((resolve) => {
     let timer: NodeJS.Timeout | undefined;
+    let recheck: NodeJS.Timeout | undefined;
+    let settled = false;
 
     function cleanup(): void {
       if (timer) clearTimeout(timer);
+      if (recheck) clearInterval(recheck);
       process.off('SIGINT', onSigint);
       process.off('SIGTERM', onSigterm);
+      signals.socket?.off('close', onDisconnect);
+      signals.socket?.off('error', onDisconnect);
+    }
+
+    function stop(reason: StreamStopReason, exitCode?: number): void {
+      if (settled) return;
+      settled = true;
+      if (exitCode !== undefined) process.exitCode = exitCode;
+      cleanup();
+      resolve(reason);
     }
 
     function onSigint(): void {
-      process.exitCode = 130;
-      cleanup();
-      resolve('interrupted');
+      stop('interrupted', 130);
     }
 
     function onSigterm(): void {
-      process.exitCode = 143;
-      cleanup();
-      resolve('interrupted');
+      stop('interrupted', 143);
+    }
+
+    // Chrome closing the target, or a broken connection, must end the monitor
+    // rather than leave a --follow process waiting forever on a dead socket.
+    function onDisconnect(): void {
+      stop('disconnected');
     }
 
     process.on('SIGINT', onSigint);
     process.on('SIGTERM', onSigterm);
+    signals.socket?.on('close', onDisconnect);
+    signals.socket?.on('error', onDisconnect);
+
+    // A monitor holds no lease, so ownership can be revoked underneath it
+    // (session remove/reset, or a page adopted by another session).
+    if (signals.revalidate) {
+      const revalidate = signals.revalidate;
+      recheck = setInterval(() => {
+        void revalidate().catch(() => {
+          stop('ownership-revoked', 1);
+        });
+      }, signals.revalidateIntervalMs ?? OWNERSHIP_RECHECK_INTERVAL_MS);
+      recheck.unref?.();
+    }
 
     if (!window.follow) {
       timer = setTimeout(() => {
-        cleanup();
-        resolve('duration');
+        stop('duration');
       }, window.durationSeconds * 1000);
     }
   });
@@ -149,3 +244,15 @@ export function outputStreamStopped(
     ...(window.follow ? {} : { durationSeconds: window.durationSeconds })
   });
 }
+
+/**
+ * Command descriptions. Kept here so the help text that routes agents to the
+ * daemon-backed queries is a tested constant rather than a loose string.
+ */
+export const LIST_NETWORK_DESCRIPTION =
+  'Stream live network events for a bounded window (default 30s). ' +
+  'Use `logs network` to query buffered requests; --follow streams until interrupted.';
+
+export const LIST_CONSOLE_DESCRIPTION =
+  'Stream live console messages for a bounded window (default 30s). ' +
+  'Use `logs console` to query buffered logs; --follow streams until interrupted.';

@@ -630,10 +630,16 @@ final `{"event":"monitor-stopped","reason":"duration",...}` line. `--duration 0`
 is rejected; unbounded streaming requires `--follow`. `--duration` may not be
 combined with `--follow`, and the bounded maximum is 3600 seconds.
 
-Both monitors are passive: they enable a CDP domain and print events without
-taking the exclusive named-session operation lease, so ordinary commands keep
-working on the same page while a monitor runs, and killing a monitor cannot
+Both monitors are passive: they enable a CDP domain and print events without
+taking the exclusive named-session operation lease, so ordinary commands keep
+working on the same page while a monitor runs, and killing a monitor cannot
 wedge that page.
+
+A monitor also stops by itself when the target disappears (`reason:
+"disconnected"`) or when the named session loses the page, e.g. `session reset`
+(`reason: "ownership-revoked"`, exit 1). If the connect/enable phase does not
+finish within 30 seconds the command fails with `STREAM_SETUP_TIMEOUT` instead
+of hanging.
 
 ### Working with iframes
 

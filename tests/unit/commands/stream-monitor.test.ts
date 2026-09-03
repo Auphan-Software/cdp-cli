@@ -9,9 +9,13 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   DEFAULT_STREAM_DURATION_SECONDS,
+  LIST_CONSOLE_DESCRIPTION,
+  LIST_NETWORK_DESCRIPTION,
   MAX_STREAM_DURATION_SECONDS,
   awaitStreamWindow,
   resolveStreamWindow,
+  withSetupDeadline,
+  StreamMonitorError,
   StreamOptionError
 } from '../../../src/commands/stream-monitor.js';
 import * as network from '../../../src/commands/network.js';
@@ -21,6 +25,8 @@ import { OperationLeaseManager } from '../../../src/sessions/operation-lease-man
 import { installMockFetch } from '../../mocks/fetch.mock.js';
 import { MockWebSocket } from '../../mocks/websocket.mock.js';
 import { captureConsoleOutput, mockProcessExit } from '../../helpers.js';
+import { EventEmitter } from 'node:events';
+import { readFile } from 'node:fs/promises';
 
 describe('stream monitor window resolution', () => {
   it('bounds a bare invocation instead of streaming forever', () => {
@@ -314,6 +320,211 @@ describe('list-network and list-console command windows', () => {
       command: 'list-console',
       reason: 'interrupted',
       follow: true
+    });
+  });
+});
+
+describe('help text routes agents to the daemon-backed queries', () => {
+  it('names `logs network` and the bounded default', () => {
+    expect(LIST_NETWORK_DESCRIPTION).toContain('logs network');
+    expect(LIST_NETWORK_DESCRIPTION).toContain('bounded');
+    expect(LIST_NETWORK_DESCRIPTION).toContain('--follow');
+    expect(LIST_NETWORK_DESCRIPTION).not.toBe('List network requests');
+  });
+
+  it('names `logs console` and the bounded default', () => {
+    expect(LIST_CONSOLE_DESCRIPTION).toContain('logs console');
+    expect(LIST_CONSOLE_DESCRIPTION).toContain('bounded');
+    expect(LIST_CONSOLE_DESCRIPTION).toContain('--follow');
+    expect(LIST_CONSOLE_DESCRIPTION).not.toBe('List console messages');
+  });
+
+  it('is the description the CLI actually registers', async () => {
+    const source = await readFile(new URL('../../../src/index.ts', import.meta.url), 'utf8');
+    expect(source).toContain('LIST_NETWORK_DESCRIPTION,');
+    expect(source).toContain('LIST_CONSOLE_DESCRIPTION,');
+  });
+});
+
+describe('connection phase is bounded too', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('fails a hung setup instead of waiting forever', async () => {
+    vi.useFakeTimers();
+    const settled = vi.fn();
+    const pending = withSetupDeadline(new Promise<never>(() => {}), 'list-network', 30).catch(
+      (error: unknown) => {
+        settled(error);
+        return error;
+      }
+    );
+
+    await vi.advanceTimersByTimeAsync(29_000);
+    expect(settled).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(1_000);
+    const error = (await pending) as StreamMonitorError;
+
+    expect(error).toBeInstanceOf(StreamMonitorError);
+    expect(error.code).toBe('STREAM_SETUP_TIMEOUT');
+  });
+
+  it('passes a fast setup through untouched', async () => {
+    await expect(withSetupDeadline(Promise.resolve('socket'), 'list-network', 30)).resolves.toBe(
+      'socket'
+    );
+  });
+});
+
+describe('monitor lifecycle beyond the window', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    process.exitCode = 0;
+  });
+
+  it('stops when the target closes instead of waiting on a dead socket', async () => {
+    const socket = new EventEmitter();
+    const pending = awaitStreamWindow({ follow: true }, { socket: socket as never });
+
+    socket.emit('close');
+
+    await expect(pending).resolves.toBe('disconnected');
+    expect(socket.listenerCount('close')).toBe(0);
+    expect(socket.listenerCount('error')).toBe(0);
+  });
+
+  it('stops when the named session loses ownership of the page', async () => {
+    vi.useFakeTimers();
+    let owned = true;
+    const pending = awaitStreamWindow(
+      { follow: true },
+      {
+        revalidate: async () => {
+          if (!owned) throw new Error('Session no longer owns target');
+        },
+        revalidateIntervalMs: 1_000
+      }
+    );
+
+    await vi.advanceTimersByTimeAsync(5_000);
+    owned = false;
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    await expect(pending).resolves.toBe('ownership-revoked');
+    expect(process.exitCode).toBe(1);
+  });
+
+  it('keeps running while ownership still holds', async () => {
+    vi.useFakeTimers();
+    const settled = vi.fn();
+    const pending = awaitStreamWindow(
+      { follow: true },
+      { revalidate: async () => undefined, revalidateIntervalMs: 1_000 }
+    ).then(settled);
+
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(settled).not.toHaveBeenCalled();
+
+    process.emit('SIGINT');
+    await pending;
+    expect(settled).toHaveBeenCalled();
+  });
+});
+
+describe('passive monitors do not retain event history', () => {
+  const requestWillBeSent = JSON.stringify({
+    method: 'Network.requestWillBeSent',
+    params: {
+      requestId: 'r1',
+      request: { url: 'https://example.com/', method: 'GET', headers: {} },
+      timestamp: 1,
+      type: 'Document'
+    }
+  });
+  const loadingFinished = JSON.stringify({
+    method: 'Network.loadingFinished',
+    params: { requestId: 'r1', encodedDataLength: 10 }
+  });
+
+  it('drops finished network requests instead of growing the heap', () => {
+    const context = new CDPContext();
+    const socket = new EventEmitter();
+    const seen: string[] = [];
+    context.setupNetworkCollection(socket as never, (request) => seen.push(request.id), {
+      retain: false
+    });
+
+    socket.emit('message', Buffer.from(requestWillBeSent));
+    socket.emit('message', Buffer.from(loadingFinished));
+
+    expect(seen).toEqual(['r1', 'r1']);
+    expect(context.getNetworkRequests()).toHaveLength(0);
+  });
+
+  it('positive control: the default retains history for library callers', () => {
+    const context = new CDPContext();
+    const socket = new EventEmitter();
+    context.setupNetworkCollection(socket as never, () => undefined);
+
+    socket.emit('message', Buffer.from(requestWillBeSent));
+    socket.emit('message', Buffer.from(loadingFinished));
+
+    expect(context.getNetworkRequests()).toHaveLength(1);
+  });
+
+  it('drops console messages for monitors but keeps them by default', () => {
+    const message = JSON.stringify({
+      method: 'Runtime.consoleAPICalled',
+      params: { type: 'log', args: [{ value: 'hello' }], timestamp: 1 }
+    });
+
+    const monitor = new CDPContext();
+    const monitorSocket = new EventEmitter();
+    const emitted: string[] = [];
+    monitor.setupConsoleCollection(monitorSocket as never, (msg) => emitted.push(msg.text), {
+      retain: false
+    });
+    monitorSocket.emit('message', Buffer.from(message));
+    expect(emitted).toEqual(['hello']);
+    expect(monitor.getConsoleMessages()).toHaveLength(0);
+
+    const library = new CDPContext();
+    const librarySocket = new EventEmitter();
+    library.setupConsoleCollection(librarySocket as never);
+    librarySocket.emit('message', Buffer.from(message));
+    expect(library.getConsoleMessages()).toHaveLength(1);
+  });
+});
+
+describe('passive monitors join an existing daemon session', () => {
+  beforeEach(() => {
+    installMockFetch();
+  });
+
+  it('registers the page with the daemon so other commands still work', async () => {
+    const context = new CDPContext();
+    const ensure = vi.spyOn(context, 'ensureDaemonPageSession').mockResolvedValue(true);
+
+    await network.listNetwork(context, { page: 'page1', duration: 0.05 });
+
+    expect(ensure).toHaveBeenCalledTimes(1);
+    expect(ensure.mock.calls[0][0].id).toBe('page1');
+  });
+
+  it('still monitors when the daemon is unavailable', async () => {
+    const capture = captureConsoleOutput();
+    const context = new CDPContext();
+    vi.spyOn(context, 'ensureDaemonPageSession').mockResolvedValue(false);
+
+    await network.listNetwork(context, { page: 'page1', duration: 0.05 });
+
+    const logs = capture.getLogs();
+    capture.restore();
+    expect(JSON.parse(logs[logs.length - 1])).toMatchObject({
+      event: 'monitor-stopped',
+      reason: 'duration'
     });
   });
 });

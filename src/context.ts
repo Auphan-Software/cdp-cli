@@ -557,7 +557,14 @@ export class CDPContext {
   /**
    * Setup console message collection
    */
-  setupConsoleCollection(ws: WebSocket, onMessage?: (message: ConsoleMessage) => void): void {
+  setupConsoleCollection(
+    ws: WebSocket,
+    onMessage?: (message: ConsoleMessage) => void,
+    options: { retain?: boolean } = {}
+  ): void {
+    // Live monitors stream and discard; only library callers that later read
+    // getConsoleMessages() need the history retained.
+    const retain = options.retain !== false;
     ws.on('message', (data: Buffer) => {
       const message: CDPMessage = JSON.parse(data.toString());
 
@@ -586,7 +593,9 @@ export class CDPContext {
           stackTrace: frames
         };
 
-        this.consoleMessages.set(consoleMsg.id, consoleMsg);
+        if (retain) {
+          this.consoleMessages.set(consoleMsg.id, consoleMsg);
+        }
         if (onMessage) {
           onMessage(consoleMsg);
         }
@@ -613,7 +622,9 @@ export class CDPContext {
           stackTrace: frames
         };
 
-        this.consoleMessages.set(consoleMsg.id, consoleMsg);
+        if (retain) {
+          this.consoleMessages.set(consoleMsg.id, consoleMsg);
+        }
         if (onMessage) {
           onMessage(consoleMsg);
         }
@@ -629,8 +640,13 @@ export class CDPContext {
     onRequest?: (
       request: NetworkRequest,
       event: 'requestWillBeSent' | 'responseReceived' | 'loadingFinished' | 'loadingFailed'
-    ) => void
+    ) => void,
+    options: { retain?: boolean } = {}
   ): void {
+    // Live monitors stream and discard; retaining every request would grow
+    // the heap for the lifetime of a --follow monitor.
+    const retain = options.retain !== false;
+
     const updateRequest = (requestId: string, patch: Partial<NetworkRequest>): NetworkRequest => {
       const current = this.networkRequests.get(requestId);
 
@@ -661,6 +677,12 @@ export class CDPContext {
       const entry = this.networkRequests.get(requestId);
       if (entry) {
         onRequest({ ...entry }, event);
+      }
+    };
+
+    const forget = (requestId: string): void => {
+      if (!retain) {
+        this.networkRequests.delete(requestId);
       }
     };
 
@@ -696,6 +718,7 @@ export class CDPContext {
           size: encodedDataLength
         });
         emit(requestId, 'loadingFinished');
+        forget(requestId);
       }
 
       if (message.method === 'Network.loadingFailed') {
@@ -709,6 +732,7 @@ export class CDPContext {
           }
         });
         emit(requestId, 'loadingFailed');
+        forget(requestId);
       }
     });
   }
@@ -854,6 +878,32 @@ export class CDPContext {
         return pending;
       }
     };
+  }
+
+  /**
+   * Best-effort: make the daemon hold a logging session for this page.
+   *
+   * A passive monitor attaches its own WebSocket, and `assertNoDevTools` counts
+   * any attachment as a debugger unless the daemon reports a connected session
+   * for the page. Registering the page with the daemon keeps ordinary commands
+   * working alongside a monitor, and buffers the same events for
+   * `logs network` / `logs console`. Failure is not fatal: the monitor still
+   * works through its direct connection.
+   */
+  async ensureDaemonPageSession(page: Page): Promise<boolean> {
+    try {
+      const daemon = new DaemonClient();
+      // A passive monitor never starts the daemon; it only joins one already running.
+      if (!await daemon.isRunning()) return false;
+      await daemon.createSession(
+        page.id,
+        page.webSocketDebuggerUrl,
+        this.workspaceSessionName
+      );
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   async releaseSessionLeases(): Promise<void> {

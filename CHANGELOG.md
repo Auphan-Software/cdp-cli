@@ -39,10 +39,26 @@ exclusive lease. Other commands can use the same page while a monitor runs, and
 a force-killed monitor no longer wedges that page for the lease TTL. Interaction
 commands are unchanged and still serialize through the exclusive lease.
 
-Normal completion and SIGINT/SIGTERM both close the WebSocket and release any
-session leases before exiting (130 for SIGINT, 143 for SIGTERM).
+Normal completion and SIGINT/SIGTERM both close the WebSocket before exiting
+(130 for SIGINT, 143 for SIGTERM). A passive monitor holds no lease of its own,
+so it never releases leases another operation on the same context still holds.
 
- 1.13.0
+A monitor also stops on its own when the work is over or ownership changes, and
+the `monitor-stopped` line names the reason:
+
+- `duration` - the bounded window elapsed.
+- `interrupted` - SIGINT/SIGTERM.
+- `disconnected` - the page or browser went away (the CDP socket closed), so a
+  monitor no longer waits on a dead target.
+- `ownership-revoked` - the named session lost the target (for example
+  `session reset`/`session remove`); the monitor stops and exits 1.
+
+Connection setup is bounded too: if the connect/enable phase has not completed
+within 30 seconds the command fails with **`STREAM_SETUP_TIMEOUT`** rather than
+hanging before the window starts. Monitors also no longer retain the events they
+print, so a long `--follow` run does not grow the heap.
+
+## 1.13.0
 
 ### Headless, idempotent named sessions for unattended agents
 
