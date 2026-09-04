@@ -12,14 +12,56 @@ import type { OperationLease } from '../sessions/operation-lease-manager.js';
 
 const DEFAULT_DAEMON_PORT = 9223;
 const DEFAULT_DAEMON_URL = `http://127.0.0.1:${DEFAULT_DAEMON_PORT}`;
-
-function configuredDaemonUrl(): string {
-  const value = process.env.CDP_DAEMON_URL?.trim();
-  return value || DEFAULT_DAEMON_URL;
-}
+const DEFAULT_CDP_URL = 'http://localhost:9222';
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 
 export interface DaemonClientOptions {
+  /** Explicit daemon endpoint. Wins over `CDP_DAEMON_URL`. */
   daemonUrl?: string;
+  /**
+   * Chrome CDP endpoint the command targets. The stock daemon on 9223 is only
+   * assumed for the stock Chrome endpoint on 9222; any other endpoint needs an
+   * explicit daemon URL so a command can never silently talk to a daemon that
+   * serves a different Chrome.
+   */
+  cdpUrl?: string;
+}
+
+/** True when the URL names the stock local Chrome debugging endpoint. */
+export function isDefaultCdpUrl(cdpUrl: string | undefined): boolean {
+  if (cdpUrl === undefined) return true;
+  let parsed: URL;
+  try {
+    parsed = new URL(cdpUrl);
+  } catch {
+    return false;
+  }
+  return parsed.protocol === 'http:' && LOOPBACK_HOSTS.has(parsed.hostname) && parsed.port === '9222';
+}
+
+/**
+ * Resolve which daemon a command may talk to. Throws `DAEMON_URL_REQUIRED`
+ * instead of guessing when the Chrome endpoint is custom and no daemon URL was
+ * configured explicitly.
+ */
+export function resolveDaemonUrl(options: DaemonClientOptions = {}): string {
+  const explicit = options.daemonUrl?.trim();
+  if (explicit) return explicit;
+  const configured = process.env.CDP_DAEMON_URL?.trim();
+  if (configured) return configured;
+  if (isDefaultCdpUrl(options.cdpUrl)) return DEFAULT_DAEMON_URL;
+  throw new SessionFoundationError(
+    'DAEMON_URL_REQUIRED',
+    `CDP endpoint ${options.cdpUrl} is not the default ${DEFAULT_CDP_URL}, so the default daemon at ` +
+      `${DEFAULT_DAEMON_URL} cannot be assumed to serve it. Set CDP_DAEMON_URL to the daemon started ` +
+      'for this endpoint.',
+    {
+      cdpUrl: options.cdpUrl,
+      defaultCdpUrl: DEFAULT_CDP_URL,
+      defaultDaemonUrl: DEFAULT_DAEMON_URL,
+      environmentVariable: 'CDP_DAEMON_URL'
+    }
+  );
 }
 
 export interface DaemonDialogStatus {
@@ -31,18 +73,31 @@ export interface DaemonDialogStatus {
 }
 
 export class DaemonClient {
-  private baseUrl: string;
+  private readonly options: DaemonClientOptions;
+  private resolvedBaseUrl?: string;
 
   constructor(options: DaemonClientOptions = {}) {
-    this.baseUrl = options.daemonUrl ?? configuredDaemonUrl();
+    this.options = { ...options };
   }
 
   /**
-   * Check if daemon is running
+   * Daemon endpoint, resolved on first use so that constructing a client is
+   * side-effect free while every request still fails fast on a configuration
+   * problem (see `resolveDaemonUrl`).
+   */
+  private get baseUrl(): string {
+    this.resolvedBaseUrl ??= resolveDaemonUrl(this.options);
+    return this.resolvedBaseUrl;
+  }
+
+  /**
+   * Check if daemon is running. A daemon configuration error is never
+   * swallowed as "not running".
    */
   async isRunning(): Promise<boolean> {
+    const baseUrl = this.baseUrl;
     try {
-      const res = await (globalThis.fetch ?? undiciFetch)(`${this.baseUrl}/health`, {
+      const res = await (globalThis.fetch ?? undiciFetch)(`${baseUrl}/health`, {
         signal: AbortSignal.timeout(1000)
       });
       return res.ok;
@@ -141,8 +196,9 @@ export class DaemonClient {
    * Get daemon status
    */
   async getStatus(): Promise<{ running: boolean; sessions?: number }> {
+    const baseUrl = this.baseUrl;
     try {
-      const res = await (globalThis.fetch ?? undiciFetch)(`${this.baseUrl}/health`, {
+      const res = await (globalThis.fetch ?? undiciFetch)(`${baseUrl}/health`, {
         signal: AbortSignal.timeout(1000)
       });
       if (res.ok) {
@@ -213,9 +269,10 @@ export class DaemonClient {
    * Delete session for a page
    */
   async deleteSession(pageId: string, workspaceSession?: string): Promise<boolean> {
+    const baseUrl = this.baseUrl;
     try {
       const res = await (globalThis.fetch ?? undiciFetch)(
-        `${this.baseUrl}/sessions/${encodeURIComponent(pageId)}${sessionQuery(workspaceSession)}`,
+        `${baseUrl}/sessions/${encodeURIComponent(pageId)}${sessionQuery(workspaceSession)}`,
         { method: 'DELETE' }
       );
       return res.ok;
@@ -264,10 +321,7 @@ export class DaemonClient {
     const url = `${this.baseUrl}/logs/console/${encodeURIComponent(pageId)}?${params}`;
     const res = await (globalThis.fetch ?? undiciFetch)(url);
 
-    if (!res.ok) {
-      const data = await res.json() as { error?: string };
-      throw new Error(data.error || 'Failed to get logs');
-    }
+    if (!res.ok) throwRemoteError(await res.json() as RemoteError, 'Failed to get logs');
 
     const data = await res.json() as { logs: ConsoleMessage[] };
     return data.logs ?? [];
@@ -285,9 +339,11 @@ export class DaemonClient {
     const res = await (globalThis.fetch ?? undiciFetch)(url);
 
     if (!res.ok) {
-      if (res.status === 404) return null;
-      const data = await res.json() as { error?: string };
-      throw new Error(data.error || 'Failed to get message');
+      const data = await res.json() as RemoteError;
+      // Only an unstructured 404 means "no such message"; a structured
+      // SESSION_NOT_FOUND / PAGE_NOT_OWNED must not be flattened to null.
+      if (res.status === 404 && typeof data.code !== 'string') return null;
+      throwRemoteError(data, 'Failed to get message');
     }
 
     const data = await res.json() as { message: ConsoleMessage };
@@ -309,10 +365,7 @@ export class DaemonClient {
     const url = `${this.baseUrl}/logs/network/${encodeURIComponent(pageId)}?${params}`;
     const res = await (globalThis.fetch ?? undiciFetch)(url);
 
-    if (!res.ok) {
-      const data = await res.json() as { error?: string };
-      throw new Error(data.error || 'Failed to get logs');
-    }
+    if (!res.ok) throwRemoteError(await res.json() as RemoteError, 'Failed to get logs');
 
     const data = await res.json() as { logs: NetworkRequest[] };
     return data.logs ?? [];
@@ -322,13 +375,18 @@ export class DaemonClient {
    * Clear logs for a page
    */
   async clearLogs(pageId: string, workspaceSession?: string): Promise<boolean> {
+    const baseUrl = this.baseUrl;
     try {
       const res = await (globalThis.fetch ?? undiciFetch)(
-        `${this.baseUrl}/logs/${encodeURIComponent(pageId)}${sessionQuery(workspaceSession)}`,
+        `${baseUrl}/logs/${encodeURIComponent(pageId)}${sessionQuery(workspaceSession)}`,
         { method: 'DELETE' }
       );
-      return res.ok;
-    } catch {
+      if (res.ok) return true;
+      const data = await res.json().catch(() => ({})) as RemoteError;
+      if (typeof data.code === 'string') throwRemoteError(data, 'Failed to clear logs');
+      return false;
+    } catch (error) {
+      if (error instanceof SessionFoundationError) throw error;
       return false;
     }
   }
@@ -386,10 +444,8 @@ export class DaemonClient {
       }
     );
 
-    const data = await res.json() as { results?: any[]; error?: string };
-    if (!res.ok) {
-      throw new Error(data.error || 'Batch command failed');
-    }
+    const data = await res.json() as { results?: any[] } & RemoteError;
+    if (!res.ok) throwRemoteError(data, 'Batch command failed');
 
     return data.results ?? [];
   }

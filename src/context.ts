@@ -128,7 +128,7 @@ export interface ExecutionContextInfo {
  * CDP Context manages connection to Chrome
  */
 export class CDPContext {
-  private cdpUrl: string;
+  readonly cdpUrl: string;
   // CDP message ID counter (resets to 1 for each new context/command)
   private messageId = 1;
   private consoleId = 1;
@@ -341,7 +341,7 @@ export class CDPContext {
     // Check if daemon is connected - if so, skip (daemon connection is benign)
     if (skipIfDaemonConnected) {
       try {
-        const daemon = new DaemonClient();
+        const daemon = new DaemonClient({ cdpUrl: this.cdpUrl });
         if (await daemon.isRunning()) {
           const sessions = await daemon.listSessions();
           if (sessions.some(s => s.pageId === pageId && s.connected)) return;
@@ -847,7 +847,7 @@ export class CDPContext {
   async beginSessionTargetLease(targetId: string): Promise<{ release(): Promise<void> }> {
     if (!this.workspaceSessionName) return { release: async () => undefined };
     await this.assertSessionTargetAccess(targetId);
-    const daemon = new DaemonClient();
+    const daemon = new DaemonClient({ cdpUrl: this.cdpUrl });
     if (!await daemon.isRunning()) {
       await daemon.startDaemon({ cdpUrl: this.cdpUrl });
     }
@@ -892,7 +892,7 @@ export class CDPContext {
    */
   async ensureDaemonPageSession(page: Page): Promise<boolean> {
     try {
-      const daemon = new DaemonClient();
+      const daemon = new DaemonClient({ cdpUrl: this.cdpUrl });
       // A passive monitor never starts the daemon; it only joins one already running.
       if (!await daemon.isRunning()) return false;
       await daemon.createSession(

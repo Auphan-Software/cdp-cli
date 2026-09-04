@@ -403,6 +403,15 @@ closed. `CDP_URL`, `CDP_DAEMON_URL`, and `CDP_SESSION` can supply the defaults
 for unattended callers. Use a distinct daemon URL for each distinct Chrome CDP
 endpoint (for example 9333/9334 for a headless automation instance).
 
+The stock daemon on 9223 is assumed only for the stock Chrome endpoint on 9222.
+Any other `--cdp-url` / `CDP_URL` requires an explicit `CDP_DAEMON_URL`;
+otherwise daemon-backed commands fail immediately with `DAEMON_URL_REQUIRED`
+rather than silently asking a daemon that serves a different Chrome. A daemon
+or session store that does not know the named session answers
+`SESSION_NOT_FOUND`; `PAGE_NOT_OWNED` (with `details.actualOwner`) means the
+session exists but another session owns the page. Wrapped command failures
+such as `EVAL_FAILED` keep that underlying code under `details.cause.code`.
+
 `session reset NAME --force` closes that named isolated context and all of its
 pages, then creates exactly one fresh `about:blank` page. It never wipes other
 session metadata. A shared compatibility session cannot be reset because its
@@ -1084,6 +1093,11 @@ cdp-cli eval "Array.from(document.querySelectorAll('.item')).map(el => ({
 7. **Error handling**: All errors output NDJSON with `"error": true`
    ```json
    {"error":true,"message":"Page not found: example","code":"PAGE_NOT_FOUND"}
+   ```
+   A command-level failure keeps the underlying structured error under
+   `details.cause`, so check `details.cause.code` for the actionable reason:
+   ```json
+   {"error":true,"message":"Session not found: agent-1","code":"EVAL_FAILED","details":{"expression":"1+1","cause":{"code":"SESSION_NOT_FOUND","message":"Session not found: agent-1","details":{"sessionName":"agent-1","pageId":"E11C..."}}}}
    ```
 
 8. **Target elements inside iframes with --frame**:

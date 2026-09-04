@@ -50,7 +50,7 @@ export async function diagnosePage(
   options: DiagnosePageOptions
 ): Promise<DiagnosticBundle> {
   const page = await context.findPage(options.page);
-  const daemon = new DaemonClient();
+  const daemon = new DaemonClient({ cdpUrl: context.cdpUrl });
   const daemonStatus = await daemon.getStatus();
   const ws = await context.connect(page);
   const output = options.outputDir ? describeCliPath(options.outputDir) : undefined;

@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { captureConsoleOutput } from '../../helpers.js';
+import { captureConsoleOutput, mockProcessExit } from '../../helpers.js';
 import { platform } from 'os';
 
 // Test findChrome separately since it's a pure function
@@ -17,6 +17,35 @@ describe('Lifecycle Commands', () => {
   });
 
   describe('ready', () => {
+    it('refuses a custom endpoint without a daemon URL before touching Chrome', async () => {
+      const capture = captureConsoleOutput();
+      const exitMock = mockProcessExit();
+      const { ready } = await import('../../../src/commands/lifecycle.js');
+      const originalFetch = global.fetch;
+      let fetched = 0;
+      global.fetch = (async () => {
+        fetched += 1;
+        throw new Error('no network expected');
+      }) as unknown as typeof fetch;
+
+      try {
+        await ready({ profile: 'default', port: 9333, cdpUrl: 'http://127.0.0.1:9333' });
+      } catch {
+        // Expected process.exit
+      } finally {
+        global.fetch = originalFetch;
+      }
+
+      expect(exitMock.exitCode).toBe(1);
+      expect(fetched).toBe(0);
+      const error = JSON.parse(capture.getLogs()[0]);
+      expect(error.code).toBe('READY_FAILED');
+      expect(error.details.cause.code).toBe('DAEMON_URL_REQUIRED');
+
+      capture.restore();
+      exitMock.restore();
+    });
+
     it('should output success when Chrome and daemon already running', async () => {
       const capture = captureConsoleOutput();
 

@@ -2,6 +2,53 @@
 
 ## 2.0.0
 
+### A command can no longer silently talk to the wrong daemon (breaking)
+
+An agent running against a dedicated Chrome (for example `CDP_URL` on 9333
+with its own daemon on 9334) that forgot to export `CDP_DAEMON_URL` had every
+daemon-backed command fall back to the stock daemon on 9223. That daemon serves
+a different Chrome, so it did not know the named session and answered
+**`PAGE_NOT_OWNED`** - a false report that the agent had lost its page, when in
+fact it was asking the wrong daemon. `eval` then collapsed that structured
+answer into a bare `EVAL_FAILED` message, so the real cause was unrecoverable
+from the output.
+
+- The default daemon on 9223 is now assumed only for the default Chrome
+  endpoint (`http://localhost:9222`, or 127.0.0.1 / [::1] on port 9222). Any
+  other `--cdp-url` / `CDP_URL` without an explicit `CDP_DAEMON_URL` fails
+  before any daemon is contacted with **`DAEMON_URL_REQUIRED`**; the details
+  name the endpoint, the default that would have been guessed, and the
+  variable to set. This applies to every daemon-backed command, including
+  `daemon start|stop|status`, `logs`, `ready`, session leases, and `close-page`.
+  Interaction commands (`eval`, `click`, ...) fall back to a direct connection
+  only when no `--session` / `CDP_SESSION` is set; with a session they need the
+  daemon for the operation lease and now fail with `DAEMON_URL_REQUIRED` instead
+  of silently bypassing it. `ready` checks the daemon configuration before
+  launching Chrome, and `new-page` / `close-page` treat daemon registration and
+  cleanup as best effort after the page has already been created or closed.
+- The log endpoints (`logs console|network|detail|clear`) and batch execution
+  keep the daemon's structured error (`SESSION_NOT_FOUND`, `PAGE_NOT_OWNED`,
+  ...) instead of flattening it to a bare message.
+- A daemon (or the local session registry) that does not know the supplied
+  session now answers **`SESSION_NOT_FOUND`** (`details.sessionName`,
+  `details.pageId`) instead of `PAGE_NOT_OWNED`. `PAGE_NOT_OWNED` is reserved
+  for a known session that does not own the page and still carries
+  `details.actualOwner` when another session owns it.
+- Command-level failures (`EVAL_FAILED`, `CLICK_FAILED`, `READY_FAILED`,
+  `GET_CONSOLE_LOGS_FAILED`, ...) keep their top-level `code` but now retain
+  the underlying error under `details.cause` as `{code, message, details,
+  cause}`. A `SessionFoundationError` from the daemon keeps its code and
+  details there; a network failure keeps the nested system code such as
+  `ECONNREFUSED`. Arbitrary `details` are copied through a bounded,
+  cycle-safe serializer so that reporting a failure can never itself throw.
+
+**Migration:** anyone pointing `--cdp-url` / `CDP_URL` at a non-default Chrome
+must also export `CDP_DAEMON_URL` (use `http://127.0.0.1:9223` to keep using
+the stock daemon deliberately). Scripts that matched `PAGE_NOT_OWNED` to mean
+"wrong daemon or missing session" should match `SESSION_NOT_FOUND` /
+`DAEMON_URL_REQUIRED`, reading them from `details.cause.code` under a wrapped
+command failure.
+
 ### Live monitors are bounded by default (breaking)
 
 `list-network` and `list-console` previously defaulted `--duration` to `0`,

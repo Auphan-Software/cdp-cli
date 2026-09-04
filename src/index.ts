@@ -349,7 +349,7 @@ cli.command(
         outputSuccess('Target adopted by exact ID', adopted);
       } else {
         const name = argv.name as string;
-        const daemonClient = new DaemonClient();
+        const daemonClient = new DaemonClient({ cdpUrl: argv['cdp-url'] as string });
         if (!await daemonClient.isRunning()) {
           await daemonClient.startDaemon({ cdpUrl: argv['cdp-url'] as string });
         }
@@ -1444,9 +1444,9 @@ cli.command(
         bufferSize: argv['buffer-size'] as number
       });
     } else if (action === 'stop') {
-      await daemon.stopDaemon();
+      await daemon.stopDaemon({ cdpUrl: argv['cdp-url'] as string });
     } else if (action === 'status') {
-      await daemon.daemonStatus();
+      await daemon.daemonStatus({ cdpUrl: argv['cdp-url'] as string });
     }
   }
 );

@@ -3,7 +3,7 @@
  */
 
 import { DaemonClient } from '../daemon/client.js';
-import { outputSuccess, outputError, outputLines } from '../output.js';
+import { outputSuccess, outputCommandError, outputLines } from '../output.js';
 
 /**
  * Start the daemon
@@ -12,7 +12,7 @@ export async function startDaemon(options: {
   cdpUrl?: string;
   bufferSize?: number;
 }): Promise<void> {
-  const client = new DaemonClient();
+  const client = new DaemonClient({ cdpUrl: options.cdpUrl });
 
   try {
     const result = await client.startDaemon(options);
@@ -23,8 +23,8 @@ export async function startDaemon(options: {
       outputSuccess('Daemon already running');
     }
   } catch (error) {
-    outputError(
-      (error as Error).message,
+    outputCommandError(
+      error,
       'DAEMON_START_FAILED',
       {}
     );
@@ -35,8 +35,8 @@ export async function startDaemon(options: {
 /**
  * Stop the daemon
  */
-export async function stopDaemon(): Promise<void> {
-  const client = new DaemonClient();
+export async function stopDaemon(options: { cdpUrl?: string } = {}): Promise<void> {
+  const client = new DaemonClient({ cdpUrl: options.cdpUrl });
 
   try {
     const stopped = await client.stopDaemon();
@@ -47,8 +47,8 @@ export async function stopDaemon(): Promise<void> {
       outputSuccess('Daemon not running');
     }
   } catch (error) {
-    outputError(
-      (error as Error).message,
+    outputCommandError(
+      error,
       'DAEMON_STOP_FAILED',
       {}
     );
@@ -59,8 +59,8 @@ export async function stopDaemon(): Promise<void> {
 /**
  * Get daemon status
  */
-export async function daemonStatus(): Promise<void> {
-  const client = new DaemonClient();
+export async function daemonStatus(options: { cdpUrl?: string } = {}): Promise<void> {
+  const client = new DaemonClient({ cdpUrl: options.cdpUrl });
 
   try {
     const status = await client.getStatus();
@@ -75,8 +75,8 @@ export async function daemonStatus(): Promise<void> {
       outputSuccess('Daemon not running');
     }
   } catch (error) {
-    outputError(
-      (error as Error).message,
+    outputCommandError(
+      error,
       'DAEMON_STATUS_FAILED',
       {}
     );

@@ -3,7 +3,7 @@
  */
 
 import { CDPContext, type Page } from '../context.js';
-import { outputError, outputSuccess } from '../output.js';
+import { outputError, outputCommandError, outputSuccess } from '../output.js';
 import { describeChar, describeKey, type KeyDescriptor } from '../keys.js';
 import {
   armNavigationWatcher,
@@ -1734,8 +1734,8 @@ export async function click(
     if (error instanceof ClickError) {
       outputError(error.message, error.code, error.details);
     } else {
-      outputError(
-        (error as Error).message,
+      outputCommandError(
+        error,
         'CLICK_FAILED',
         {
           selector: target.selector,
@@ -2249,8 +2249,8 @@ export async function selectOption(
       ...(options.waitForNavigation && { waitedForNavigation: true })
     });
   } catch (error) {
-    outputError(
-      (error as Error).message,
+    outputCommandError(
+      error,
       'SELECT_FAILED',
       { selector, value: target.value, text: target.text, index: target.index, frame: options.frame }
     );
@@ -2483,8 +2483,8 @@ export async function fill(
     if (error instanceof FillError) {
       outputError(error.message, error.code, error.details);
     } else {
-      outputError(
-        (error as Error).message,
+      outputCommandError(
+        error,
         'FILL_FAILED',
         {
           selector,
@@ -2583,8 +2583,8 @@ export async function pressKey(
       ...(options.waitForNavigation && { waitedForNavigation: true })
     });
   } catch (error) {
-    outputError(
-      (error as Error).message,
+    outputCommandError(
+      error,
       'PRESS_KEY_FAILED',
       { key }
     );
@@ -2902,8 +2902,8 @@ export async function drag(
     if (error instanceof DragError) {
       outputError(error.message, error.code, error.details);
     } else {
-      outputError(
-        (error as Error).message,
+      outputCommandError(
+        error,
         'DRAG_FAILED',
         {
           from: { selector: from.selector, text: from.text },
