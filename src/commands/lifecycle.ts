@@ -7,8 +7,8 @@ import { existsSync } from 'fs';
 import { homedir, platform } from 'os';
 import { join } from 'path';
 import { fetch as undiciFetch } from 'undici';
-import { DaemonClient } from '../daemon/client.js';
-import { outputLine, outputError, outputSuccess } from '../output.js';
+import { DaemonClient, resolveDaemonUrl } from '../daemon/client.js';
+import { outputLine, outputCommandError, outputSuccess } from '../output.js';
 
 /**
  * Find Chrome executable path
@@ -97,6 +97,10 @@ export async function ready(options: {
   const { profile, port, cdpUrl, headless = false } = options;
 
   try {
+    // `ready` needs the daemon, so refuse a missing daemon configuration
+    // before launching a Chrome that would then be left running.
+    resolveDaemonUrl({ cdpUrl });
+
     let chromeStarted = false;
 
     // Check if Chrome already running
@@ -123,7 +127,7 @@ export async function ready(options: {
     }
 
     // Start daemon if not running
-    const client = new DaemonClient();
+    const client = new DaemonClient({ cdpUrl });
     let daemonStarted = false;
     if (!await client.isRunning()) {
       await client.startDaemon({ cdpUrl });
@@ -149,8 +153,8 @@ export async function ready(options: {
       pages: pages.length,
     });
   } catch (error) {
-    outputError(
-      (error as Error).message,
+    outputCommandError(
+      error,
       'READY_FAILED',
       {}
     );

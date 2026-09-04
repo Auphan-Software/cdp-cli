@@ -3,7 +3,7 @@
  */
 
 import { CDPContext, ConsoleMessage } from '../context.js';
-import { outputLine, outputError, outputSuccess, outputRaw } from '../output.js';
+import { outputLine, outputError, outputCommandError, outputSuccess, outputRaw } from '../output.js';
 import { readFileSync, writeFileSync } from 'fs';
 import { extname } from 'node:path';
 import { resizePngBuffer } from '../resize.js';
@@ -354,8 +354,8 @@ export async function snapshot(
       throw new Error(`Unknown snapshot format: ${format}`);
     }
   } catch (error) {
-    outputError(
-      (error as Error).message,
+    outputCommandError(
+      error,
       'SNAPSHOT_FAILED',
       { format: options.format }
     );
@@ -463,8 +463,8 @@ export async function evaluate(
       });
     }
   } catch (error) {
-    outputError(
-      (error as Error).message,
+    outputCommandError(
+      error,
       'EVAL_FAILED',
       {
         expression,
@@ -691,8 +691,8 @@ export async function screenshot(
       });
     }
   } catch (error) {
-    outputError(
-      (error as Error).message,
+    outputCommandError(
+      error,
       'SCREENSHOT_FAILED',
       { output: outputPath ?? options.output }
     );
@@ -753,8 +753,8 @@ export async function dialog(
       });
     }
   } catch (error) {
-    outputError(
-      (error as Error).message,
+    outputCommandError(
+      error,
       'DIALOG_FAILED',
       {}
     );
@@ -773,7 +773,7 @@ export async function dialog(
 export async function status(context: CDPContext): Promise<void> {
   try {
     // Check daemon status
-    const client = new DaemonClient();
+    const client = new DaemonClient({ cdpUrl: context.cdpUrl });
     const daemonStatus = await client.getStatus();
 
     // Check Chrome status
@@ -816,8 +816,8 @@ export async function status(context: CDPContext): Promise<void> {
       chrome: chromeStatus
     });
   } catch (error) {
-    outputError(
-      (error as Error).message,
+    outputCommandError(
+      error,
       'STATUS_FAILED',
       {}
     );
@@ -943,8 +943,8 @@ export async function query(
       outputLine(el);
     }
   } catch (error) {
-    outputError(
-      (error as Error).message,
+    outputCommandError(
+      error,
       'QUERY_FAILED',
       { selector }
     );
@@ -1057,8 +1057,8 @@ export async function styles(
 
     outputLine(evalResult.result?.value || { type: 'styles', selector, exists: false });
   } catch (error) {
-    outputError(
-      (error as Error).message,
+    outputCommandError(
+      error,
       'STYLES_FAILED',
       { selector }
     );
@@ -1216,8 +1216,8 @@ export async function emulate(
           })
     });
   } catch (error) {
-    outputError(
-      (error as Error).message,
+    outputCommandError(
+      error,
       'EMULATE_FAILED',
       { device }
     );
@@ -1300,8 +1300,8 @@ export async function dismissOverlays(
 
     outputLine(evalResult.result?.value || { type: 'dismiss-overlays', dismissed: [], count: 0 });
   } catch (error) {
-    outputError(
-      (error as Error).message,
+    outputCommandError(
+      error,
       'DISMISS_OVERLAYS_FAILED',
       {}
     );

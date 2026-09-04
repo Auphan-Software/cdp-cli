@@ -3,7 +3,15 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { outputLine, outputLines, outputError, outputSuccess, outputRaw } from '../../src/output.js';
+import {
+  outputLine,
+  outputLines,
+  outputError,
+  outputSuccess,
+  outputRaw,
+  outputCommandError
+} from '../../src/output.js';
+import { SessionFoundationError } from '../../src/sessions/errors.js';
 import { captureConsoleOutput } from '../helpers.js';
 
 describe('Output Formatting', () => {
@@ -116,6 +124,89 @@ describe('Output Formatting', () => {
 
       const logs = capture.getLogs();
       expect(logs[0]).toBe('Line 1\nLine 2\n  Indented');
+    });
+  });
+
+  describe('outputCommandError', () => {
+    it('keeps the wrapper code and nests the structured cause under details', () => {
+      const error = new SessionFoundationError('PAGE_NOT_OWNED', 'Page p1 is not owned by session a', {
+        sessionName: 'a',
+        pageId: 'p1',
+        actualOwner: 'b'
+      });
+
+      outputCommandError(error, 'EVAL_FAILED', { expression: '1 + 1' });
+
+      expect(JSON.parse(capture.getLogs()[0])).toEqual({
+        error: true,
+        message: 'Page p1 is not owned by session a',
+        code: 'EVAL_FAILED',
+        details: {
+          expression: '1 + 1',
+          cause: {
+            code: 'PAGE_NOT_OWNED',
+            message: 'Page p1 is not owned by session a',
+            details: { sessionName: 'a', pageId: 'p1', actualOwner: 'b' }
+          }
+        }
+      });
+    });
+
+    it('serializes a native cause chain with system error codes', () => {
+      const inner = Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:9223'), { code: 'ECONNREFUSED' });
+      const error = new TypeError('fetch failed', { cause: inner });
+
+      outputCommandError(error, 'GET_CONSOLE_LOGS_FAILED');
+
+      expect(JSON.parse(capture.getLogs()[0])).toEqual({
+        error: true,
+        message: 'fetch failed',
+        code: 'GET_CONSOLE_LOGS_FAILED',
+        details: {
+          cause: {
+            message: 'fetch failed',
+            cause: { code: 'ECONNREFUSED', message: 'connect ECONNREFUSED 127.0.0.1:9223' }
+          }
+        }
+      });
+    });
+
+    it('never throws on cyclic, throwing, or oversized details', () => {
+      const details: Record<string, unknown> = { big: 'x'.repeat(5000), list: Array.from({ length: 60 }, (_, i) => i) };
+      details.self = details;
+      Object.defineProperty(details, 'boom', { enumerable: true, get() { throw new Error('getter'); } });
+      let deep: Record<string, unknown> = { leaf: true };
+      for (let i = 0; i < 10; i++) deep = { deep };
+      details.deep = deep;
+      const error = Object.assign(new Error('failed'), { code: 'SOME_CODE', details });
+
+      outputCommandError(error, 'EVAL_FAILED');
+
+      const [line] = capture.getLogs();
+      expect(line.length).toBeLessThan(4000);
+      const parsed = JSON.parse(line);
+      expect(parsed.code).toBe('EVAL_FAILED');
+      const cause = parsed.details.cause;
+      expect(cause.code).toBe('SOME_CODE');
+      expect(cause.details.self).toBe('[Circular]');
+      expect(cause.details.boom).toBe('[Unserializable]');
+      expect(cause.details.big).toMatch(/\.\.\.\[truncated 3000 chars\]$/);
+      expect(cause.details.list).toHaveLength(51);
+      expect(JSON.stringify(cause.details.deep)).toContain('[Truncated]');
+    });
+
+    it('omits an empty cause for a plain error and stringifies non-errors', () => {
+      outputCommandError(new Error('plain'), 'SNAPSHOT_FAILED');
+      outputCommandError('raw failure', 'SNAPSHOT_FAILED', { page: 'p1' });
+
+      const [plain, raw] = capture.getLogs().map((line) => JSON.parse(line));
+      expect(plain).toEqual({ error: true, message: 'plain', code: 'SNAPSHOT_FAILED' });
+      expect(raw).toEqual({
+        error: true,
+        message: 'raw failure',
+        code: 'SNAPSHOT_FAILED',
+        details: { page: 'p1' }
+      });
     });
   });
 });

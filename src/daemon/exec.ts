@@ -5,7 +5,24 @@
 
 import { CDPContext, Page, dialogBlockerError } from '../context.js';
 import { DaemonClient } from './client.js';
+import { SessionFoundationError } from '../sessions/errors.js';
 import { WebSocket } from 'ws';
+
+/**
+ * Daemon use is opportunistic for anonymous commands (fall back to a direct
+ * WebSocket), but a workspace session needs the daemon for its operation lease,
+ * so a missing daemon configuration must surface instead of being treated as
+ * "daemon not running".
+ */
+function rethrowDaemonConfigError(context: CDPContext, error: unknown): void {
+  if (
+    context.workspaceSessionName
+    && error instanceof SessionFoundationError
+    && error.code === 'DAEMON_URL_REQUIRED'
+  ) {
+    throw error;
+  }
+}
 
 export interface DaemonPageInfo {
   pageId: string;
@@ -33,8 +50,11 @@ export interface ExecSession {
  * Find a page via daemon sessions (faster than Chrome REST API)
  * Returns null if daemon not running or page not found
  */
-export async function findPageViaDaemon(idOrTitle: string): Promise<DaemonPageInfo | null> {
-  const daemon = new DaemonClient();
+export async function findPageViaDaemon(
+  context: CDPContext,
+  idOrTitle: string
+): Promise<DaemonPageInfo | null> {
+  const daemon = new DaemonClient({ cdpUrl: context.cdpUrl });
 
   try {
     if (!await daemon.isRunning()) {
@@ -68,7 +88,7 @@ export async function createExecSession(
   context: CDPContext,
   page: Page
 ): Promise<ExecSession> {
-  const daemon = new DaemonClient();
+  const daemon = new DaemonClient({ cdpUrl: context.cdpUrl });
 
   // Check if daemon has a connected session for this page
   try {
@@ -99,7 +119,8 @@ export async function createExecSession(
         close: () => workspaceLease?.release()
       };
     }
-  } catch {
+  } catch (error) {
+    rethrowDaemonConfigError(context, error);
     // Daemon not running, fall through to direct connection
   }
 
@@ -111,7 +132,8 @@ export async function createExecSession(
   try {
     const sessions = await daemon.listSessions();
     daemonConnectedToPage = sessions.some(s => s.pageId === page.id && s.connected);
-  } catch {
+  } catch (error) {
+    rethrowDaemonConfigError(context, error);
     // Daemon not running
   }
 
@@ -136,7 +158,7 @@ export async function createExecSessionByPageRef(
   context: CDPContext,
   pageIdOrTitle: string
 ): Promise<ExecSession> {
-  const daemon = new DaemonClient();
+  const daemon = new DaemonClient({ cdpUrl: context.cdpUrl });
 
   await context.assertSessionTargetAccess(pageIdOrTitle);
 
@@ -173,7 +195,8 @@ export async function createExecSessionByPageRef(
         close: () => workspaceLease?.release()
       };
     }
-  } catch {
+  } catch (error) {
+    rethrowDaemonConfigError(context, error);
     // Daemon not running
   }
 
@@ -187,7 +210,8 @@ export async function createExecSessionByPageRef(
   try {
     const sessions = await daemon.listSessions();
     daemonConnectedToPage = sessions.some(s => s.pageId === page.id && s.connected);
-  } catch {
+  } catch (error) {
+    rethrowDaemonConfigError(context, error);
     // Daemon not running
   }
 
@@ -209,10 +233,11 @@ export async function createExecSessionByPageRef(
  * Returns null if daemon not available
  */
 export async function execBatch(
+  context: CDPContext,
   pageId: string,
   commands: Array<{ method: string; params?: any }>
 ): Promise<any[] | null> {
-  const daemon = new DaemonClient();
+  const daemon = new DaemonClient({ cdpUrl: context.cdpUrl });
 
   try {
     if (!await daemon.isRunning()) {

@@ -4,7 +4,7 @@
 
 import { WebSocket } from 'ws';
 import { CDPContext, Page } from '../context.js';
-import { outputLines, outputLine, outputError, outputSuccess } from '../output.js';
+import { outputLines, outputLine, outputError, outputCommandError, outputSuccess } from '../output.js';
 import { DaemonClient } from '../daemon/client.js';
 import {
   armNavigationWatcher,
@@ -113,8 +113,8 @@ export async function pageHealth(
     const health = await collectPageHealth(context, ws, page.id);
     outputSuccess('Page health collected', { page: page.id, ...health });
   } catch (error) {
-    outputError(
-      (error as Error).message,
+    outputCommandError(
+      error,
       'PAGE_HEALTH_FAILED',
       { page: idOrTitle }
     );
@@ -146,8 +146,8 @@ export async function activatePage(
 
     outputSuccess('Page activated', { page: page.id, activated: true });
   } catch (error) {
-    outputError(
-      (error as Error).message,
+    outputCommandError(
+      error,
       'ACTIVATE_PAGE_FAILED',
       { page: idOrTitle }
     );
@@ -176,8 +176,8 @@ export async function listPages(context: CDPContext): Promise<void> {
 
     outputLines(output);
   } catch (error) {
-    outputError(
-      (error as Error).message,
+    outputCommandError(
+      error,
       'LIST_PAGES_FAILED',
       { error: String(error) }
     );
@@ -196,17 +196,18 @@ export async function newPage(
   try {
     const page = await context.createPage(url);
 
-    // Register with daemon if running
-    const daemonClient = new DaemonClient();
+    // Register with daemon if running. The page already exists, so a daemon
+    // problem (including a missing daemon configuration) must not turn the
+    // successful creation into a reported failure.
     let loggingEnabled = false;
-
-    if (await daemonClient.isRunning()) {
-      try {
+    try {
+      const daemonClient = new DaemonClient({ cdpUrl: context.cdpUrl });
+      if (await daemonClient.isRunning()) {
         await daemonClient.createSession(page.id, page.webSocketDebuggerUrl);
         loggingEnabled = true;
-      } catch {
-        // Daemon registration failed, but page was still created
       }
+    } catch {
+      // Daemon registration failed, but page was still created
     }
 
     outputSuccess('Page created', {
@@ -216,8 +217,8 @@ export async function newPage(
       logging: loggingEnabled
     });
   } catch (error) {
-    outputError(
-      (error as Error).message,
+    outputCommandError(
+      error,
       'NEW_PAGE_FAILED',
       { url }
     );
@@ -310,8 +311,8 @@ export async function navigate(
       ...(options.waitForNavigation && { waitedForNavigation: true })
     });
   } catch (error) {
-    outputError(
-      (error as Error).message,
+    outputCommandError(
+      error,
       'NAVIGATE_FAILED',
       { action, page: pageIdOrTitle }
     );
@@ -348,13 +349,13 @@ export async function closePage(
     // concurrent operation and only then discover the lease conflict.
     await context.closePage(page);
 
-    const daemonClient = new DaemonClient();
-    if (await daemonClient.isRunning()) {
-      try {
+    try {
+      const daemonClient = new DaemonClient({ cdpUrl: context.cdpUrl });
+      if (await daemonClient.isRunning()) {
         await daemonClient.deleteSession(page.id, context.workspaceSessionName);
-      } catch {
-        // Chrome is already closed; stale daemon cleanup is best effort.
       }
+    } catch {
+      // Chrome is already closed; stale daemon cleanup is best effort.
     }
 
     outputSuccess('Page closed', {
@@ -362,8 +363,8 @@ export async function closePage(
       title: page.title
     });
   } catch (error) {
-    outputError(
-      (error as Error).message,
+    outputCommandError(
+      error,
       'CLOSE_PAGE_FAILED',
       { idOrTitle }
     );
@@ -436,8 +437,8 @@ export async function resizeWindow(
       requested: { width: bounds.width, height: bounds.height, state: bounds.windowState }
     });
   } catch (error) {
-    outputError(
-      (error as Error).message,
+    outputCommandError(
+      error,
       'RESIZE_WINDOW_FAILED',
       {
         page: idOrTitle,

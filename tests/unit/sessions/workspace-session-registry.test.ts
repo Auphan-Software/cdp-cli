@@ -181,4 +181,23 @@ describe('WorkspaceSessionRegistry', () => {
     ])).toThrow(SessionFoundationError);
     expect(registry.getSession('existing')).toBeDefined();
   });
+
+  it('reports SESSION_NOT_FOUND for an unknown session instead of a false ownership loss', () => {
+    const registry = new WorkspaceSessionRegistry(fixedClock);
+    addSession(registry, 'alpha');
+    registry.adoptTarget('alpha', 'root', [{ targetId: 'root' }]);
+
+    expect(registry.checkPageAccess('ghost', 'root')).toEqual({
+      ok: false,
+      error: {
+        code: 'SESSION_NOT_FOUND',
+        message: 'Session not found: ghost',
+        details: { sessionName: 'ghost', pageId: 'root' }
+      }
+    });
+    expect(() => registry.assertPageAccess('ghost', 'root')).toThrowError(
+      expect.objectContaining({ code: 'SESSION_NOT_FOUND' })
+    );
+    expect(registry.checkPageAccess('alpha', 'root')).toMatchObject({ ok: true, owner: 'alpha' });
+  });
 });

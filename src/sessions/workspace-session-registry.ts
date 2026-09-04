@@ -182,6 +182,18 @@ export class WorkspaceSessionRegistry {
   }
 
   checkPageAccess(sessionName: string, pageId: string): PageAccessResult {
+    if (!this.sessions.has(sessionName)) {
+      // An unknown session is a configuration or endpoint problem (for example
+      // a daemon serving a different Chrome). Reporting it as PAGE_NOT_OWNED
+      // would tell the caller its ownership was lost when it never existed here.
+      return {
+        ok: false,
+        error: structuredError('SESSION_NOT_FOUND', `Session not found: ${sessionName}`, {
+          sessionName,
+          pageId
+        })
+      };
+    }
     const actualOwner = this.targetOwners.get(pageId);
     if (actualOwner === sessionName) {
       return {

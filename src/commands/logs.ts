@@ -4,7 +4,7 @@
 
 import { DaemonClient } from '../daemon/client.js';
 import { CDPContext } from '../context.js';
-import { outputLines, outputError, outputSuccess } from '../output.js';
+import { outputLines, outputError, outputCommandError, outputSuccess } from '../output.js';
 
 /**
  * Get console logs from daemon
@@ -17,7 +17,7 @@ export async function getConsoleLogs(
     type?: string;
   }
 ): Promise<void> {
-  const client = new DaemonClient();
+  const client = new DaemonClient({ cdpUrl: context.cdpUrl });
 
   try {
     // Check if daemon is running
@@ -56,8 +56,8 @@ export async function getConsoleLogs(
       })));
     }
   } catch (error) {
-    outputError(
-      (error as Error).message,
+    outputCommandError(
+      error,
       'GET_CONSOLE_LOGS_FAILED',
       { page: options.page }
     );
@@ -82,7 +82,7 @@ export async function getNetworkLogs(
     since?: number;
   }
 ): Promise<void> {
-  const client = new DaemonClient();
+  const client = new DaemonClient({ cdpUrl: context.cdpUrl });
 
   try {
     // Check if daemon is running
@@ -147,8 +147,8 @@ export async function getNetworkLogs(
       })));
     }
   } catch (error) {
-    outputError(
-      (error as Error).message,
+    outputCommandError(
+      error,
       'GET_NETWORK_LOGS_FAILED',
       { page: options.page }
     );
@@ -190,7 +190,7 @@ export async function getNetworkDetail(
     maxBodyBytes?: number;
   }
 ): Promise<void> {
-  const client = new DaemonClient();
+  const client = new DaemonClient({ cdpUrl: context.cdpUrl });
 
   try {
     if (!await client.isRunning()) {
@@ -257,8 +257,8 @@ export async function getNetworkDetail(
       ...(body && index === matches.length - 1 && { body })
     })));
   } catch (error) {
-    outputError(
-      (error as Error).message,
+    outputCommandError(
+      error,
       'GET_NETWORK_DETAIL_FAILED',
       { page: options.page, requestId: options.requestId }
     );
@@ -277,7 +277,7 @@ export async function getConsoleDetail(
     messageId: number;
   }
 ): Promise<void> {
-  const client = new DaemonClient();
+  const client = new DaemonClient({ cdpUrl: context.cdpUrl });
 
   try {
     // Check if daemon is running
@@ -326,8 +326,8 @@ export async function getConsoleDetail(
       ...(message.args && { args: message.args })
     }]);
   } catch (error) {
-    outputError(
-      (error as Error).message,
+    outputCommandError(
+      error,
       'GET_CONSOLE_DETAIL_FAILED',
       { page: options.page, messageId: options.messageId }
     );
@@ -343,7 +343,7 @@ export async function clearLogs(
   context: CDPContext,
   options: { page: string }
 ): Promise<void> {
-  const client = new DaemonClient();
+  const client = new DaemonClient({ cdpUrl: context.cdpUrl });
 
   try {
     // Check if daemon is running
@@ -376,8 +376,8 @@ export async function clearLogs(
       process.exit(1);
     }
   } catch (error) {
-    outputError(
-      (error as Error).message,
+    outputCommandError(
+      error,
       'CLEAR_LOGS_FAILED',
       { page: options.page }
     );

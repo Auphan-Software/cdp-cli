@@ -76,6 +76,17 @@ describe('Pages Commands', () => {
       expect(result.data.url).toBe('about:blank');
     });
 
+    it('still succeeds on a custom endpoint without a daemon URL', async () => {
+      const capture = captureConsoleOutput();
+      const context = new CDPContext('http://localhost:9333');
+
+      await pages.newPage(context);
+
+      const result = JSON.parse(capture.getLogs()[0]);
+      capture.restore();
+      expect(result).toMatchObject({ success: true, data: { id: 'new-page-123', logging: false } });
+    });
+
     it('should create page with URL', async () => {
       const capture = captureConsoleOutput();
       const context = new CDPContext();
@@ -212,6 +223,17 @@ describe('Pages Commands', () => {
       const result = JSON.parse(logs[0]);
       expect(result.success).toBe(true);
       expect(result.data.id).toBe('page1');
+    });
+
+    it('still closes on a custom endpoint without a daemon URL', async () => {
+      const capture = captureConsoleOutput();
+      const context = new CDPContext('http://localhost:9333');
+
+      await pages.closePage(context, 'page1');
+
+      const result = JSON.parse(capture.getLogs()[0]);
+      capture.restore();
+      expect(result).toMatchObject({ success: true, data: { id: 'page1' } });
     });
 
     it('should close page by title', async () => {

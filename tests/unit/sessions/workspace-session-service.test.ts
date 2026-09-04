@@ -180,4 +180,32 @@ describe('WorkspaceSessionService', () => {
     expect(service.listSessions()).toEqual([]);
     service.close();
   });
+
+  it('separates an unknown session from a page owned by another session', async () => {
+    const fs = new MemoryFileSystem();
+    const store = new SessionStore('sessions.json', {
+      fileSystem: fs,
+      temporaryId: () => String(fs.files.size)
+    });
+    const { browser } = fakeBrowser();
+    const service = await WorkspaceSessionService.open('http://localhost:9222', {
+      browser,
+      store
+    });
+    const owner = await service.ensureSession('agent-7233');
+    await service.createSession('agent-other');
+
+    await expect(service.assertAccess('ghost', owner.pageId)).rejects.toMatchObject({
+      code: 'SESSION_NOT_FOUND',
+      details: { sessionName: 'ghost', pageId: owner.pageId }
+    });
+    await expect(service.assertAccess('agent-other', owner.pageId)).rejects.toMatchObject({
+      code: 'PAGE_NOT_OWNED',
+      details: { sessionName: 'agent-other', pageId: owner.pageId, actualOwner: 'agent-7233' }
+    });
+    await expect(service.assertAccess('agent-7233', owner.pageId)).resolves.toEqual({
+      rootTargetId: owner.pageId
+    });
+    service.close();
+  });
 });

@@ -5,6 +5,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as debug from '../../../src/commands/debug.js';
 import { CDPContext } from '../../../src/context.js';
+import { SessionFoundationError } from '../../../src/sessions/errors.js';
 import { installMockFetch } from '../../mocks/fetch.mock.js';
 import { MockWebSocket } from '../../mocks/websocket.mock.js';
 import { captureConsoleOutput, mockProcessExit } from '../../helpers.js';
@@ -319,6 +320,89 @@ describe('Debug Commands', () => {
       const error = JSON.parse(capture.getLogs()[0]);
       expect(error.code).toBe('EVAL_FAILED');
       expect(error.details.expression).toBe('2 + 2');
+
+      capture.restore();
+      exitMock.restore();
+    });
+
+    it('fails a session-scoped eval on a custom endpoint before contacting any daemon or page', async () => {
+      const capture = captureConsoleOutput();
+      const exitMock = mockProcessExit();
+      let fetched = 0;
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = (async () => {
+        fetched += 1;
+        throw new Error('no network expected');
+      }) as unknown as typeof fetch;
+      const context = new CDPContext('http://127.0.0.1:9333', { workspaceSession: 'agent-7233' });
+      vi.spyOn(context, 'assertSessionTargetAccess').mockResolvedValue(undefined);
+      const connect = vi.spyOn(context, 'connect');
+
+      try {
+        await debug.evaluate(context, '1 + 1', { page: 'page1' });
+      } catch (e) {
+        // Expected process.exit
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+
+      expect(exitMock.exitCode).toBe(1);
+      expect(fetched).toBe(0);
+      expect(connect).not.toHaveBeenCalled();
+      const error = JSON.parse(capture.getLogs()[0]);
+      expect(error.code).toBe('EVAL_FAILED');
+      expect(error.details.cause).toMatchObject({
+        code: 'DAEMON_URL_REQUIRED',
+        details: { cdpUrl: 'http://127.0.0.1:9333', environmentVariable: 'CDP_DAEMON_URL' }
+      });
+
+      capture.restore();
+      exitMock.restore();
+    });
+
+    it('still runs an anonymous eval on a custom endpoint over a direct connection', async () => {
+      const capture = captureConsoleOutput();
+      const context = new CDPContext('http://127.0.0.1:9333');
+
+      await debug.evaluate(context, '2 + 2', { page: 'page1' });
+
+      const result = JSON.parse(capture.getLogs()[0]);
+      capture.restore();
+      expect(result).toMatchObject({ success: true, value: 'test result' });
+    });
+
+    it('keeps the structured session cause when wrapping the failure as EVAL_FAILED', async () => {
+      const capture = captureConsoleOutput();
+      const exitMock = mockProcessExit();
+      const context = new CDPContext('http://localhost:9222', { workspaceSession: 'agent-7233' });
+      vi.spyOn(context, 'assertSessionTargetAccess').mockRejectedValue(
+        new SessionFoundationError('SESSION_NOT_FOUND', 'Session not found: agent-7233', {
+          sessionName: 'agent-7233',
+          pageId: 'page1'
+        })
+      );
+
+      try {
+        await debug.evaluate(context, '1 + 1', { page: 'page1' });
+      } catch (e) {
+        // Expected process.exit
+      }
+
+      expect(exitMock.exitCode).toBe(1);
+      const error = JSON.parse(capture.getLogs()[0]);
+      expect(error).toEqual({
+        error: true,
+        message: 'Session not found: agent-7233',
+        code: 'EVAL_FAILED',
+        details: {
+          expression: '1 + 1',
+          cause: {
+            code: 'SESSION_NOT_FOUND',
+            message: 'Session not found: agent-7233',
+            details: { sessionName: 'agent-7233', pageId: 'page1' }
+          }
+        }
+      });
 
       capture.restore();
       exitMock.restore();
