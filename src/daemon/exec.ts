@@ -36,8 +36,8 @@ export interface ExecSession {
   ws: WebSocket | null;
   /** Whether using daemon for execution */
   useDaemon: boolean;
-  /** Execute a CDP command */
-  exec: (method: string, params?: any) => Promise<any>;
+  /** Execute a CDP command. Omitting `timeoutMs` keeps the callee's own default. */
+  exec: (method: string, params?: any, timeoutMs?: number) => Promise<any>;
   /** Check if DevTools is attached and throw if so */
   assertNoDevTools: () => Promise<void>;
   /** Check if a JavaScript dialog is blocking the page */
@@ -105,11 +105,12 @@ export async function createExecSession(
         pageId: page.id,
         ws: null,
         useDaemon: true,
-        exec: (method: string, params?: any) => daemon.execCommand(
+        exec: (method: string, params?: any, timeoutMs?: number) => daemon.execCommand(
           page.id,
           method,
           params,
-          workspaceLease?.workspace
+          workspaceLease?.workspace,
+          timeoutMs
         ),
         assertNoDevTools: async () => {}, // Daemon handles its own connection - no check needed
         assertNoDialog: async () => {
@@ -141,7 +142,8 @@ export async function createExecSession(
     pageId: page.id,
     ws,
     useDaemon: false,
-    exec: (method: string, params?: any) => context.sendCommand(ws, method, params),
+    exec: (method: string, params?: any, timeoutMs?: number) =>
+      context.sendCommand(ws, method, params, timeoutMs),
     assertNoDevTools: daemonConnectedToPage
       ? async () => {}
       : () => context.assertNoDevTools(page.id),
@@ -181,11 +183,12 @@ export async function createExecSessionByPageRef(
         pageId: sessionPageId,
         ws: null,
         useDaemon: true,
-        exec: (method: string, params?: any) => daemon.execCommand(
+        exec: (method: string, params?: any, timeoutMs?: number) => daemon.execCommand(
           sessionPageId,
           method,
           params,
-          workspaceLease?.workspace
+          workspaceLease?.workspace,
+          timeoutMs
         ),
         assertNoDevTools: async () => {}, // Daemon handles its own connection - no check needed
         assertNoDialog: async () => {
@@ -219,7 +222,8 @@ export async function createExecSessionByPageRef(
     pageId: page.id,
     ws,
     useDaemon: false,
-    exec: (method: string, params?: any) => context.sendCommand(ws, method, params),
+    exec: (method: string, params?: any, timeoutMs?: number) =>
+      context.sendCommand(ws, method, params, timeoutMs),
     assertNoDevTools: daemonConnectedToPage
       ? async () => {} // Daemon connected - skip check
       : () => context.assertNoDevTools(page.id),

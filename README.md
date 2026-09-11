@@ -549,6 +549,9 @@ cdp-cli eval _ "example" --file script.js --async  # Combined
 
 # Evaluate inside an iframe
 cdp-cli eval "document.querySelector('select')?.id" "example" --frame "#myframe"
+
+# Raise the per-round-trip cap for a long in-page wait
+cdp-cli eval --async "await new Promise(r => setTimeout(r, 15000)); return 1" "example" --timeout 30000
 ```
 
 Optional flags:
@@ -556,6 +559,10 @@ Optional flags:
 - `--file, -f`: Read JavaScript from file (expression argument ignored)
 - `--stdin`: Read JavaScript from stdin instead of expression argument
 - `--frame`: Target iframe by selector or index
+- `--timeout`: Max milliseconds for each CDP round trip. The default cap is
+  10000ms through the daemon and 30000ms on a direct connection, and it covers
+  the whole round trip, not just the in-page code - so an in-page wait close to
+  the cap needs this flag. Must be a whole number from 1 to 600000.
 
 **screenshot** - Take a screenshot
 ```bash

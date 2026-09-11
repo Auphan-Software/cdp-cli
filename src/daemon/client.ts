@@ -9,6 +9,7 @@ import { dirname, join } from 'path';
 import type { ConsoleMessage, NetworkRequest, DialogInfo } from '../context.js';
 import { SessionFoundationError, type SessionErrorCode } from '../sessions/errors.js';
 import type { OperationLease } from '../sessions/operation-lease-manager.js';
+import { CommandTimeoutError } from '../cdp/command-timeout.js';
 
 const DEFAULT_DAEMON_PORT = 9223;
 const DEFAULT_DAEMON_URL = `http://127.0.0.1:${DEFAULT_DAEMON_PORT}`;
@@ -398,7 +399,8 @@ export class DaemonClient {
     pageId: string,
     method: string,
     params?: any,
-    workspace?: { sessionName: string; leaseId?: string }
+    workspace?: { sessionName: string; leaseId?: string },
+    timeoutMs?: number
   ): Promise<any> {
     const res = await (globalThis.fetch ?? undiciFetch)(
       `${this.baseUrl}/exec/${encodeURIComponent(pageId)}`,
@@ -409,13 +411,29 @@ export class DaemonClient {
           method,
           params,
           workspaceSession: workspace?.sessionName,
-          workspaceLeaseId: workspace?.leaseId
+          workspaceLeaseId: workspace?.leaseId,
+          ...(timeoutMs === undefined ? {} : { timeoutMs })
         })
       }
     );
 
-    const data = await res.json() as { result?: any; error?: string };
+    const data = await res.json() as {
+      result?: any;
+      error?: string;
+      timedOut?: boolean;
+      method?: string;
+      timeoutMs?: number;
+    };
     if (!res.ok) {
+      // A round-trip cap is not a page failure. Rebuild the typed error so the
+      // caller can name the cap it exceeded instead of reporting a generic
+      // command failure.
+      if (data.timedOut === true) {
+        throw new CommandTimeoutError(
+          typeof data.method === 'string' ? data.method : method,
+          typeof data.timeoutMs === 'number' ? data.timeoutMs : 0
+        );
+      }
       throwRemoteError(data, 'Command failed');
     }
 

@@ -9,6 +9,7 @@ import { CDPContext, Page, CDPMessage } from '../context.js';
 import { WorkspaceSessionService } from '../sessions/workspace-session-service.js';
 import { OperationLeaseManager } from '../sessions/operation-lease-manager.js';
 import { SessionFoundationError } from '../sessions/errors.js';
+import { CommandTimeoutError, validateCommandTimeout } from '../cdp/command-timeout.js';
 
 const DEFAULT_DAEMON_PORT = 9223;
 const DEFAULT_CDP_URL = 'http://localhost:9222';
@@ -516,23 +517,51 @@ export class CDPDaemon {
         }
 
         const body = await this.readBody(req);
-        const { method: cdpMethod, params: cdpParams, workspaceSession, workspaceLeaseId } = body;
+        const {
+          method: cdpMethod,
+          params: cdpParams,
+          workspaceSession,
+          workspaceLeaseId,
+          timeoutMs
+        } = body;
 
         if (!cdpMethod) {
           this.sendJson(res, 400, { error: 'CDP method required' });
           return;
         }
 
+        // An out-of-range cap is refused outright: silently falling back to the
+        // default would hide the caller's intent behind the very timeout they
+        // were trying to raise.
+        if (timeoutMs !== undefined) {
+          const invalid = validateCommandTimeout(timeoutMs);
+          if (invalid) {
+            this.sendJson(res, 400, { error: invalid });
+            return;
+          }
+        }
+
         try {
           const result = await this.withWorkspaceLease(
             typeof workspaceSession === 'string' ? workspaceSession : null,
             pageId,
-            () => session.sendCommand(cdpMethod, cdpParams),
+            () => (timeoutMs === undefined
+              ? session.sendCommand(cdpMethod, cdpParams)
+              : session.sendCommand(cdpMethod, cdpParams, timeoutMs)),
             typeof workspaceLeaseId === 'string' ? workspaceLeaseId : undefined
           );
           this.sendJson(res, 200, { result });
         } catch (err) {
           if (err instanceof SessionFoundationError) throw err;
+          if (err instanceof CommandTimeoutError) {
+            this.sendJson(res, 500, {
+              error: err.message,
+              timedOut: true,
+              method: err.method,
+              timeoutMs: err.timeoutMs
+            });
+            return;
+          }
           this.sendJson(res, 500, { error: (err as Error).message });
         }
         return;

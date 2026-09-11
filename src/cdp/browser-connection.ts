@@ -204,7 +204,12 @@ export class BrowserConnection {
     // Browser-level auto-attach covers current Chrome, while the explicit
     // attach makes the contract deterministic on older Chrome versions.
     for (const page of this.registry.list().filter((target) => target.type === 'page')) {
-      await this.ensureTargetSession(page.targetId);
+      // Opening the browser connection is a whole-browser operation. One page
+      // whose renderer is blocked (or which died mid-attach) must not make
+      // every command against every other page fail; the failed configuration
+      // is evicted, and an operation that targets that page will retry and
+      // report its real error.
+      await this.ensureTargetSession(page.targetId).catch(() => undefined);
     }
     await this.refreshTargets();
     await this.drainSessionConfiguration();
@@ -281,17 +286,34 @@ export class BrowserConnection {
       await this.send('Page.enable', {}, sessionId);
       await this.send('Runtime.enable', {}, sessionId);
     })();
-    this.sessionConfiguration.set(sessionId, configuration);
-    return configuration;
+
+    // A failed configuration must not be cached. A renderer busy past the
+    // command timeout used to poison this entry permanently, so every later
+    // operation on the session rethrew the same rejection without ever
+    // resending Page.enable. Evict on rejection so the next operation makes a
+    // fresh attempt - exactly one attempt per operation, never a retry loop.
+    // Evict only if the map still holds THIS promise: a detach plus re-attach
+    // can install a newer in-flight configuration that must not be clobbered.
+    const tracked: Promise<void> = configuration.catch((error: unknown) => {
+      if (this.sessionConfiguration.get(sessionId) === tracked) {
+        this.sessionConfiguration.delete(sessionId);
+      }
+      throw error;
+    });
+    this.sessionConfiguration.set(sessionId, tracked);
+    return tracked;
   }
 
   private async drainSessionConfiguration(): Promise<void> {
     // Attaching an iframe can attach another nested iframe while this batch is
-    // settling, so repeat until the promise set stops growing.
+    // settling, so repeat until the promise set stops growing. Failures are
+    // per-session: one blocked renderer must not deny the whole browser
+    // connection. The rejected entry has already been evicted, so an operation
+    // that genuinely needs that session will retry and surface its real error.
     let observed = -1;
     while (observed !== this.sessionConfiguration.size) {
       observed = this.sessionConfiguration.size;
-      await Promise.all(this.sessionConfiguration.values());
+      await Promise.allSettled(this.sessionConfiguration.values());
     }
   }
 

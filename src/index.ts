@@ -13,6 +13,7 @@ import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { CDPContext, setDefaultWorkspaceSession } from './context.js';
 import { versionString } from './version.js';
+import { validateCommandTimeout } from './cdp/command-timeout.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 import * as pages from './commands/pages.js';
@@ -658,7 +659,7 @@ cli.command(
 
 cli.command(
   'eval <expression> <page>',
-  'Evaluate JavaScript expression. Options: --file, --async, --frame',
+  'Evaluate JavaScript expression. Options: --file, --async, --frame, --timeout',
   (yargs) => {
     return yargs
       .positional('expression', {
@@ -689,12 +690,24 @@ cli.command(
         type: 'string',
         description: 'Target iframe by selector (e.g. "#myframe") or index (1 = first iframe)'
       })
+      .option('timeout', {
+        type: 'number',
+        description: 'Max milliseconds for each CDP round trip (default: 10000 via daemon, 30000 direct)'
+      })
       .check((argv) => {
         // If --file or --stdin is used, ignore expression validation
         if (!argv.file && !argv.stdin) {
           const hint = validateEvalParams(argv.expression as string, argv.page as string);
           if (hint.likely) {
             throw new Error(buildErrorWithHint('Invalid parameter order', hint));
+          }
+        }
+        if (argv.timeout !== undefined) {
+          // yargs coerces a non-numeric --timeout to NaN; refuse it rather than
+          // let it collapse back onto the default the caller was overriding.
+          const invalid = validateCommandTimeout(argv.timeout);
+          if (invalid) {
+            throw new Error(invalid);
           }
         }
         return true;
@@ -707,7 +720,8 @@ cli.command(
       file: argv.file as string | undefined,
       async: argv.async as boolean,
       frame: argv.frame as string | undefined,
-      stdin: argv.stdin as boolean
+      stdin: argv.stdin as boolean,
+      timeout: argv.timeout as number | undefined
     });
   }
 );

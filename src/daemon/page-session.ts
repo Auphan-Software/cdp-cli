@@ -5,6 +5,7 @@
 import { WebSocket } from 'ws';
 import { CircularBuffer } from './circular-buffer.js';
 import type { ConsoleMessage, NetworkRequest, CDPMessage, StackFrame, DialogInfo } from '../context.js';
+import { CommandTimeoutError } from '../cdp/command-timeout.js';
 
 const DEFAULT_BUFFER_SIZE = 500;
 const DIALOG_PROBE_TIMEOUT_MS = 350;
@@ -138,7 +139,7 @@ export class PageSession {
 
       const timeout = setTimeout(() => {
         this.ws?.off('message', messageHandler);
-        reject(new Error(`Command timeout: ${method}`));
+        reject(new CommandTimeoutError(method, timeoutMs));
       }, timeoutMs);
 
       this.ws.on('message', messageHandler);
