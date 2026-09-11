@@ -28,6 +28,16 @@ class FakeChromeSocket extends EventEmitter implements CDPSocket {
   readonly hangingSessions = new Set<string>();
   /** Session ids whose Page.enable answers with a protocol error. */
   readonly deadSessions = new Map<string, string>();
+  /** Delay before a dead session's error arrives, to place it inside a drain. */
+  readonly deadSessionDelayMs = new Map<string, number>();
+  /** Session ids whose Page.enable answers only after the given delay. */
+  readonly slowSessions = new Map<string, number>();
+  /** Session ids that detach the instant their Runtime.enable is answered. */
+  readonly detachOnRuntimeEnable = new Set<string>();
+  /** Attach this iframe the next time a session-scoped Target.setAutoAttach arrives. */
+  attachIframeOnAutoAttach: string | null = null;
+  /** Fired once, right after a session-scoped Page.enable answers with an error. */
+  onConfigurationError: (() => void) | null = null;
 
   private nextSession = 1;
   private readonly sessionByTarget = new Map<string, string>();
@@ -101,13 +111,39 @@ class FakeChromeSocket extends EventEmitter implements CDPSocket {
     const { id, method, sessionId } = message;
 
     if (sessionId) {
+      if (method === 'Target.setAutoAttach' && this.attachIframeOnAutoAttach) {
+        const iframeId = this.attachIframeOnAutoAttach;
+        this.attachIframeOnAutoAttach = null;
+        this.reply(id, {});
+        this.attachExistingTarget(iframeId);
+        return;
+      }
       if (method === 'Page.enable') {
         if (this.hangingSessions.has(sessionId)) return; // busy renderer: no reply at all
         const dead = this.deadSessions.get(sessionId);
         if (dead) {
-          this.replyError(id, dead);
+          const fail = () => {
+            this.replyError(id, dead);
+            const hook = this.onConfigurationError;
+            this.onConfigurationError = null;
+            hook?.();
+          };
+          const delay = this.deadSessionDelayMs.get(sessionId);
+          if (delay) setTimeout(fail, delay);
+          else fail();
           return;
         }
+        const slow = this.slowSessions.get(sessionId);
+        if (slow !== undefined) {
+          setTimeout(() => this.reply(id, {}), slow);
+          return;
+        }
+      }
+      if (method === 'Runtime.enable' && this.detachOnRuntimeEnable.has(sessionId)) {
+        this.detachOnRuntimeEnable.delete(sessionId);
+        this.reply(id, {});
+        this.detachSession(sessionId);
+        return;
       }
       this.reply(id, {});
       return;
@@ -260,6 +296,55 @@ describe('BrowserConnection session configuration', () => {
     const secondSession = socket.sessionFor('page-a')!;
     expect(secondSession).not.toBe(firstSession); // sentinel: a genuinely new session
     expect(socket.countSent('Page.enable', secondSession)).toBe(1);
+
+    connection.close();
+  });
+  it('waits for a configuration installed while a failed one was being evicted', async () => {
+    // Eviction makes the configuration map non-monotonic: a rejected entry can
+    // leave at the same moment a replacement arrives, so the map is the same
+    // size while new work is still in flight. Opening must still wait for it.
+    const socket = new FakeChromeSocket();
+    socket.addTarget('page-a');
+    socket.addTarget('frame-dead', 'iframe');
+    socket.addTarget('frame-late', 'iframe');
+    // Chrome attaches frame-dead (session-2) while page-a (session-1) configures.
+    socket.attachIframeOnAutoAttach = 'frame-dead';
+    // session-2 fails late enough that its eviction lands inside the drain.
+    socket.deadSessions.set('session-2', 'Frame detached');
+    socket.deadSessionDelayMs.set('session-2', 5);
+    // ...and Chrome attaches frame-late (session-3) at that same instant.
+    socket.onConfigurationError = () => { socket.attachExistingTarget('frame-late'); };
+    socket.slowSessions.set('session-3', 20);
+
+    const connection = await openConnection(socket);
+
+    const lateSession = socket.sessionFor('frame-late')!;
+    expect(lateSession).toBe('session-3'); // sentinel: the replacement really attached
+    expect(socket.countSent('Runtime.enable', lateSession)).toBe(1);
+
+    connection.close();
+  });
+
+  it('never hands back a target whose session was replaced mid-configuration', async () => {
+    const socket = new FakeChromeSocket();
+    socket.addTarget('page-a');
+    const connection = await openConnection(socket);
+
+    socket.detachSession(socket.sessionFor('page-a')!);
+    await connection.refreshTargets();
+    // The re-attached session detaches again the instant it finishes configuring,
+    // between configureSession() resolving and the registry being read back.
+    socket.detachOnRuntimeEnable.add('session-2');
+
+    await expect(connection.sendToTarget('page-a', 'Runtime.evaluate')).resolves.toBeDefined();
+
+    const evaluates = socket.sent.filter((msg) => msg.method === 'Runtime.evaluate');
+    expect(evaluates).toHaveLength(1); // sentinel: bounded to one restart
+    // Not session-2 (it detached), not undefined (which would send the command
+    // at browser scope): a freshly attached, freshly configured session.
+    expect(evaluates[0].sessionId).toBe('session-3');
+    expect(socket.sessionFor('page-a')).toBe('session-3');
+    expect(socket.countSent('Runtime.enable', 'session-3')).toBe(1);
 
     connection.close();
   });

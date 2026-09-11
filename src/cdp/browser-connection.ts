@@ -48,6 +48,10 @@ export class BrowserConnection {
   readonly registry = new TargetRegistry();
 
   private readonly sessionConfiguration = new Map<string, Promise<void>>();
+  /** Bumped whenever a new configuration is installed. Eviction can keep the
+   * map the same size while replacing its contents, so a size-based drain can
+   * finish while a replacement is still in flight. Count installations. */
+  private configurationGeneration = 0;
   private readonly disposeEventListener: () => void;
   private closed = false;
 
@@ -119,28 +123,41 @@ export class BrowserConnection {
   }
 
   async ensureTargetSession(targetId: string): Promise<TargetRecord> {
-    let target = this.resolveTarget(targetId);
-    if (target.type !== 'page' && target.type !== 'iframe') {
-      throw new Error(`Target ${targetId} has unsupported type: ${target.type}`);
-    }
-
-    if (!target.sessionId) {
-      const attached = await this.send('Target.attachToTarget', {
-        targetId,
-        flatten: true
-      });
-      if (typeof attached?.sessionId !== 'string' || !attached.sessionId) {
-        throw new Error(`Chrome did not return a session for targetId: ${targetId}`);
+    // A detach plus re-attach can land between configuring a session and
+    // reading the registry back, which would hand the caller a record whose
+    // session was never configured (or none at all, sending the command at
+    // browser scope). Verify the record still owns the session that was
+    // configured, and restart at most once so target churn cannot loop.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      let target = this.resolveTarget(targetId);
+      if (target.type !== 'page' && target.type !== 'iframe') {
+        throw new Error(`Target ${targetId} has unsupported type: ${target.type}`);
       }
 
-      // Chrome normally emits attachedToTarget before the command response.
-      // Record the response as a deterministic fallback for older builds.
-      target = this.registry.getBySessionId(attached.sessionId)
-        ?? this.registry.attachSession(attached.sessionId, targetToProtocolInfo(target));
+      if (!target.sessionId) {
+        const attached = await this.send('Target.attachToTarget', {
+          targetId,
+          flatten: true
+        });
+        if (typeof attached?.sessionId !== 'string' || !attached.sessionId) {
+          throw new Error(`Chrome did not return a session for targetId: ${targetId}`);
+        }
+
+        // Chrome normally emits attachedToTarget before the command response.
+        // Record the response as a deterministic fallback for older builds.
+        target = this.registry.getBySessionId(attached.sessionId)
+          ?? this.registry.attachSession(attached.sessionId, targetToProtocolInfo(target));
+      }
+
+      const sessionId = target.sessionId!;
+      await this.configureSession(sessionId);
+      const current = this.resolveTarget(targetId);
+      if (current.sessionId === sessionId) return current;
     }
 
-    await this.configureSession(target.sessionId!);
-    return this.resolveTarget(targetId);
+    throw new Error(
+      `Target ${targetId} kept re-attaching while its session was configured`
+    );
   }
 
   async sendToTarget(
@@ -301,19 +318,22 @@ export class BrowserConnection {
       throw error;
     });
     this.sessionConfiguration.set(sessionId, tracked);
+    this.configurationGeneration++;
     return tracked;
   }
 
   private async drainSessionConfiguration(): Promise<void> {
     // Attaching an iframe can attach another nested iframe while this batch is
-    // settling, so repeat until the promise set stops growing. Failures are
+    // settling, so repeat until no further configuration has been installed.
+    // A size check is not enough: eviction plus a replacement attach leaves the
+    // map the same size while a new promise is still pending. Failures are
     // per-session: one blocked renderer must not deny the whole browser
     // connection. The rejected entry has already been evicted, so an operation
     // that genuinely needs that session will retry and surface its real error.
     let observed = -1;
-    while (observed !== this.sessionConfiguration.size) {
-      observed = this.sessionConfiguration.size;
-      await Promise.allSettled(this.sessionConfiguration.values());
+    while (observed !== this.configurationGeneration) {
+      observed = this.configurationGeneration;
+      await Promise.allSettled([...this.sessionConfiguration.values()]);
     }
   }
 
