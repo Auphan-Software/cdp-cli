@@ -9,6 +9,7 @@ import { extname } from 'node:path';
 import { resizePngBuffer } from '../resize.js';
 import { describeCliPath, normalizeCliPath } from '../path.js';
 import { createExecSession, createExecSessionByPageRef } from '../daemon/exec.js';
+import { CommandTimeoutError } from '../cdp/command-timeout.js';
 import {
   awaitStreamWindow,
   outputStreamStopped,
@@ -375,7 +376,15 @@ export async function snapshot(
 export async function evaluate(
   context: CDPContext,
   expression: string,
-  options: { page: string; file?: string; async?: boolean; frame?: string; stdin?: boolean }
+  options: {
+    page: string;
+    file?: string;
+    async?: boolean;
+    frame?: string;
+    stdin?: boolean;
+    /** Per-round-trip CDP cap. Undefined keeps each path's own default. */
+    timeout?: number;
+  }
 ): Promise<void> {
   let session: Awaited<ReturnType<typeof createExecSessionByPageRef>> | undefined;
   let directWs: Awaited<ReturnType<typeof context.connect>> | undefined;
@@ -412,7 +421,7 @@ export async function evaluate(
         contextId,
         returnByValue: true,
         awaitPromise: true
-      });
+      }, options.timeout);
 
       if (result.exceptionDetails) {
         outputError(
@@ -437,13 +446,13 @@ export async function evaluate(
       await session.assertNoDevTools();
       await session.assertNoDialog();
 
-      await session.exec('Runtime.enable');
+      await session.exec('Runtime.enable', undefined, options.timeout);
 
       const result = await session.exec('Runtime.evaluate', {
         expression: code,
         returnByValue: true,
         awaitPromise: true
-      });
+      }, options.timeout);
 
       if (result.exceptionDetails) {
         outputError(
@@ -463,15 +472,34 @@ export async function evaluate(
       });
     }
   } catch (error) {
-    outputCommandError(
-      error,
-      'EVAL_FAILED',
-      {
-        expression,
-        frame: options.frame,
-        ...(filePath && { file: filePath })
-      }
-    );
+    // A blown round-trip cap is not a page failure. Report it under its own
+    // code, naming the cap and the command that hit it, so a harness can tell
+    // "too slow" apart from EVAL_EXCEPTION and from a genuinely broken page.
+    if (error instanceof CommandTimeoutError) {
+      outputError(
+        `eval exceeded its ${error.timeoutMs}ms command timeout waiting for ${error.method}`,
+        'EVAL_TIMEOUT',
+        {
+          timedOut: true,
+          timeoutMs: error.timeoutMs,
+          method: error.method,
+          path: session?.useDaemon ? 'daemon' : 'direct',
+          expression,
+          frame: options.frame,
+          ...(filePath && { file: filePath })
+        }
+      );
+    } else {
+      outputCommandError(
+        error,
+        'EVAL_FAILED',
+        {
+          expression,
+          frame: options.frame,
+          ...(filePath && { file: filePath })
+        }
+      );
+    }
     await session?.close();
     await context.releaseSessionLeases();
     process.exit(1);

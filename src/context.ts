@@ -10,6 +10,7 @@ import { BrowserConnection, type BrowserConnectionOptions } from './cdp/browser-
 import { WorkspaceSessionService } from './sessions/workspace-session-service.js';
 import { SessionFoundationError } from './sessions/errors.js';
 import { DaemonClient } from './daemon/client.js';
+import { CommandTimeoutError } from './cdp/command-timeout.js';
 
 let defaultWorkspaceSession: string | undefined;
 const pendingWorkspaceReleases = new Set<Promise<void>>();
@@ -411,7 +412,8 @@ export class CDPContext {
   async sendCommand(
     ws: WebSocket,
     method: string,
-    params?: any
+    params?: any,
+    timeoutMs = 30000
   ): Promise<any> {
     const id = this.messageId++;
 
@@ -433,8 +435,8 @@ export class CDPContext {
 
       const timeout = setTimeout(() => {
         ws.off('message', messageHandler);
-        reject(new Error(`Command timeout: ${method}`));
-      }, 30000);
+        reject(new CommandTimeoutError(method, timeoutMs));
+      }, timeoutMs);
 
       ws.on('message', messageHandler);
 

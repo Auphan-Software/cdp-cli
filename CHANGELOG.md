@@ -1,5 +1,50 @@
 # Changelog
 
+## Unreleased
+
+### `eval` can raise its round-trip cap, and a blown cap says so
+
+`cdp-cli eval` had no timeout option, and its cap covered the whole CDP round
+trip rather than just the in-page code. On a busy shared Chrome the protocol
+overhead alone eats seconds, so an in-page wait of a few thousand milliseconds
+intermittently came back as a generic `EVAL_FAILED` that a harness could not
+tell apart from a real page failure.
+
+- `eval` accepts **`--timeout <ms>`**, applied to each CDP round trip it makes
+  on both the daemon and the direct path. It must be a whole number from 1 to
+  600000; anything else (including a non-numeric value, which yargs would
+  otherwise coerce to `NaN`) is refused rather than silently collapsed back
+  onto the default. The daemon refuses an out-of-range value with HTTP 400.
+- Without the flag the caps are unchanged: 10000ms through the daemon,
+  30000ms on a direct connection.
+- Exceeding the cap now reports **`EVAL_TIMEOUT`** instead of `EVAL_FAILED`,
+  with `timedOut`, `timeoutMs`, the `method` that blew it, and whether it was
+  the `daemon` or `direct` path. This is a deliberate change for callers that
+  match on the code: a real in-page exception still reports `EVAL_EXCEPTION`
+  and every other failure still reports `EVAL_FAILED`, so the three are now
+  distinguishable.
+
+### A blocked renderer no longer wedges the whole browser connection
+
+`BrowserConnection` memoised each attached session's setup (`Target.setAutoAttach`
+-> `Page.enable` -> `Runtime.enable`) and dropped the entry only on
+`Target.detachedFromTarget`. One renderer busy past the command timeout
+therefore cached a *rejected* promise, and every later operation on that
+session rethrew it without ever resending the setup. Worse, opening the
+connection awaited every page's setup, so a single blocked tab made
+`Page.enable` / `Target.setAutoAttach` time out for every command against
+every page, in every new process, for as long as that tab stayed busy.
+
+- A rejected configuration is evicted, so the next operation makes a fresh
+  attempt - exactly one per operation, never a retry loop. The eviction is
+  identity-checked, so a detach plus re-attach that installed a newer
+  in-flight configuration is never clobbered.
+- Opening the connection isolates per-page configuration failures, so one
+  blocked or dying tab no longer denies the whole browser. An operation that
+  genuinely targets that page still fails with its real error.
+- Concurrent callers continue to share one in-flight configuration, so there
+  is no duplicate `Page.enable` storm.
+
 ## 2.0.0
 
 ### A command can no longer silently talk to the wrong daemon (breaking)
