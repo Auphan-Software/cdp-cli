@@ -90,6 +90,43 @@ export function dialogBlockerError(dialog: DialogInfo): Error {
   return new Error(`${typeLabel} dialog is blocking the page: "${dialog.message}"\n${hint}`);
 }
 
+/**
+ * The one diagnosis a blocked page gets, chosen from what was actually
+ * observed rather than from what a stall resembles.
+ *
+ * Only a dialog this process saw open (`Page.javascriptDialogOpening`) earns
+ * the dialog remedy. A probe that merely failed is NOT evidence of a dialog -
+ * a renderer busy for 350ms looks identical - and it is not evidence of a
+ * wedge either, so it must not block a command that would have succeeded.
+ * That case is diagnosed later, from the command's own timeout, by
+ * `wedgedRendererError`.
+ */
+export function dialogGuardError(
+  status: { open: boolean; dialog?: DialogInfo },
+  _pageId: string
+): Error | undefined {
+  return status.open && status.dialog ? dialogBlockerError(status.dialog) : undefined;
+}
+
+/**
+ * Explain a command that timed out against a renderer that answered nothing.
+ *
+ * A wedged renderer and a modal dialog produce the same silence, and the
+ * previous generic "the operation was aborted due to timeout" sent callers
+ * down the dialog path: `cdp-cli dialog <page> --dismiss` answers
+ * `-32602 "No dialog is showing"`, or worse reports success having done
+ * nothing, so the page looks fixed and is not. This names the real condition
+ * and withholds the dialog remedy, which is the point.
+ */
+export function wedgedRendererError(pageId: string, method: string, cause: unknown): Error {
+  const error = new Error(
+    `Page ${pageId} did not answer ${method}: its renderer is not responding, and no JavaScript dialog was observed opening.
+This is NOT a dialog - dismissing one would report "No dialog is showing" and change nothing. The renderer is busy or wedged (a long synchronous script, a breakpoint, or a browser-owned modal such as a client-certificate picker). Close and reopen the page, or detach any attached DevTools, then retry.`
+  );
+  (error as Error & { cause?: unknown }).cause = cause;
+  return error;
+}
+
 export interface NetworkRequest {
   id: string;
   url: string;

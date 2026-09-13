@@ -3,10 +3,11 @@
  * Falls back to direct WebSocket connection when daemon is not running
  */
 
-import { CDPContext, Page, dialogBlockerError } from '../context.js';
+import { CDPContext, Page, dialogGuardError, wedgedRendererError } from '../context.js';
 import { DaemonClient } from './client.js';
 import { SessionFoundationError } from '../sessions/errors.js';
 import { WebSocket } from 'ws';
+import { CommandTimeoutError } from '../cdp/command-timeout.js';
 
 /**
  * Daemon use is opportunistic for anonymous commands (fall back to a direct
@@ -23,6 +24,17 @@ function rethrowDaemonConfigError(context: CDPContext, error: unknown): void {
   if (context.workspaceSessionName && error.code === 'DAEMON_URL_REQUIRED') {
     throw error;
   }
+}
+
+/**
+ * A CDP command that timed out is the only trustworthy evidence that a
+ * renderer is not answering, so the wedge is named here rather than guessed
+ * from a pre-flight probe. Every other failure is passed through untouched.
+ */
+function explainCommandTimeout(pageId: string, method: string, error: unknown): unknown {
+  return error instanceof CommandTimeoutError
+    ? wedgedRendererError(pageId, method, error)
+    : error;
 }
 
 export interface DaemonPageInfo {
@@ -113,11 +125,12 @@ export async function createExecSession(
           params,
           workspaceLease?.workspace,
           timeoutMs
-        ),
+        ).catch((error: unknown) => { throw explainCommandTimeout(page.id, method, error); }),
         assertNoDevTools: async () => {}, // Daemon handles its own connection - no check needed
         assertNoDialog: async () => {
           const status = await daemon.getDialogStatus(page.id, context.workspaceSessionName);
-          if (status.open && status.dialog) throw dialogBlockerError(status.dialog);
+          const blocked = dialogGuardError(status, page.id);
+          if (blocked) throw blocked;
         },
         close: () => workspaceLease?.release()
       };
@@ -191,11 +204,12 @@ export async function createExecSessionByPageRef(
           params,
           workspaceLease?.workspace,
           timeoutMs
-        ),
+        ).catch((error: unknown) => { throw explainCommandTimeout(sessionPageId, method, error); }),
         assertNoDevTools: async () => {}, // Daemon handles its own connection - no check needed
         assertNoDialog: async () => {
           const status = await daemon.getDialogStatus(sessionPageId, context.workspaceSessionName);
-          if (status.open && status.dialog) throw dialogBlockerError(status.dialog);
+          const blocked = dialogGuardError(status, sessionPageId);
+          if (blocked) throw blocked;
         },
         close: () => workspaceLease?.release()
       };
