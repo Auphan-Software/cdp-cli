@@ -55,7 +55,12 @@ async function startDaemonWithSession(
   daemon = new CDPDaemon({ port: 0, cdpUrl: 'http://127.0.0.1:1' });
   await daemon.start();
   (daemon as any).sessions.set(pageId, session);
-  return new DaemonClient({ daemonUrl: `http://127.0.0.1:${daemon.listeningPort}` });
+    // Real callers always name the same Chrome the daemon serves; the client
+  // refuses a daemon that serves a different one (DAEMON_BROWSER_MISMATCH).
+  return new DaemonClient({
+    daemonUrl: `http://127.0.0.1:${daemon.listeningPort}`,
+    cdpUrl: 'http://127.0.0.1:1'
+  });
 }
 
 describe('daemon /exec round-trip timeout', () => {

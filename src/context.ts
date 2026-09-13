@@ -11,6 +11,7 @@ import { WorkspaceSessionService } from './sessions/workspace-session-service.js
 import { SessionFoundationError } from './sessions/errors.js';
 import { DaemonClient } from './daemon/client.js';
 import { CommandTimeoutError } from './cdp/command-timeout.js';
+import { assertConfiguredDaemonServesBrowser } from './daemon/client.js';
 
 let defaultWorkspaceSession: string | undefined;
 const pendingWorkspaceReleases = new Set<Promise<void>>();
@@ -914,7 +915,10 @@ export class CDPContext {
     await Promise.allSettled(active.map((lease) => lease.release()));
   }
 
-  private openWorkspaceService(): Promise<WorkspaceSessionService> {
+  private async openWorkspaceService(): Promise<WorkspaceSessionService> {
+    // Before the store - which is keyed by this endpoint - can be blamed for
+    // being stale, refuse a daemon that serves a different browser.
+    await assertConfiguredDaemonServesBrowser(this.cdpUrl);
     return WorkspaceSessionService.open(this.cdpUrl, { storePath: this.sessionStorePath });
   }
 

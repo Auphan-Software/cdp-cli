@@ -4,6 +4,10 @@ import { CDPDaemon } from '../../../src/daemon/daemon.js';
 import { DaemonClient } from '../../../src/daemon/client.js';
 import { SessionFoundationError } from '../../../src/sessions/errors.js';
 
+// The dummy Chrome these daemons are configured for. A client must name the
+// same endpoint or it is refused with DAEMON_BROWSER_MISMATCH.
+const DAEMON_CDP_URL = 'http://127.0.0.1:1';
+
 let daemon: CDPDaemon | undefined;
 const originalFetch = globalThis.fetch;
 
@@ -18,13 +22,13 @@ describe('daemon workspace lease authority', () => {
     globalThis.fetch = undiciFetch as unknown as typeof fetch;
     daemon = new CDPDaemon({
       port: 0,
-      cdpUrl: 'http://127.0.0.1:1',
+      cdpUrl: DAEMON_CDP_URL,
       workspaceRootResolver: async () => 'root-1'
     });
     await daemon.start();
     const daemonUrl = `http://127.0.0.1:${daemon.listeningPort}`;
-    const firstProcess = new DaemonClient({ daemonUrl });
-    const secondProcess = new DaemonClient({ daemonUrl });
+    const firstProcess = new DaemonClient({ daemonUrl, cdpUrl: DAEMON_CDP_URL });
+    const secondProcess = new DaemonClient({ daemonUrl, cdpUrl: DAEMON_CDP_URL });
 
     const first = await firstProcess.acquireWorkspaceLease('alpha', 'child-1');
     await expect(secondProcess.acquireWorkspaceLease('beta', 'root-1')).rejects.toMatchObject({
@@ -51,7 +55,7 @@ describe('daemon workspace lease authority', () => {
     globalThis.fetch = undiciFetch as unknown as typeof fetch;
     daemon = new CDPDaemon({
       port: 0,
-      cdpUrl: 'http://127.0.0.1:1',
+      cdpUrl: DAEMON_CDP_URL,
       workspaceRootResolver: async (sessionName, pageId) => {
         if (sessionName === 'alpha' && pageId === 'child-1') return 'root-1';
         throw new SessionFoundationError('PAGE_NOT_OWNED', 'Target is not owned');
@@ -73,7 +77,7 @@ describe('daemon workspace lease authority', () => {
     expect(forged.ok).toBe(false);
     expect(await forged.json()).toMatchObject({ code: 'PAGE_NOT_OWNED' });
 
-    const legitimate = await new DaemonClient({ daemonUrl })
+    const legitimate = await new DaemonClient({ daemonUrl, cdpUrl: DAEMON_CDP_URL })
       .acquireWorkspaceLease('alpha', 'child-1');
     expect(legitimate.rootTargetId).toBe('root-1');
   });
@@ -82,11 +86,14 @@ describe('daemon workspace lease authority', () => {
     globalThis.fetch = undiciFetch as unknown as typeof fetch;
     daemon = new CDPDaemon({
       port: 0,
-      cdpUrl: 'http://127.0.0.1:1',
+      cdpUrl: DAEMON_CDP_URL,
       workspaceRootResolver: async (_sessionName, pageId) => pageId
     });
     await daemon.start();
-    const client = new DaemonClient({ daemonUrl: `http://127.0.0.1:${daemon.listeningPort}` });
+    const client = new DaemonClient({
+      daemonUrl: `http://127.0.0.1:${daemon.listeningPort}`,
+      cdpUrl: DAEMON_CDP_URL
+    });
     const running = await client.acquireWorkspaceLease('alpha', 'root-1');
     await expect(client.replaceOwnedWorkspaceLease('beta', 'root-1')).rejects.toMatchObject({
       code: 'LEASE_NOT_OWNED'
@@ -98,7 +105,7 @@ describe('daemon workspace lease authority', () => {
 
   it('exposes persisted dialog state through the page status endpoint', async () => {
     globalThis.fetch = undiciFetch as unknown as typeof fetch;
-    daemon = new CDPDaemon({ port: 0, cdpUrl: 'http://127.0.0.1:1' });
+    daemon = new CDPDaemon({ port: 0, cdpUrl: DAEMON_CDP_URL });
     await daemon.start();
     (daemon as any).sessions.set('page-with-dialog', {
       close: () => {},
@@ -109,7 +116,10 @@ describe('daemon workspace lease authority', () => {
       })
     });
 
-    const client = new DaemonClient({ daemonUrl: `http://127.0.0.1:${daemon.listeningPort}` });
+    const client = new DaemonClient({
+      daemonUrl: `http://127.0.0.1:${daemon.listeningPort}`,
+      cdpUrl: DAEMON_CDP_URL
+    });
     await expect(client.getDialogStatus('page-with-dialog')).resolves.toEqual({
       open: true,
       dialog: { type: 'alert', message: 'Payment is blocked', url: 'https://example.test/' },

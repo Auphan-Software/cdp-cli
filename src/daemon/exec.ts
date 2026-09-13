@@ -15,11 +15,12 @@ import { WebSocket } from 'ws';
  * "daemon not running".
  */
 function rethrowDaemonConfigError(context: CDPContext, error: unknown): void {
-  if (
-    context.workspaceSessionName
-    && error instanceof SessionFoundationError
-    && error.code === 'DAEMON_URL_REQUIRED'
-  ) {
+  if (!(error instanceof SessionFoundationError)) return;
+  // A daemon that serves a DIFFERENT browser is never something to fall back
+  // from: falling back silently drives the wrong Chrome, which is the whole
+  // defect. It is raised for every command, workspace-scoped or not.
+  if (error.code === 'DAEMON_BROWSER_MISMATCH') throw error;
+  if (context.workspaceSessionName && error.code === 'DAEMON_URL_REQUIRED') {
     throw error;
   }
 }
@@ -75,7 +76,8 @@ export async function findPageViaDaemon(
     // For title matching, we'd need page info from daemon
     // For now, return null to fall back to context.findPage
     return null;
-  } catch {
+  } catch (error) {
+    rethrowDaemonConfigError(context, error);
     return null;
   }
 }
@@ -248,7 +250,8 @@ export async function execBatch(
       return null;
     }
     return await daemon.execBatch(pageId, commands);
-  } catch {
+  } catch (error) {
+    rethrowDaemonConfigError(context, error);
     return null;
   }
 }
