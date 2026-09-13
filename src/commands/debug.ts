@@ -2,7 +2,7 @@
  * Debugging commands: console, snapshot, eval, screenshot, status
  */
 
-import { CDPContext, ConsoleMessage } from '../context.js';
+import { CDPContext, ConsoleMessage, WedgedPageError } from '../context.js';
 import { outputLine, outputError, outputCommandError, outputSuccess, outputRaw } from '../output.js';
 import { readFileSync, writeFileSync } from 'fs';
 import { extname } from 'node:path';
@@ -477,7 +477,11 @@ export async function evaluate(
     // "too slow" apart from EVAL_EXCEPTION and from a genuinely broken page.
     if (error instanceof CommandTimeoutError) {
       outputError(
-        `eval exceeded its ${error.timeoutMs}ms command timeout waiting for ${error.method}`,
+        // A wedge diagnosis already names the page, the method and the cap, and
+        // says what to do about it. Restating the bare cap would throw it away.
+        error instanceof WedgedPageError
+          ? error.diagnosis
+          : `eval exceeded its ${error.timeoutMs}ms command timeout waiting for ${error.method}`,
         'EVAL_TIMEOUT',
         {
           timedOut: true,

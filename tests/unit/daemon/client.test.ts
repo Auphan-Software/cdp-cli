@@ -179,6 +179,46 @@ describe('DaemonClient daemon/browser agreement guard', () => {
     });
   });
 
+  it('re-probes after an inconclusive health check instead of banking it as agreement', async () => {
+    // A daemon that is unreachable, restarting, or answering badly has told us
+    // NOTHING about which Chrome it serves. Caching that as agreement would
+    // retire the guard for the life of the client - so the daemon that comes
+    // back serving a different browser would never be caught.
+    let probes = 0;
+    globalThis.fetch = (async (url: unknown) => {
+      if (String(url).endsWith('/health')) {
+        probes += 1;
+        if (probes === 1) throw new TypeError('fetch failed');
+        return { ok: true, json: async () => ({ status: 'ok', cdpUrl: 'http://127.0.0.1:9333' }) };
+      }
+      return { ok: true, json: async () => ({ sessions: [] }) };
+    }) as unknown as typeof fetch;
+
+    const client = new DaemonClient({
+      daemonUrl: 'http://127.0.0.1:9334',
+      cdpUrl: 'http://localhost:9222'
+    });
+    // First call: the probe failed, so no verdict - the request itself proceeds.
+    await expect(client.listSessions()).resolves.toEqual([]);
+    // Second call: the daemon now answers, and the mismatch is caught.
+    await expect(client.listSessions()).rejects.toMatchObject({
+      code: 'DAEMON_BROWSER_MISMATCH'
+    });
+    expect(probes).toBe(2);
+  });
+
+  it('does not re-probe a daemon that answered but predates the cdpUrl field', async () => {
+    // Unlike a failed probe, this IS a settled answer: agreement can never be
+    // established against that build, so paying a round trip per call buys
+    // nothing.
+    const state = daemonReporting(undefined);
+    const client = new DaemonClient({ daemonUrl: 'http://127.0.0.1:9334' });
+    await expect(client.listSessions()).resolves.toEqual([]);
+    await expect(client.listSessions()).resolves.toEqual([]);
+    // One /health probe plus the two real requests.
+    expect(state.calls).toBe(3);
+  });
+
   it('leaves lifecycle commands usable so a mismatch can be diagnosed and repaired', async () => {
     daemonReporting('http://127.0.0.1:9333');
     const client = new DaemonClient({ daemonUrl: 'http://127.0.0.1:9334' });

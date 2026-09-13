@@ -109,22 +109,67 @@ export function dialogGuardError(
 }
 
 /**
- * Explain a command that timed out against a renderer that answered nothing.
+ * What this process actually knows about dialog state on the page, at the
+ * moment the command that later timed out was issued.
  *
- * A wedged renderer and a modal dialog produce the same silence, and the
- * previous generic "the operation was aborted due to timeout" sent callers
- * down the dialog path: `cdp-cli dialog <page> --dismiss` answers
- * `-32602 "No dialog is showing"`, or worse reports success having done
- * nothing, so the page looks fixed and is not. This names the real condition
- * and withholds the dialog remedy, which is the point.
+ * `absent` means a dialog check ran and positively reported none open.
+ * `unknown` means no check ran, or the check could not reach a verdict - a
+ * probe that merely failed is not evidence either way. The distinction is
+ * load-bearing: only `absent` lets the diagnosis rule a dialog out.
  */
-export function wedgedRendererError(pageId: string, method: string, cause: unknown): Error {
-  const error = new Error(
-    `Page ${pageId} did not answer ${method}: its renderer is not responding, and no JavaScript dialog was observed opening.
-This is NOT a dialog - dismissing one would report "No dialog is showing" and change nothing. The renderer is busy or wedged (a long synchronous script, a breakpoint, or a browser-owned modal such as a client-certificate picker). Close and reopen the page, or detach any attached DevTools, then retry.`
+export type DialogObservation = 'absent' | 'unknown';
+
+/**
+ * Explain a command that timed out without a reply from the page.
+ *
+ * A wedged renderer, a slow-but-healthy one, and a modal dialog produce the
+ * same silence, and the previous generic "the operation was aborted due to
+ * timeout" sent callers down the dialog path: `cdp-cli dialog <page>
+ * --dismiss` answers `-32602 "No dialog is showing"`, or worse reports success
+ * having done nothing, so the page looks fixed and is not.
+ *
+ * Elapsed time alone does not prove a wedge, so the wording is bounded by what
+ * was observed. Only a check that positively reported no dialog open rules a
+ * dialog out and withholds the dialog remedy; otherwise both possibilities are
+ * named and the caller is pointed at the check rather than at a blind
+ * dismissal. `timeoutMs` is reported so a caller who set a short `--timeout`
+ * can see that the cap, not the page, may be what ended the command.
+ *
+ * The result stays a `CommandTimeoutError`, so every caller that classifies a
+ * timeout by type - `eval`'s EVAL_TIMEOUT code, for one - keeps doing so. Only
+ * the message changes; the machine-readable contract does not.
+ */
+export class WedgedPageError extends CommandTimeoutError {
+  /** The operator-facing explanation. Also this error's `message`. */
+  readonly diagnosis: string;
+
+  constructor(method: string, timeoutMs: number, diagnosis: string, cause: unknown) {
+    super(method, timeoutMs);
+    this.name = 'WedgedPageError';
+    this.message = diagnosis;
+    this.diagnosis = diagnosis;
+    (this as Error & { cause?: unknown }).cause = cause;
+  }
+}
+
+export function wedgedRendererError(
+  pageId: string,
+  method: string,
+  cause: CommandTimeoutError,
+  dialogObservation: DialogObservation = 'unknown'
+): WedgedPageError {
+  const cap = cause.timeoutMs > 0 ? ` within ${cause.timeoutMs}ms` : '';
+  const wedgeCauses = 'a long synchronous script, a breakpoint, or a browser-owned modal such as a '
+    + 'client-certificate picker';
+  const detail = dialogObservation === 'absent'
+    ? `No JavaScript dialog was open when the command was issued, so this is NOT a dialog - dismissing one would report "No dialog is showing" and change nothing. The renderer is busy or wedged (${wedgeCauses}). Close and reopen the page, or detach any attached DevTools, then retry.`
+    : `Dialog state was not established for this page, so the cause is not narrowed: the renderer may be busy or wedged (${wedgeCauses}), a dialog may have opened, or the command may simply need longer than the timeout allowed. Run 'cdp-cli dialog <page>' to establish dialog state before dismissing anything, and raise --timeout if the work is genuinely slow.`;
+  return new WedgedPageError(
+    method,
+    cause.timeoutMs,
+    `Page ${pageId} did not answer ${method}${cap}.\n${detail}`,
+    cause
   );
-  (error as Error & { cause?: unknown }).cause = cause;
-  return error;
 }
 
 export interface NetworkRequest {

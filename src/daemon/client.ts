@@ -161,10 +161,21 @@ export interface DaemonDialogStatus {
   probeUnavailable?: boolean;
 }
 
+/**
+ * What a `/health` probe settled about the daemon's browser.
+ *
+ * `verified` - the daemon named its `cdpUrl` and it agrees.
+ * `unverifiable` - the daemon answered but predates the field, so agreement
+ *   cannot be established against it. Settled, and worth caching.
+ * `inconclusive` - the probe itself failed (unreachable, non-OK, unparseable).
+ *   Nothing was learned, so it must NOT be cached as agreement.
+ */
+type EndpointAgreement = 'verified' | 'unverifiable' | 'inconclusive';
+
 export class DaemonClient {
   private readonly options: DaemonClientOptions;
   private resolvedBaseUrl?: string;
-  private endpointAgreement?: Promise<void>;
+  private endpointAgreement?: Promise<EndpointAgreement>;
 
   constructor(options: DaemonClientOptions = {}) {
     this.options = { ...options };
@@ -190,13 +201,22 @@ export class DaemonClient {
    */
   private async base(): Promise<string> {
     const baseUrl = this.baseUrl;
-    this.endpointAgreement ??= this.checkEndpointAgreement(baseUrl);
+    const pending = this.endpointAgreement ??= this.checkEndpointAgreement(baseUrl);
+    let outcome: EndpointAgreement;
     try {
-      await this.endpointAgreement;
+      outcome = await pending;
     } catch (error) {
       // A real mismatch is a permanent configuration fault: keep it memoised so
       // every later call reports it identically instead of re-probing.
       throw error;
+    }
+    // An inconclusive probe is not evidence of agreement, and caching it would
+    // retire the guard for the life of this client: a daemon that was merely
+    // unreachable or mid-restart when first probed would then never be checked
+    // again, including after it comes back serving a different browser. Only a
+    // verified result is worth keeping.
+    if (outcome === 'inconclusive' && this.endpointAgreement === pending) {
+      this.endpointAgreement = undefined;
     }
     return baseUrl;
   }
@@ -209,21 +229,27 @@ export class DaemonClient {
     await this.base();
   }
 
-  private async checkEndpointAgreement(baseUrl: string): Promise<void> {
+  private async checkEndpointAgreement(baseUrl: string): Promise<EndpointAgreement> {
     let daemonCdpUrl: string | undefined;
     try {
       const res = await (globalThis.fetch ?? undiciFetch)(`${baseUrl}/health`, {
         signal: AbortSignal.timeout(2000)
       });
-      if (!res.ok) return; // Not a mismatch; the caller's own request will fail.
+      // Not a mismatch; the caller's own request will fail. It is also not an
+      // answer, so it must not be cached as one.
+      if (!res.ok) return 'inconclusive';
       const body = await res.json() as { cdpUrl?: unknown };
       daemonCdpUrl = typeof body.cdpUrl === 'string' ? body.cdpUrl : undefined;
     } catch {
       // Unreachable or unparseable daemon is not evidence of a mismatch. Let
       // the actual request produce the actual failure.
-      return;
+      return 'inconclusive';
     }
     assertDaemonServesConfiguredBrowser(baseUrl, daemonCdpUrl, this.options.cdpUrl);
+    // A daemon that answered but reports no `cdpUrl` predates the field. That
+    // IS a settled answer - the endpoint cannot be verified against this
+    // daemon, ever - so re-probing it would only cost a round trip per call.
+    return daemonCdpUrl === undefined ? 'unverifiable' : 'verified';
   }
 
   /**

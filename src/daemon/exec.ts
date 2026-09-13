@@ -3,7 +3,7 @@
  * Falls back to direct WebSocket connection when daemon is not running
  */
 
-import { CDPContext, Page, dialogGuardError, wedgedRendererError } from '../context.js';
+import { CDPContext, Page, dialogGuardError, wedgedRendererError, type DialogObservation } from '../context.js';
 import { DaemonClient } from './client.js';
 import { SessionFoundationError } from '../sessions/errors.js';
 import { WebSocket } from 'ws';
@@ -27,14 +27,41 @@ function rethrowDaemonConfigError(context: CDPContext, error: unknown): void {
 }
 
 /**
- * A CDP command that timed out is the only trustworthy evidence that a
- * renderer is not answering, so the wedge is named here rather than guessed
- * from a pre-flight probe. Every other failure is passed through untouched.
+ * A CDP command that timed out is the only trustworthy evidence that a page is
+ * not answering, so the diagnosis is made here rather than guessed from a
+ * pre-flight probe. Every other failure is passed through untouched.
+ *
+ * `observe` is read at failure time, not at construction time, because the
+ * dialog check runs between the two. It returns `unknown` whenever no check
+ * ran or the check reached no verdict, which is what keeps the message from
+ * ruling out a dialog it never actually looked for.
  */
-function explainCommandTimeout(pageId: string, method: string, error: unknown): unknown {
+function explainCommandTimeout(
+  pageId: string,
+  method: string,
+  error: unknown,
+  observe: () => DialogObservation
+): unknown {
   return error instanceof CommandTimeoutError
-    ? wedgedRendererError(pageId, method, error)
+    ? wedgedRendererError(pageId, method, error, observe())
     : error;
+}
+
+/**
+ * Both execution routes get the same diagnosis. A command falls back to a
+ * direct WebSocket whenever the daemon holds no session for the page - which
+ * includes a degraded or mid-restart daemon - and that is exactly when a clear
+ * message matters, so the wrapper must not depend on which route was taken.
+ */
+function diagnosingTimeouts(
+  pageId: string,
+  exec: (method: string, params?: any, timeoutMs?: number) => Promise<any>,
+  observe: () => DialogObservation
+): (method: string, params?: any, timeoutMs?: number) => Promise<any> {
+  return (method: string, params?: any, timeoutMs?: number) =>
+    exec(method, params, timeoutMs).catch((error: unknown) => {
+      throw explainCommandTimeout(pageId, method, error, observe);
+    });
 }
 
 export interface DaemonPageInfo {
@@ -115,20 +142,28 @@ export async function createExecSession(
         context.workspaceSessionName,
         page.id
       );
+      let dialogObservation: DialogObservation = 'unknown';
       return {
         pageId: page.id,
         ws: null,
         useDaemon: true,
-        exec: (method: string, params?: any, timeoutMs?: number) => daemon.execCommand(
+        exec: diagnosingTimeouts(
           page.id,
-          method,
-          params,
-          workspaceLease?.workspace,
-          timeoutMs
-        ).catch((error: unknown) => { throw explainCommandTimeout(page.id, method, error); }),
+          (method, params, timeoutMs) => daemon.execCommand(
+            page.id,
+            method,
+            params,
+            workspaceLease?.workspace,
+            timeoutMs
+          ),
+          () => dialogObservation
+        ),
         assertNoDevTools: async () => {}, // Daemon handles its own connection - no check needed
         assertNoDialog: async () => {
           const status = await daemon.getDialogStatus(page.id, context.workspaceSessionName);
+          // A probe the daemon could not complete says nothing either way, so
+          // it must not be recorded as "no dialog open".
+          dialogObservation = status.probeUnavailable === true ? 'unknown' : 'absent';
           const blocked = dialogGuardError(status, page.id);
           if (blocked) throw blocked;
         },
@@ -157,8 +192,14 @@ export async function createExecSession(
     pageId: page.id,
     ws,
     useDaemon: false,
-    exec: (method: string, params?: any, timeoutMs?: number) =>
-      context.sendCommand(ws, method, params, timeoutMs),
+    // The direct route keeps `unknown`: `checkForDialog` returns null both for
+    // "none open" and for a probe that reached no verdict, so nothing here
+    // positively rules a dialog out.
+    exec: diagnosingTimeouts(
+      page.id,
+      (method, params, timeoutMs) => context.sendCommand(ws, method, params, timeoutMs),
+      () => 'unknown'
+    ),
     assertNoDevTools: daemonConnectedToPage
       ? async () => {}
       : () => context.assertNoDevTools(page.id),
@@ -194,20 +235,26 @@ export async function createExecSessionByPageRef(
         context.workspaceSessionName,
         sessionPageId
       );
+      let dialogObservation: DialogObservation = 'unknown';
       return {
         pageId: sessionPageId,
         ws: null,
         useDaemon: true,
-        exec: (method: string, params?: any, timeoutMs?: number) => daemon.execCommand(
+        exec: diagnosingTimeouts(
           sessionPageId,
-          method,
-          params,
-          workspaceLease?.workspace,
-          timeoutMs
-        ).catch((error: unknown) => { throw explainCommandTimeout(sessionPageId, method, error); }),
+          (method, params, timeoutMs) => daemon.execCommand(
+            sessionPageId,
+            method,
+            params,
+            workspaceLease?.workspace,
+            timeoutMs
+          ),
+          () => dialogObservation
+        ),
         assertNoDevTools: async () => {}, // Daemon handles its own connection - no check needed
         assertNoDialog: async () => {
           const status = await daemon.getDialogStatus(sessionPageId, context.workspaceSessionName);
+          dialogObservation = status.probeUnavailable === true ? 'unknown' : 'absent';
           const blocked = dialogGuardError(status, sessionPageId);
           if (blocked) throw blocked;
         },
@@ -238,8 +285,13 @@ export async function createExecSessionByPageRef(
     pageId: page.id,
     ws,
     useDaemon: false,
-    exec: (method: string, params?: any, timeoutMs?: number) =>
-      context.sendCommand(ws, method, params, timeoutMs),
+    // `unknown` for the same reason as the other direct route: nothing on this
+    // path positively rules a dialog out.
+    exec: diagnosingTimeouts(
+      page.id,
+      (method, params, timeoutMs) => context.sendCommand(ws, method, params, timeoutMs),
+      () => 'unknown'
+    ),
     assertNoDevTools: daemonConnectedToPage
       ? async () => {} // Daemon connected - skip check
       : () => context.assertNoDevTools(page.id),
