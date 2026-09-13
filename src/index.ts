@@ -1715,6 +1715,19 @@ cli.command(
       .option('frame', {
         type: 'string',
         description: 'Target iframe by selector or index'
+      })
+      .option('timeout', {
+        type: 'number',
+        description: 'Max milliseconds for each CDP round trip (default: 10000 via daemon, 30000 direct)'
+      })
+      .check((argv) => {
+        if (argv.timeout !== undefined) {
+          const invalid = validateCommandTimeout(argv.timeout);
+          if (invalid) {
+            throw new Error(invalid);
+          }
+        }
+        return true;
       });
   },
   async (argv) => {
@@ -1726,7 +1739,8 @@ cli.command(
       attrs: argv.attrs as boolean,
       styles: argv.styles as string | undefined,
       all: argv.all as boolean,
-      frame: argv.frame as string | undefined
+      frame: argv.frame as string | undefined,
+      timeout: argv.timeout as number | undefined
     });
   }
 );
@@ -1757,6 +1771,19 @@ cli.command(
       .option('frame', {
         type: 'string',
         description: 'Target iframe by selector or index'
+      })
+      .option('timeout', {
+        type: 'number',
+        description: 'Max milliseconds for each CDP round trip (default: 10000 via daemon, 30000 direct)'
+      })
+      .check((argv) => {
+        if (argv.timeout !== undefined) {
+          const invalid = validateCommandTimeout(argv.timeout);
+          if (invalid) {
+            throw new Error(invalid);
+          }
+        }
+        return true;
       });
   },
   async (argv) => {
@@ -1765,7 +1792,8 @@ cli.command(
       page: argv.page as string,
       compareSiblings: argv['compare-siblings'] as boolean,
       props: argv.props as string | undefined,
-      frame: argv.frame as string | undefined
+      frame: argv.frame as string | undefined,
+      timeout: argv.timeout as number | undefined
     });
   }
 );

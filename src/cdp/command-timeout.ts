@@ -8,6 +8,18 @@ export class CommandTimeoutError extends Error {
   readonly code = 'COMMAND_TIMEOUT';
   readonly method: string;
   readonly timeoutMs: number;
+  /** Which phase consumed the cap. Command-round-trip timeouts (the only
+   * thing this class currently models) are always 'command'; kept as an
+   * explicit field so callers/tests can name the phase without guessing it
+   * from context, and so a future connect-phase timeout type can reuse the
+   * same shape. */
+  readonly phase = 'command' as const;
+  /** Surfaced by `describeErrorCause` (src/output.ts) into every command's
+   * `outputCommandError(...)` cause payload, so ANY command that routes its
+   * catch block through outputCommandError automatically reports the cap and
+   * phase under `cause.details` instead of losing them behind a generic
+   * top-level failure code. */
+  readonly details: { method: string; timeoutMs: number; phase: 'command' };
 
   constructor(method: string, timeoutMs: number) {
     // Message text must stay exactly this: existing tests assert on it.
@@ -15,6 +27,7 @@ export class CommandTimeoutError extends Error {
     this.name = 'CommandTimeoutError';
     this.method = method;
     this.timeoutMs = timeoutMs;
+    this.details = { method, timeoutMs, phase: this.phase };
   }
 }
 

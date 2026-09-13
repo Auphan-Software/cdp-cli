@@ -872,6 +872,8 @@ export async function query(
     styles?: string;
     all?: boolean;
     frame?: string;
+    /** Per-round-trip CDP cap. Undefined keeps each path's own default. */
+    timeout?: number;
   }
 ): Promise<void> {
   let session: Awaited<ReturnType<typeof createExecSessionByPageRef>> | undefined;
@@ -946,17 +948,17 @@ export async function query(
         expression: jsExpression,
         contextId,
         returnByValue: true
-      });
+      }, options.timeout);
       evalResult = result;
     } else {
       session = await createExecSessionByPageRef(context, options.page);
       await session.assertNoDevTools();
       await session.assertNoDialog();
-      await session.exec('Runtime.enable');
+      await session.exec('Runtime.enable', undefined, options.timeout);
       evalResult = await session.exec('Runtime.evaluate', {
         expression: jsExpression,
         returnByValue: true
-      });
+      }, options.timeout);
     }
 
     if (evalResult.exceptionDetails) {
@@ -1001,6 +1003,8 @@ export async function styles(
     compareSiblings?: boolean;
     props?: string;
     frame?: string;
+    /** Per-round-trip CDP cap. Undefined keeps each path's own default. */
+    timeout?: number;
   }
 ): Promise<void> {
   let session: Awaited<ReturnType<typeof createExecSessionByPageRef>> | undefined;
@@ -1063,17 +1067,17 @@ export async function styles(
         expression: jsExpression,
         contextId,
         returnByValue: true
-      });
+      }, options.timeout);
       evalResult = result;
     } else {
       session = await createExecSessionByPageRef(context, options.page);
       await session.assertNoDevTools();
       await session.assertNoDialog();
-      await session.exec('Runtime.enable');
+      await session.exec('Runtime.enable', undefined, options.timeout);
       evalResult = await session.exec('Runtime.evaluate', {
         expression: jsExpression,
         returnByValue: true
-      });
+      }, options.timeout);
     }
 
     if (evalResult.exceptionDetails) {
@@ -1156,6 +1160,8 @@ export async function emulate(
     scale?: number;
     ua?: string;
     touch?: boolean;
+    /** Per-round-trip CDP cap. Undefined keeps each path's own default. */
+    timeout?: number;
   }
 ): Promise<void> {
   let session: Awaited<ReturnType<typeof createExecSessionByPageRef>> | undefined;
@@ -1169,9 +1175,9 @@ export async function emulate(
 
     if (isDesktop) {
       // Reset all overrides
-      await session.exec('Emulation.clearDeviceMetricsOverride');
-      await session.exec('Emulation.setUserAgentOverride', { userAgent: '' });
-      await session.exec('Emulation.setTouchEmulationEnabled', { enabled: false });
+      await session.exec('Emulation.clearDeviceMetricsOverride', undefined, options.timeout);
+      await session.exec('Emulation.setUserAgentOverride', { userAgent: '' }, options.timeout);
+      await session.exec('Emulation.setTouchEmulationEnabled', { enabled: false }, options.timeout);
 
       outputSuccess('Emulation reset to desktop', {
         device: 'desktop',
@@ -1199,11 +1205,11 @@ export async function emulate(
       height,
       deviceScaleFactor: scale,
       mobile,
-    });
+    }, options.timeout);
 
     // Set user agent
     if (ua) {
-      await session.exec('Emulation.setUserAgentOverride', { userAgent: ua });
+      await session.exec('Emulation.setUserAgentOverride', { userAgent: ua }, options.timeout);
     }
 
     // Enable touch
@@ -1211,7 +1217,7 @@ export async function emulate(
       await session.exec('Emulation.setTouchEmulationEnabled', {
         enabled: true,
         maxTouchPoints: 5,
-      });
+      }, options.timeout);
     }
 
     // Verify what the page actually ended up with, rather than echoing back the
@@ -1219,7 +1225,7 @@ export async function emulate(
     const applied = await session.exec('Runtime.evaluate', {
       expression: `JSON.stringify({ width: innerWidth, height: innerHeight, ua: navigator.userAgent })`,
       returnByValue: true
-    });
+    }, options.timeout);
 
     let appliedUa: string | undefined;
     try {
@@ -1267,7 +1273,7 @@ export async function emulate(
  */
 export async function dismissOverlays(
   context: CDPContext,
-  options: { page: string; frame?: string }
+  options: { page: string; frame?: string; timeout?: number }
 ): Promise<void> {
   let session: Awaited<ReturnType<typeof createExecSessionByPageRef>> | undefined;
   let directWs: Awaited<ReturnType<typeof context.connect>> | undefined;
@@ -1307,16 +1313,16 @@ export async function dismissOverlays(
         expression: jsExpression,
         contextId,
         returnByValue: true
-      });
+      }, options.timeout);
     } else {
       session = await createExecSessionByPageRef(context, options.page);
       await session.assertNoDevTools();
       await session.assertNoDialog();
-      await session.exec('Runtime.enable');
+      await session.exec('Runtime.enable', undefined, options.timeout);
       evalResult = await session.exec('Runtime.evaluate', {
         expression: jsExpression,
         returnByValue: true
-      });
+      }, options.timeout);
     }
 
     if (evalResult.exceptionDetails) {
