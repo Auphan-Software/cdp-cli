@@ -3,13 +3,19 @@
  */
 
 import { createServer, IncomingMessage, ServerResponse } from 'http';
+import { readFile } from 'node:fs/promises';
 import { WebSocket } from 'ws';
 import { PageSession } from './page-session.js';
 import { CDPContext, Page, CDPMessage } from '../context.js';
-import { WorkspaceSessionService } from '../sessions/workspace-session-service.js';
+import {
+  WorkspaceSessionService,
+  defaultWorkspaceSessionStorePath
+} from '../sessions/workspace-session-service.js';
 import { OperationLeaseManager } from '../sessions/operation-lease-manager.js';
 import { SessionFoundationError } from '../sessions/errors.js';
 import { CommandTimeoutError, validateCommandTimeout } from '../cdp/command-timeout.js';
+import { canonicalCdpEndpoint } from '../cdp/cdp-endpoint.js';
+import { commit, dirty, version, build } from '../version.js';
 
 const DEFAULT_DAEMON_PORT = 9223;
 const DEFAULT_CDP_URL = 'http://localhost:9222';
@@ -257,16 +263,7 @@ export class CDPDaemon {
     try {
       // Health check
       if (method === 'GET' && path === '/health') {
-        // `cdpUrl` lets a client verify that this daemon actually serves the
-        // Chrome the command is targeting. Without it a client that resolved
-        // the daemon from CDP_DAEMON_URL and the browser from the --cdp-url
-        // default silently drives a different browser: see
-        // assertDaemonServesConfiguredBrowser in daemon/client.ts.
-        this.sendJson(res, 200, {
-          status: 'ok',
-          sessions: this.sessions.size,
-          cdpUrl: this.config.cdpUrl
-        });
+        this.sendJson(res, 200, await this.buildHealthReport());
         return;
       }
 
@@ -632,6 +629,81 @@ export class CDPDaemon {
       } else {
         this.sendJson(res, 500, { error: (err as Error).message });
       }
+    }
+  }
+
+  /**
+   * `/health` and `daemon status` must prove what this daemon IS, not just
+   * that it answers: which build/commit it is running, which endpoint it
+   * normalizes to, and the state of its OWN workspace-session store - not the
+   * per-page log-session count that used to be reported as `sessions` and
+   * masked an empty workspace registry behind `status:ok` (wi:7468, wi:7454).
+   *
+   * `status` degrades to `degraded` when the workspace store file exists for
+   * this exact endpoint and parses to zero sessions while pages are live: a
+   * store that was never written has no file at all (ENOENT), so an existing,
+   * empty file alongside live pages is the specific loud signal this daemon
+   * booted an unusable registry rather than a merely-unused one. A store that
+   * fails to read/parse at all (corrupt, or belongs to a different browser
+   * instance) is reported as an error and also degrades health - never
+   * swallowed as an empty registry.
+   */
+  private async buildHealthReport(): Promise<Record<string, unknown>> {
+    const normalizedCdpUrl = canonicalCdpEndpoint(this.config.cdpUrl) ?? this.config.cdpUrl;
+    const storePath = defaultWorkspaceSessionStorePath(this.config.cdpUrl);
+    const pages = this.sessions.size;
+    const workspaceSessions = await this.readWorkspaceSessionCount(storePath);
+
+    const emptyRegistryWithLivePages =
+      workspaceSessions.fileExists && workspaceSessions.error === undefined &&
+      workspaceSessions.count === 0 && pages > 0;
+
+    let status: string = 'ok';
+    let errorCode: string | undefined;
+    if (workspaceSessions.error) {
+      status = 'degraded';
+      errorCode = 'WORKSPACE_STORE_UNREADABLE';
+    } else if (emptyRegistryWithLivePages) {
+      status = 'degraded';
+      errorCode = 'EMPTY_WORKSPACE_REGISTRY_WITH_LIVE_PAGES';
+    }
+
+    return {
+      status,
+      ...(errorCode ? { errorCode } : {}),
+      // Retained for older callers; this is live-page log sessions, NOT the
+      // workspace-session registry - see `workspaceSessions` below.
+      sessions: pages,
+      pages,
+      cdpUrl: this.config.cdpUrl,
+      normalizedCdpUrl,
+      daemon: { version, commit, dirty, build },
+      workspaceSessions: {
+        storePath,
+        count: workspaceSessions.count,
+        ...(workspaceSessions.error ? { error: workspaceSessions.error } : {})
+      }
+    };
+  }
+
+  private async readWorkspaceSessionCount(
+    storePath: string
+  ): Promise<{ count: number; fileExists: boolean; error?: string }> {
+    let serialized: string;
+    try {
+      serialized = await readFile(storePath, 'utf8');
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') {
+        return { count: 0, fileExists: false };
+      }
+      return { count: 0, fileExists: true, error: (error as Error).message };
+    }
+    try {
+      const parsed = JSON.parse(serialized) as { sessions?: unknown[] };
+      const count = Array.isArray(parsed.sessions) ? parsed.sessions.length : 0;
+      return { count, fileExists: true };
+    } catch (error) {
+      return { count: 0, fileExists: true, error: `Session store is not valid JSON: ${(error as Error).message}` };
     }
   }
 
