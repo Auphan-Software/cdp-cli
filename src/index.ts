@@ -39,7 +39,7 @@ import {
   defaultWorkspaceSessionStorePath
 } from './sessions/workspace-session-service.js';
 import { SessionFoundationError } from './sessions/errors.js';
-import { DaemonClient } from './daemon/client.js';
+import { DaemonClient, assertConfiguredDaemonServesBrowser } from './daemon/client.js';
 import { SessionStore } from './sessions/session-store.js';
 import { coordinateWorkspaceSessionDisposal } from './sessions/session-disposal-coordinator.js';
 import {
@@ -313,6 +313,11 @@ cli.command(
         if (typeof argv.name === 'string') {
           throw new Error('session metadata-reset does not accept a session name; it resets endpoint metadata');
         }
+        // Refuse to blame/reset a store keyed by this endpoint if a
+        // CDP_DAEMON_URL-selected daemon actually serves a different
+        // browser (wi:7235/A6) - same guard context.ts's openWorkspaceService
+        // applies before touching the store.
+        await assertConfiguredDaemonServesBrowser(argv['cdp-url'] as string);
         const store = new SessionStore(defaultWorkspaceSessionStorePath(
           argv['cdp-url'] as string
         ));
@@ -323,6 +328,10 @@ cli.command(
         });
         return;
       }
+      // Same wi:7235/A6 guard context.ts's openWorkspaceService applies:
+      // refuse a daemon serving the wrong browser before the store - keyed
+      // by this endpoint - can be blamed for being stale or empty.
+      await assertConfiguredDaemonServesBrowser(argv['cdp-url'] as string);
       service = await WorkspaceSessionService.open(argv['cdp-url'] as string);
       if (action === 'list') {
         outputLines(service.listSessions().map((session) => ({
