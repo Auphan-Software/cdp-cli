@@ -29,7 +29,18 @@ export interface BrowserConnectionOptions {
   fetch?: FetchLike;
   commandTimeoutMs?: number;
   connectTimeoutMs?: number;
+  /**
+   * How long opening the connection may spend eagerly configuring the pages
+   * that already exist. A blocked renderer answers no command at all, so this
+   * must be far shorter than `commandTimeoutMs`: see `initialize()`. This caps
+   * only how long opening WAITS; when the work finishes sooner - including when
+   * it fails sooner, because `commandTimeoutMs` is short - the cap never binds.
+   */
+  startupConfigureTimeoutMs?: number;
 }
+
+/** Upper bound on the eager whole-browser configuration done while opening. */
+const DEFAULT_STARTUP_CONFIGURE_TIMEOUT_MS = 2_000;
 
 const RELEVANT_TARGET_FILTER = [
   { type: 'page', exclude: false },
@@ -57,7 +68,8 @@ export class BrowserConnection {
 
   private constructor(
     private readonly transport: FlattenedSessionTransport,
-    readonly browserInstanceId: string
+    readonly browserInstanceId: string,
+    private readonly startupConfigureTimeoutMs: number = DEFAULT_STARTUP_CONFIGURE_TIMEOUT_MS
   ) {
     this.disposeEventListener = transport.onEvent((event) => this.handleEvent(event));
   }
@@ -79,9 +91,11 @@ export class BrowserConnection {
 
     try {
       await waitForSocketOpen(socket, options.connectTimeoutMs ?? 10_000);
+      const commandTimeoutMs = options.commandTimeoutMs ?? 30_000;
       const connection = new BrowserConnection(
-        new FlattenedSessionTransport(socket, options.commandTimeoutMs ?? 30_000),
-        browserInstanceIdFromEndpoint(browserEndpoint)
+        new FlattenedSessionTransport(socket, commandTimeoutMs),
+        browserInstanceIdFromEndpoint(browserEndpoint),
+        options.startupConfigureTimeoutMs ?? DEFAULT_STARTUP_CONFIGURE_TIMEOUT_MS
       );
       await connection.initialize();
       return connection;
@@ -220,16 +234,34 @@ export class BrowserConnection {
 
     // Browser-level auto-attach covers current Chrome, while the explicit
     // attach makes the contract deterministic on older Chrome versions.
-    for (const page of this.registry.list().filter((target) => target.type === 'page')) {
-      // Opening the browser connection is a whole-browser operation. One page
-      // whose renderer is blocked (or which died mid-attach) must not make
-      // every command against every other page fail; the failed configuration
-      // is evicted, and an operation that targets that page will retry and
-      // report its real error.
-      await this.ensureTargetSession(page.targetId).catch(() => undefined);
-    }
+    //
+    // Opening the browser connection is a whole-browser operation, so it must
+    // cost a BOUNDED amount of time. One page whose renderer is blocked answers
+    // no command at all, and this used to await it for the full command timeout
+    // here and then again in the drain. Swallowing the rejection was never
+    // enough - the latency is the defect, and it is paid by every other page
+    // and every other caller sharing this browser. Measured on the live fleet
+    // daemon with one wedged page out of twelve: 60s per workspace-lease
+    // acquire and 37s per dialog-status call, for every agent on the machine,
+    // because the daemon opens a fresh connection on every request.
+    //
+    // So: configure the existing pages concurrently, and stop WAITING after a
+    // short budget. Stopping waiting is not abandoning the work. An unfinished
+    // configuration stays in flight and memoised in `sessionConfiguration`, so
+    // an operation that genuinely targets that page still awaits that same
+    // promise and still reports its real error.
+    // ONE budget for the whole eager phase, not one per step: the loop and the
+    // drain both wait on the same blocked renderer, so a per-step budget would
+    // be paid twice.
+    const deadline = Date.now() + this.startupConfigureTimeoutMs;
+    const pages = this.registry.list().filter((target) => target.type === 'page');
+    await withTimeBudget(
+      // allSettled, so one blocked or dead renderer cannot reject the batch.
+      Promise.allSettled(pages.map((page) => this.ensureTargetSession(page.targetId))),
+      deadline - Date.now()
+    );
     await this.refreshTargets();
-    await this.drainSessionConfiguration();
+    await withTimeBudget(this.drainSessionConfiguration(), deadline - Date.now());
   }
 
   private handleEvent(event: CDPEvent): void {
@@ -473,6 +505,32 @@ function targetToProtocolInfo(target: TargetRecord): ProtocolTargetInfo {
     ...(target.browserContextId ? { browserContextId: target.browserContextId } : {}),
     ...(target.subtype ? { subtype: target.subtype } : {})
   };
+}
+
+/**
+ * Wait for `work`, but give up waiting after `budgetMs` and resolve anyway.
+ *
+ * The work is NOT cancelled - it keeps running and stays memoised for whoever
+ * actually needs it. This exists so that a whole-browser operation cannot be
+ * held hostage by one unresponsive renderer. `work` must not reject: callers
+ * pass an `allSettled`-backed promise, and the `catch` below is only a
+ * belt-and-braces guard against an unhandled rejection warning.
+ */
+function withTimeBudget(work: Promise<unknown>, budgetMs: number): Promise<void> {
+  void work.catch(() => undefined);
+  if (budgetMs <= 0) return Promise.resolve();
+  return new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, budgetMs);
+    // Do not keep the event loop alive purely to finish opening a connection.
+    timer.unref?.();
+    void work.then(() => {
+      clearTimeout(timer);
+      resolve();
+    }, () => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
 }
 
 function delay(ms: number): Promise<void> {

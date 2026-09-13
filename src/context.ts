@@ -11,6 +11,7 @@ import { WorkspaceSessionService } from './sessions/workspace-session-service.js
 import { SessionFoundationError } from './sessions/errors.js';
 import { DaemonClient } from './daemon/client.js';
 import { CommandTimeoutError } from './cdp/command-timeout.js';
+import { assertConfiguredDaemonServesBrowser } from './daemon/client.js';
 
 let defaultWorkspaceSession: string | undefined;
 const pendingWorkspaceReleases = new Set<Promise<void>>();
@@ -87,6 +88,88 @@ export function dialogBlockerError(dialog: DialogInfo): Error {
     ? `Use 'cdp-cli dialog <page> --dismiss' to dismiss it, or '--accept' to accept.`
     : 'Dismiss the dialog manually in the browser, or close and reopen the page. Browser-owned pickers (such as client-certificate selection) cannot be dismissed through CDP.';
   return new Error(`${typeLabel} dialog is blocking the page: "${dialog.message}"\n${hint}`);
+}
+
+/**
+ * The one diagnosis a blocked page gets, chosen from what was actually
+ * observed rather than from what a stall resembles.
+ *
+ * Only a dialog this process saw open (`Page.javascriptDialogOpening`) earns
+ * the dialog remedy. A probe that merely failed is NOT evidence of a dialog -
+ * a renderer busy for 350ms looks identical - and it is not evidence of a
+ * wedge either, so it must not block a command that would have succeeded.
+ * That case is diagnosed later, from the command's own timeout, by
+ * `wedgedRendererError`.
+ */
+export function dialogGuardError(
+  status: { open: boolean; dialog?: DialogInfo },
+  _pageId: string
+): Error | undefined {
+  return status.open && status.dialog ? dialogBlockerError(status.dialog) : undefined;
+}
+
+/**
+ * What this process actually knows about dialog state on the page, at the
+ * moment the command that later timed out was issued.
+ *
+ * `absent` means a dialog check ran and positively reported none open.
+ * `unknown` means no check ran, or the check could not reach a verdict - a
+ * probe that merely failed is not evidence either way. The distinction is
+ * load-bearing: only `absent` lets the diagnosis rule a dialog out.
+ */
+export type DialogObservation = 'absent' | 'unknown';
+
+/**
+ * Explain a command that timed out without a reply from the page.
+ *
+ * A wedged renderer, a slow-but-healthy one, and a modal dialog produce the
+ * same silence, and the previous generic "the operation was aborted due to
+ * timeout" sent callers down the dialog path: `cdp-cli dialog <page>
+ * --dismiss` answers `-32602 "No dialog is showing"`, or worse reports success
+ * having done nothing, so the page looks fixed and is not.
+ *
+ * Elapsed time alone does not prove a wedge, so the wording is bounded by what
+ * was observed. Only a check that positively reported no dialog open rules a
+ * dialog out and withholds the dialog remedy; otherwise both possibilities are
+ * named and the caller is pointed at the check rather than at a blind
+ * dismissal. `timeoutMs` is reported so a caller who set a short `--timeout`
+ * can see that the cap, not the page, may be what ended the command.
+ *
+ * The result stays a `CommandTimeoutError`, so every caller that classifies a
+ * timeout by type - `eval`'s EVAL_TIMEOUT code, for one - keeps doing so. Only
+ * the message changes; the machine-readable contract does not.
+ */
+export class WedgedPageError extends CommandTimeoutError {
+  /** The operator-facing explanation. Also this error's `message`. */
+  readonly diagnosis: string;
+
+  constructor(method: string, timeoutMs: number, diagnosis: string, cause: unknown) {
+    super(method, timeoutMs);
+    this.name = 'WedgedPageError';
+    this.message = diagnosis;
+    this.diagnosis = diagnosis;
+    (this as Error & { cause?: unknown }).cause = cause;
+  }
+}
+
+export function wedgedRendererError(
+  pageId: string,
+  method: string,
+  cause: CommandTimeoutError,
+  dialogObservation: DialogObservation = 'unknown'
+): WedgedPageError {
+  const cap = cause.timeoutMs > 0 ? ` within ${cause.timeoutMs}ms` : '';
+  const wedgeCauses = 'a long synchronous script, a breakpoint, or a browser-owned modal such as a '
+    + 'client-certificate picker';
+  const detail = dialogObservation === 'absent'
+    ? `No JavaScript dialog was open when the command was issued, so this is NOT a dialog - dismissing one would report "No dialog is showing" and change nothing. The renderer is busy or wedged (${wedgeCauses}). Close and reopen the page, or detach any attached DevTools, then retry.`
+    : `Dialog state was not established for this page, so the cause is not narrowed: the renderer may be busy or wedged (${wedgeCauses}), a dialog may have opened, or the command may simply need longer than the timeout allowed. Run 'cdp-cli dialog <page>' to establish dialog state before dismissing anything, and raise --timeout if the work is genuinely slow.`;
+  return new WedgedPageError(
+    method,
+    cause.timeoutMs,
+    `Page ${pageId} did not answer ${method}${cap}.\n${detail}`,
+    cause
+  );
 }
 
 export interface NetworkRequest {
@@ -914,7 +997,10 @@ export class CDPContext {
     await Promise.allSettled(active.map((lease) => lease.release()));
   }
 
-  private openWorkspaceService(): Promise<WorkspaceSessionService> {
+  private async openWorkspaceService(): Promise<WorkspaceSessionService> {
+    // Before the store - which is keyed by this endpoint - can be blamed for
+    // being stale, refuse a daemon that serves a different browser.
+    await assertConfiguredDaemonServesBrowser(this.cdpUrl);
     return WorkspaceSessionService.open(this.cdpUrl, { storePath: this.sessionStorePath });
   }
 

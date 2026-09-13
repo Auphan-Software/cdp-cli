@@ -257,7 +257,16 @@ export class CDPDaemon {
     try {
       // Health check
       if (method === 'GET' && path === '/health') {
-        this.sendJson(res, 200, { status: 'ok', sessions: this.sessions.size });
+        // `cdpUrl` lets a client verify that this daemon actually serves the
+        // Chrome the command is targeting. Without it a client that resolved
+        // the daemon from CDP_DAEMON_URL and the browser from the --cdp-url
+        // default silently drives a different browser: see
+        // assertDaemonServesConfiguredBrowser in daemon/client.ts.
+        this.sendJson(res, 200, {
+          status: 'ok',
+          sessions: this.sessions.size,
+          cdpUrl: this.config.cdpUrl
+        });
         return;
       }
 

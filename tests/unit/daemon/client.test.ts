@@ -93,6 +93,141 @@ describe('DaemonClient daemon configuration guard', () => {
   });
 });
 
+describe('DaemonClient daemon/browser agreement guard', () => {
+  /** A daemon whose `/health` reports `cdpUrl`, as every current build does. */
+  function daemonReporting(cdpUrl: string | undefined): { calls: number } {
+    const state = { calls: 0 };
+    globalThis.fetch = (async (url: unknown) => {
+      state.calls += 1;
+      if (String(url).endsWith('/health')) {
+        return {
+          ok: true,
+          json: async () => ({
+            status: 'ok',
+            sessions: 0,
+            ...(cdpUrl === undefined ? {} : { cdpUrl })
+          })
+        };
+      }
+      return { ok: true, json: async () => ({ sessions: [] }) };
+    }) as unknown as typeof fetch;
+    return state;
+  }
+
+  it('refuses a daemon that serves a different Chrome, naming both endpoints', async () => {
+    daemonReporting('http://127.0.0.1:9333');
+    // The reported journey: CDP_DAEMON_URL survived, CDP_URL did not, so the
+    // browser silently defaulted to 9222 while the daemon served 9333.
+    const client = new DaemonClient({ daemonUrl: 'http://127.0.0.1:9334' });
+    const error = await client.listSessions().then(
+      () => undefined,
+      (caught: unknown) => caught as SessionFoundationError
+    );
+    expect(error).toBeInstanceOf(SessionFoundationError);
+    expect(error?.code).toBe('DAEMON_BROWSER_MISMATCH');
+    // Either half may be the wrong one, so both must appear in the message.
+    expect(error?.message).toContain('http://127.0.0.1:9333');
+    expect(error?.message).toContain('http://localhost:9222');
+    expect(error?.message).toContain('neither --cdp-url nor CDP_URL is set');
+    expect(error?.details).toMatchObject({
+      daemonUrl: 'http://127.0.0.1:9334',
+      daemonCdpUrl: 'http://127.0.0.1:9333',
+      commandCdpUrl: 'http://localhost:9222',
+      commandCdpUrlWasDefaulted: true
+    });
+  });
+
+  it('allows an agreeing pair, and probes only once for many requests', async () => {
+    // Positive sentinel: the guard must not block the ordinary happy path.
+    const state = daemonReporting('http://127.0.0.1:9333');
+    const client = new DaemonClient({
+      daemonUrl: 'http://127.0.0.1:9334',
+      cdpUrl: 'http://127.0.0.1:9333'
+    });
+    await expect(client.listSessions()).resolves.toEqual([]);
+    await expect(client.listSessions()).resolves.toEqual([]);
+    // One /health probe plus the two real requests: the agreement is memoised.
+    expect(state.calls).toBe(3);
+  });
+
+  it('treats interchangeable loopback spellings and trailing slashes as agreement', async () => {
+    daemonReporting('http://127.0.0.1:9222/');
+    const client = new DaemonClient({
+      daemonUrl: 'http://127.0.0.1:9334',
+      cdpUrl: 'http://localhost:9222'
+    });
+    await expect(client.listSessions()).resolves.toEqual([]);
+  });
+
+  it('skips the check for a daemon that does not report its Chrome endpoint', async () => {
+    // Forward compatibility: an older daemon cannot be judged, and the fleet
+    // shares one global binary, so an unknown endpoint must not hard-fail.
+    daemonReporting(undefined);
+    const client = new DaemonClient({ daemonUrl: 'http://127.0.0.1:9334' });
+    await expect(client.listSessions()).resolves.toEqual([]);
+  });
+
+  it('does not turn an unreachable daemon into a mismatch', async () => {
+    globalThis.fetch = (async () => {
+      throw new TypeError('fetch failed');
+    }) as unknown as typeof fetch;
+    const client = new DaemonClient({ daemonUrl: 'http://127.0.0.1:9334' });
+    // The real request still fails - but as a connection failure, not as a
+    // configuration verdict the probe had no evidence for.
+    await expect(client.listSessions()).rejects.not.toMatchObject({
+      code: 'DAEMON_BROWSER_MISMATCH'
+    });
+  });
+
+  it('re-probes after an inconclusive health check instead of banking it as agreement', async () => {
+    // A daemon that is unreachable, restarting, or answering badly has told us
+    // NOTHING about which Chrome it serves. Caching that as agreement would
+    // retire the guard for the life of the client - so the daemon that comes
+    // back serving a different browser would never be caught.
+    let probes = 0;
+    globalThis.fetch = (async (url: unknown) => {
+      if (String(url).endsWith('/health')) {
+        probes += 1;
+        if (probes === 1) throw new TypeError('fetch failed');
+        return { ok: true, json: async () => ({ status: 'ok', cdpUrl: 'http://127.0.0.1:9333' }) };
+      }
+      return { ok: true, json: async () => ({ sessions: [] }) };
+    }) as unknown as typeof fetch;
+
+    const client = new DaemonClient({
+      daemonUrl: 'http://127.0.0.1:9334',
+      cdpUrl: 'http://localhost:9222'
+    });
+    // First call: the probe failed, so no verdict - the request itself proceeds.
+    await expect(client.listSessions()).resolves.toEqual([]);
+    // Second call: the daemon now answers, and the mismatch is caught.
+    await expect(client.listSessions()).rejects.toMatchObject({
+      code: 'DAEMON_BROWSER_MISMATCH'
+    });
+    expect(probes).toBe(2);
+  });
+
+  it('does not re-probe a daemon that answered but predates the cdpUrl field', async () => {
+    // Unlike a failed probe, this IS a settled answer: agreement can never be
+    // established against that build, so paying a round trip per call buys
+    // nothing.
+    const state = daemonReporting(undefined);
+    const client = new DaemonClient({ daemonUrl: 'http://127.0.0.1:9334' });
+    await expect(client.listSessions()).resolves.toEqual([]);
+    await expect(client.listSessions()).resolves.toEqual([]);
+    // One /health probe plus the two real requests.
+    expect(state.calls).toBe(3);
+  });
+
+  it('leaves lifecycle commands usable so a mismatch can be diagnosed and repaired', async () => {
+    daemonReporting('http://127.0.0.1:9333');
+    const client = new DaemonClient({ daemonUrl: 'http://127.0.0.1:9334' });
+    // `isRunning`/`getStatus` are how a caller inspects the very daemon that
+    // disagrees; gating them behind agreement would make the error unfixable.
+    await expect(client.isRunning()).resolves.toBe(true);
+  });
+});
+
 describe('daemon workspace access diagnostics', () => {
   async function startDaemon(
     resolver: (sessionName: string, pageId: string) => Promise<string>
@@ -104,7 +239,12 @@ describe('daemon workspace access diagnostics', () => {
       workspaceRootResolver: resolver
     });
     await daemon.start();
-    return new DaemonClient({ daemonUrl: `http://127.0.0.1:${daemon.listeningPort}` });
+    // A real caller names the same Chrome the daemon serves; a client that names
+    // a different one is refused (see the mismatch guard tests below).
+    return new DaemonClient({
+      daemonUrl: `http://127.0.0.1:${daemon.listeningPort}`,
+      cdpUrl: 'http://127.0.0.1:1'
+    });
   }
 
   it('distinguishes an unknown session from a page owned by another session', async () => {
