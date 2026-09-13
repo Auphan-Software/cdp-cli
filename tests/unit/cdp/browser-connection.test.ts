@@ -243,6 +243,56 @@ describe('BrowserConnection session configuration', () => {
     connection.close();
   });
 
+  // wi-7465: one wedged renderer used to stall EVERY other agent on the box.
+  // Opening the browser connection attaches every page in the browser and awaits
+  // Page.enable on each, sequentially, then awaits them all again in the drain.
+  // A blocked renderer answers none of them, so opening cost a full command
+  // timeout in the loop and another in the drain -- measured at 60s against the
+  // live fleet daemon, on every workspace-lease acquire and dialog-status call
+  // made by every agent, because the daemon builds a fresh connection per request.
+  // Swallowing the rejection was never enough: the latency is the defect.
+  it('opens promptly when a renderer is blocked, instead of paying the command timeout', async () => {
+    const socket = new FakeChromeSocket();
+    socket.addTarget('page-busy');
+    socket.addTarget('page-idle-a');
+    socket.addTarget('page-idle-b');
+    socket.hangingSessions.add('session-1'); // the first target Chrome is asked to attach
+
+    const commandTimeoutMs = 5_000;
+    const started = Date.now();
+    const connection = await openConnection(socket, commandTimeoutMs);
+    const elapsed = Date.now() - started;
+
+    expect(socket.sessionFor('page-busy')).toBe('session-1'); // sentinel: the blocked one
+    expect(socket.countSent('Page.enable', 'session-1')).toBeGreaterThan(0); // sentinel: really attempted
+    expect(elapsed).toBeLessThan(commandTimeoutMs / 2);
+
+    // The healthy siblings are still configured and usable.
+    await expect(connection.sendToTarget('page-idle-a', 'Runtime.evaluate')).resolves.toBeDefined();
+    await expect(connection.sendToTarget('page-idle-b', 'Runtime.evaluate')).resolves.toBeDefined();
+
+    connection.close();
+  });
+
+  it('configures every healthy page while opening', async () => {
+    const socket = new FakeChromeSocket();
+    socket.addTarget('page-a');
+    socket.addTarget('page-b');
+    socket.addTarget('page-c');
+
+    const connection = await openConnection(socket, 5_000);
+
+    for (const targetId of ['page-a', 'page-b', 'page-c']) {
+      const session = socket.sessionFor(targetId);
+      expect(session).toBeDefined();
+      expect(socket.countSent('Page.enable', session)).toBe(1);
+      expect(socket.countSent('Runtime.enable', session)).toBe(1);
+      expect(socket.countSent('Target.setAutoAttach', session)).toBe(1);
+    }
+
+    connection.close();
+  });
+
   it('shares one in-flight configuration between concurrent callers', async () => {
     const socket = new FakeChromeSocket();
     socket.addTarget('page-a');
