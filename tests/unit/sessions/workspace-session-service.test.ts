@@ -4,6 +4,7 @@ import type { BrowserConnection } from '../../../src/cdp/browser-connection.js';
 import {
   SessionStore,
   WorkspaceSessionService,
+  defaultWorkspaceSessionStorePath,
   type SessionFileSystem
 } from '../../../src/sessions/index.js';
 
@@ -207,5 +208,25 @@ describe('WorkspaceSessionService', () => {
       rootTargetId: owner.pageId
     });
     service.close();
+  });
+});
+
+describe('defaultWorkspaceSessionStorePath', () => {
+  it('resolves localhost, 127.0.0.1 and [::1] to the SAME store path (wi:7468)', () => {
+    const paths = new Set([
+      defaultWorkspaceSessionStorePath('http://localhost:9333'),
+      defaultWorkspaceSessionStorePath('http://127.0.0.1:9333'),
+      defaultWorkspaceSessionStorePath('http://[::1]:9333'),
+      defaultWorkspaceSessionStorePath('http://LOCALHOST:9333'),
+      defaultWorkspaceSessionStorePath('http://localhost:9333/')
+    ]);
+    expect(paths.size).toBe(1);
+  });
+
+  it('keeps distinct ports and distinct non-loopback hosts as distinct store paths', () => {
+    expect(defaultWorkspaceSessionStorePath('http://localhost:9333'))
+      .not.toBe(defaultWorkspaceSessionStorePath('http://localhost:9334'));
+    expect(defaultWorkspaceSessionStorePath('http://host-a:9222'))
+      .not.toBe(defaultWorkspaceSessionStorePath('http://host-b:9222'));
   });
 });

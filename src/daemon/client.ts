@@ -10,6 +10,7 @@ import type { ConsoleMessage, NetworkRequest, DialogInfo } from '../context.js';
 import { SessionFoundationError, type SessionErrorCode } from '../sessions/errors.js';
 import type { OperationLease } from '../sessions/operation-lease-manager.js';
 import { CommandTimeoutError } from '../cdp/command-timeout.js';
+import { canonicalCdpEndpoint } from '../cdp/cdp-endpoint.js';
 
 const DEFAULT_DAEMON_PORT = 9223;
 const DEFAULT_DAEMON_URL = `http://127.0.0.1:${DEFAULT_DAEMON_PORT}`;
@@ -63,23 +64,6 @@ export function resolveDaemonUrl(options: DaemonClientOptions = {}): string {
       environmentVariable: 'CDP_DAEMON_URL'
     }
   );
-}
-
-/**
- * Canonical form for comparing two CDP HTTP endpoints. Loopback spellings are
- * interchangeable - Chrome answers on `localhost` and `127.0.0.1` alike - so
- * only the scheme and the effective port distinguish two endpoints on this host.
- */
-function canonicalCdpEndpoint(raw: string): string | undefined {
-  let parsed: URL;
-  try {
-    parsed = new URL(raw);
-  } catch {
-    return undefined;
-  }
-  const port = parsed.port || (parsed.protocol === 'https:' ? '443' : '80');
-  const host = LOOPBACK_HOSTS.has(parsed.hostname) ? 'localhost' : parsed.hostname.toLowerCase();
-  return `${parsed.protocol}//${host}:${port}`;
 }
 
 /** True when both names denote the same Chrome debugging endpoint. */
@@ -357,7 +341,11 @@ export class DaemonClient {
   /**
    * Get daemon status
    */
-  async getStatus(): Promise<{ running: boolean; sessions?: number }> {
+  async getStatus(): Promise<{
+    running: boolean;
+    sessions?: number;
+    health?: Record<string, unknown>;
+  }> {
     const baseUrl = this.baseUrl;
     try {
       const res = await (globalThis.fetch ?? undiciFetch)(`${baseUrl}/health`, {
@@ -365,7 +353,7 @@ export class DaemonClient {
       });
       if (res.ok) {
         const data = await res.json() as { status: string; sessions: number };
-        return { running: true, sessions: data.sessions };
+        return { running: true, sessions: data.sessions, health: data };
       }
       return { running: false };
     } catch {

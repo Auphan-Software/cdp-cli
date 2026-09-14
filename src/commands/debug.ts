@@ -738,23 +738,67 @@ export async function screenshot(
 }
 
 /**
+ * Default cap for the dialog-state probe. Kept short because a dialog blocks
+ * the renderer outright, so a healthy page answers this well inside it;
+ * `--timeout` raises it for a page that is legitimately slow.
+ */
+const DIALOG_PROBE_TIMEOUT_MS = 300;
+
+/**
  * Check for and optionally handle JavaScript dialogs (alert/confirm/prompt)
  */
 export async function dialog(
   context: CDPContext,
-  options: { page: string; dismiss?: boolean; accept?: boolean; promptText?: string }
+  options: {
+    page: string;
+    dismiss?: boolean;
+    accept?: boolean;
+    promptText?: string;
+    timeout?: number;
+  }
 ): Promise<void> {
   let ws;
   try {
     const page = await context.findPage(options.page);
     ws = await context.connect(page);
 
-    const dialogInfo = await context.checkForDialog(ws);
+    const probeTimeoutMs = options.timeout ?? DIALOG_PROBE_TIMEOUT_MS;
+    const { dialog: dialogInfo, observation } =
+      await context.inspectDialogState(ws, probeTimeoutMs);
+
+    // A renderer that never answered the probe has established NOTHING about
+    // dialog state. Reporting "No dialog present" with a success exit code
+    // here is the bug this branch exists to prevent: it is the command the
+    // wedge diagnosis itself tells agents to run to establish dialog state, so
+    // a false clean bill of health from it convinces the caller the page is
+    // fine when it is wedged. Name the wedge and exit non-zero instead.
+    if (!dialogInfo && observation === 'unknown') {
+      // The shared `wedgedRendererError` wording ends by telling the caller to
+      // run `cdp-cli dialog <page>` to establish dialog state. That advice is
+      // right everywhere except here, where this IS that command and it just
+      // failed, so the remedy is stated directly instead of sending the caller
+      // in a circle.
+      const method = 'Page.enable/Runtime.evaluate';
+      throw new WedgedPageError(
+        method,
+        probeTimeoutMs,
+        `Page ${page.id} did not answer ${method} within ${probeTimeoutMs}ms, so dialog state `
+        + 'could NOT be established - this is not a report that no dialog is present. The renderer '
+        + 'is busy or wedged (a long synchronous script, a breakpoint, or a browser-owned modal '
+        + 'such as a client-certificate picker), or a dialog is open and blocking the probe itself. '
+        + 'Do not dismiss blindly: raise --timeout if the page is genuinely slow, otherwise close '
+        + 'and reopen the page, or detach any attached DevTools, then retry.',
+        new CommandTimeoutError(method, probeTimeoutMs)
+      );
+    }
 
     if (!dialogInfo) {
       outputLine({
         success: true,
         dialog: null,
+        // Only reported once the probe positively answered, so this is now a
+        // statement about the page and not merely about the absence of an event.
+        rendererResponsive: true,
         message: 'No dialog present'
       });
       return;
@@ -763,7 +807,12 @@ export async function dialog(
     // If action specified, handle the dialog
     if (options.dismiss || options.accept) {
       const action = options.accept ? 'accept' : 'dismiss';
-      await context.handleDialog(ws, options.accept ?? false, options.promptText);
+      await context.handleDialog(
+        ws,
+        options.accept ?? false,
+        options.promptText,
+        options.timeout
+      );
 
       outputSuccess(`Dialog ${action}ed`, {
         type: dialogInfo.type,
@@ -872,6 +921,8 @@ export async function query(
     styles?: string;
     all?: boolean;
     frame?: string;
+    /** Per-round-trip CDP cap. Undefined keeps each path's own default. */
+    timeout?: number;
   }
 ): Promise<void> {
   let session: Awaited<ReturnType<typeof createExecSessionByPageRef>> | undefined;
@@ -946,17 +997,17 @@ export async function query(
         expression: jsExpression,
         contextId,
         returnByValue: true
-      });
+      }, options.timeout);
       evalResult = result;
     } else {
       session = await createExecSessionByPageRef(context, options.page);
       await session.assertNoDevTools();
       await session.assertNoDialog();
-      await session.exec('Runtime.enable');
+      await session.exec('Runtime.enable', undefined, options.timeout);
       evalResult = await session.exec('Runtime.evaluate', {
         expression: jsExpression,
         returnByValue: true
-      });
+      }, options.timeout);
     }
 
     if (evalResult.exceptionDetails) {
@@ -1001,6 +1052,8 @@ export async function styles(
     compareSiblings?: boolean;
     props?: string;
     frame?: string;
+    /** Per-round-trip CDP cap. Undefined keeps each path's own default. */
+    timeout?: number;
   }
 ): Promise<void> {
   let session: Awaited<ReturnType<typeof createExecSessionByPageRef>> | undefined;
@@ -1063,17 +1116,17 @@ export async function styles(
         expression: jsExpression,
         contextId,
         returnByValue: true
-      });
+      }, options.timeout);
       evalResult = result;
     } else {
       session = await createExecSessionByPageRef(context, options.page);
       await session.assertNoDevTools();
       await session.assertNoDialog();
-      await session.exec('Runtime.enable');
+      await session.exec('Runtime.enable', undefined, options.timeout);
       evalResult = await session.exec('Runtime.evaluate', {
         expression: jsExpression,
         returnByValue: true
-      });
+      }, options.timeout);
     }
 
     if (evalResult.exceptionDetails) {
@@ -1156,6 +1209,8 @@ export async function emulate(
     scale?: number;
     ua?: string;
     touch?: boolean;
+    /** Per-round-trip CDP cap. Undefined keeps each path's own default. */
+    timeout?: number;
   }
 ): Promise<void> {
   let session: Awaited<ReturnType<typeof createExecSessionByPageRef>> | undefined;
@@ -1169,9 +1224,9 @@ export async function emulate(
 
     if (isDesktop) {
       // Reset all overrides
-      await session.exec('Emulation.clearDeviceMetricsOverride');
-      await session.exec('Emulation.setUserAgentOverride', { userAgent: '' });
-      await session.exec('Emulation.setTouchEmulationEnabled', { enabled: false });
+      await session.exec('Emulation.clearDeviceMetricsOverride', undefined, options.timeout);
+      await session.exec('Emulation.setUserAgentOverride', { userAgent: '' }, options.timeout);
+      await session.exec('Emulation.setTouchEmulationEnabled', { enabled: false }, options.timeout);
 
       outputSuccess('Emulation reset to desktop', {
         device: 'desktop',
@@ -1199,11 +1254,11 @@ export async function emulate(
       height,
       deviceScaleFactor: scale,
       mobile,
-    });
+    }, options.timeout);
 
     // Set user agent
     if (ua) {
-      await session.exec('Emulation.setUserAgentOverride', { userAgent: ua });
+      await session.exec('Emulation.setUserAgentOverride', { userAgent: ua }, options.timeout);
     }
 
     // Enable touch
@@ -1211,7 +1266,7 @@ export async function emulate(
       await session.exec('Emulation.setTouchEmulationEnabled', {
         enabled: true,
         maxTouchPoints: 5,
-      });
+      }, options.timeout);
     }
 
     // Verify what the page actually ended up with, rather than echoing back the
@@ -1219,7 +1274,7 @@ export async function emulate(
     const applied = await session.exec('Runtime.evaluate', {
       expression: `JSON.stringify({ width: innerWidth, height: innerHeight, ua: navigator.userAgent })`,
       returnByValue: true
-    });
+    }, options.timeout);
 
     let appliedUa: string | undefined;
     try {
@@ -1267,7 +1322,7 @@ export async function emulate(
  */
 export async function dismissOverlays(
   context: CDPContext,
-  options: { page: string; frame?: string }
+  options: { page: string; frame?: string; timeout?: number }
 ): Promise<void> {
   let session: Awaited<ReturnType<typeof createExecSessionByPageRef>> | undefined;
   let directWs: Awaited<ReturnType<typeof context.connect>> | undefined;
@@ -1307,16 +1362,16 @@ export async function dismissOverlays(
         expression: jsExpression,
         contextId,
         returnByValue: true
-      });
+      }, options.timeout);
     } else {
       session = await createExecSessionByPageRef(context, options.page);
       await session.assertNoDevTools();
       await session.assertNoDialog();
-      await session.exec('Runtime.enable');
+      await session.exec('Runtime.enable', undefined, options.timeout);
       evalResult = await session.exec('Runtime.evaluate', {
         expression: jsExpression,
         returnByValue: true
-      });
+      }, options.timeout);
     }
 
     if (evalResult.exceptionDetails) {

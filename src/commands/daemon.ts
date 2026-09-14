@@ -69,7 +69,8 @@ export async function daemonStatus(options: { cdpUrl?: string } = {}): Promise<v
       const sessions = await client.listSessions();
       outputSuccess('Daemon running', {
         sessions: sessions.length,
-        details: sessions
+        details: sessions,
+        health: status.health
       });
     } else {
       outputSuccess('Daemon not running');

@@ -39,7 +39,7 @@ import {
   defaultWorkspaceSessionStorePath
 } from './sessions/workspace-session-service.js';
 import { SessionFoundationError } from './sessions/errors.js';
-import { DaemonClient } from './daemon/client.js';
+import { DaemonClient, assertConfiguredDaemonServesBrowser } from './daemon/client.js';
 import { SessionStore } from './sessions/session-store.js';
 import { coordinateWorkspaceSessionDisposal } from './sessions/session-disposal-coordinator.js';
 import {
@@ -313,6 +313,11 @@ cli.command(
         if (typeof argv.name === 'string') {
           throw new Error('session metadata-reset does not accept a session name; it resets endpoint metadata');
         }
+        // Refuse to blame/reset a store keyed by this endpoint if a
+        // CDP_DAEMON_URL-selected daemon actually serves a different
+        // browser (wi:7235/A6) - same guard context.ts's openWorkspaceService
+        // applies before touching the store.
+        await assertConfiguredDaemonServesBrowser(argv['cdp-url'] as string);
         const store = new SessionStore(defaultWorkspaceSessionStorePath(
           argv['cdp-url'] as string
         ));
@@ -323,6 +328,10 @@ cli.command(
         });
         return;
       }
+      // Same wi:7235/A6 guard context.ts's openWorkspaceService applies:
+      // refuse a daemon serving the wrong browser before the store - keyed
+      // by this endpoint - can be blamed for being stale or empty.
+      await assertConfiguredDaemonServesBrowser(argv['cdp-url'] as string);
       service = await WorkspaceSessionService.open(argv['cdp-url'] as string);
       if (action === 'list') {
         outputLines(service.listSessions().map((session) => ({
@@ -797,6 +806,19 @@ cli.command(
         type: 'string',
         description: 'Text to enter for prompt dialogs before accepting',
         alias: 't'
+      })
+      .option('timeout', {
+        type: 'number',
+        description: 'Max milliseconds to wait for the page to prove it is answering (default: 300)'
+      })
+      .check((argv) => {
+        if (argv.timeout !== undefined) {
+          const invalid = validateCommandTimeout(argv.timeout);
+          if (invalid) {
+            throw new Error(invalid);
+          }
+        }
+        return true;
       });
   },
   async (argv) => {
@@ -805,7 +827,8 @@ cli.command(
       page: argv.page as string,
       dismiss: argv.dismiss as boolean | undefined,
       accept: argv.accept as boolean | undefined,
-      promptText: argv['prompt-text'] as string | undefined
+      promptText: argv['prompt-text'] as string | undefined,
+      timeout: argv.timeout as number | undefined
     });
   }
 );
@@ -1706,6 +1729,19 @@ cli.command(
       .option('frame', {
         type: 'string',
         description: 'Target iframe by selector or index'
+      })
+      .option('timeout', {
+        type: 'number',
+        description: 'Max milliseconds for each CDP round trip (default: 10000 via daemon, 30000 direct)'
+      })
+      .check((argv) => {
+        if (argv.timeout !== undefined) {
+          const invalid = validateCommandTimeout(argv.timeout);
+          if (invalid) {
+            throw new Error(invalid);
+          }
+        }
+        return true;
       });
   },
   async (argv) => {
@@ -1717,7 +1753,8 @@ cli.command(
       attrs: argv.attrs as boolean,
       styles: argv.styles as string | undefined,
       all: argv.all as boolean,
-      frame: argv.frame as string | undefined
+      frame: argv.frame as string | undefined,
+      timeout: argv.timeout as number | undefined
     });
   }
 );
@@ -1748,6 +1785,19 @@ cli.command(
       .option('frame', {
         type: 'string',
         description: 'Target iframe by selector or index'
+      })
+      .option('timeout', {
+        type: 'number',
+        description: 'Max milliseconds for each CDP round trip (default: 10000 via daemon, 30000 direct)'
+      })
+      .check((argv) => {
+        if (argv.timeout !== undefined) {
+          const invalid = validateCommandTimeout(argv.timeout);
+          if (invalid) {
+            throw new Error(invalid);
+          }
+        }
+        return true;
       });
   },
   async (argv) => {
@@ -1756,7 +1806,8 @@ cli.command(
       page: argv.page as string,
       compareSiblings: argv['compare-siblings'] as boolean,
       props: argv.props as string | undefined,
-      frame: argv.frame as string | undefined
+      frame: argv.frame as string | undefined,
+      timeout: argv.timeout as number | undefined
     });
   }
 );

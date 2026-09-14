@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { BrowserConnection } from '../cdp/browser-connection.js';
+import { canonicalCdpEndpoint } from '../cdp/cdp-endpoint.js';
 import type { TargetRecord } from '../cdp/target-registry.js';
 import { BrowserContextManager, type BrowserContextProtocol } from './browser-context-manager.js';
 import { OperationLeaseManager } from './operation-lease-manager.js';
@@ -315,8 +316,20 @@ export class WorkspaceSessionService {
   }
 }
 
+/**
+ * The store is keyed by the ENDPOINT, not its literal spelling: `localhost`,
+ * `127.0.0.1` and `[::1]` (and a differently-cased or slash-terminated form of
+ * any of them) all name the same Chrome and must hash to the same file,
+ * whichever spelling a daemon or a client happened to be started with (wi:7468
+ * - one daemon restarted with `--cdp-url http://localhost:9333` booted an
+ * EMPTY registry while every client defaulted to `127.0.0.1:9333`, and pages
+ * stayed attached while every command answered SESSION_NOT_FOUND). An endpoint
+ * that fails to parse falls back to the raw string so callers still get a
+ * store path rather than a thrown error here.
+ */
 export function defaultWorkspaceSessionStorePath(cdpUrl: string): string {
-  const endpointKey = createHash('sha256').update(cdpUrl).digest('hex').slice(0, 16);
+  const normalized = canonicalCdpEndpoint(cdpUrl) ?? cdpUrl;
+  const endpointKey = createHash('sha256').update(normalized).digest('hex').slice(0, 16);
   return join(homedir(), '.cdp-cli', `sessions-${endpointKey}.json`);
 }
 
