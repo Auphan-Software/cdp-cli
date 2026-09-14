@@ -10,6 +10,7 @@ import type { ConsoleMessage, NetworkRequest, DialogInfo } from '../context.js';
 import { SessionFoundationError, type SessionErrorCode } from '../sessions/errors.js';
 import type { OperationLease } from '../sessions/operation-lease-manager.js';
 import { CommandTimeoutError } from '../cdp/command-timeout.js';
+import type { UnregisterablePage } from './page-registration-tracker.js';
 
 const DEFAULT_DAEMON_PORT = 9223;
 const DEFAULT_DAEMON_URL = `http://127.0.0.1:${DEFAULT_DAEMON_PORT}`;
@@ -357,15 +358,32 @@ export class DaemonClient {
   /**
    * Get daemon status
    */
-  async getStatus(): Promise<{ running: boolean; sessions?: number }> {
+  async getStatus(): Promise<{
+    running: boolean;
+    sessions?: number;
+    unregisterablePages?: number;
+    abandonedPages?: number;
+  }> {
     const baseUrl = this.baseUrl;
     try {
       const res = await (globalThis.fetch ?? undiciFetch)(`${baseUrl}/health`, {
         signal: AbortSignal.timeout(1000)
       });
       if (res.ok) {
-        const data = await res.json() as { status: string; sessions: number };
-        return { running: true, sessions: data.sessions };
+        const data = await res.json() as {
+          status: string;
+          sessions: number;
+          unregisterablePages?: number;
+          abandonedPages?: number;
+        };
+        // A daemon predating these fields reports neither; report 0 rather
+        // than undefined so a caller never reads "unknown" as "none".
+        return {
+          running: true,
+          sessions: data.sessions,
+          unregisterablePages: data.unregisterablePages ?? 0,
+          abandonedPages: data.abandonedPages ?? 0
+        };
       }
       return { running: false };
     } catch {
@@ -455,6 +473,18 @@ export class DaemonClient {
     const res = await (globalThis.fetch ?? undiciFetch)(`${await this.base()}/sessions`);
     const data = await res.json() as { sessions: any[] };
     return data.sessions ?? [];
+  }
+
+  /**
+   * Pages the daemon is failing to register, abandoned ones included.
+   *
+   * Registration failures are invisible in `listSessions`, by construction: a
+   * page that cannot register never becomes a session. Ask for them directly.
+   */
+  async listUnregisterablePages(): Promise<UnregisterablePage[]> {
+    const res = await (globalThis.fetch ?? undiciFetch)(`${await this.base()}/sessions`);
+    const data = await res.json() as { unregisterable?: UnregisterablePage[] };
+    return data.unregisterable ?? [];
   }
 
   /** Get the daemon's bounded JavaScript-dialog state for a page. */

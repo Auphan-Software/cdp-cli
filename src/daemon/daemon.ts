@@ -5,6 +5,7 @@
 import { createServer, IncomingMessage, ServerResponse } from 'http';
 import { WebSocket } from 'ws';
 import { PageSession } from './page-session.js';
+import { PageRegistrationTracker } from './page-registration-tracker.js';
 import { CDPContext, Page, CDPMessage } from '../context.js';
 import { WorkspaceSessionService } from '../sessions/workspace-session-service.js';
 import { OperationLeaseManager } from '../sessions/operation-lease-manager.js';
@@ -14,12 +15,19 @@ import { CommandTimeoutError, validateCommandTimeout } from '../cdp/command-time
 const DEFAULT_DAEMON_PORT = 9223;
 const DEFAULT_CDP_URL = 'http://localhost:9222';
 const DEFAULT_BUFFER_SIZE = 500;
+const DEFAULT_HEALTH_CHECK_INTERVAL_MS = 5000;
 
 interface DaemonConfig {
   port: number;
   cdpUrl: string;
   bufferSize: number;
   workspaceRootResolver?: (sessionName: string, pageId: string) => Promise<string>;
+  /** Health-check period. Configurable so tests can drive many real ticks. */
+  healthCheckIntervalMs: number;
+  /** Retry policy for pages that fail to register; see PageRegistrationTracker. */
+  registrationBaseDelayMs?: number;
+  registrationMaxDelayMs?: number;
+  registrationMaxAttempts?: number;
 }
 
 interface SessionInfo {
@@ -38,15 +46,30 @@ export class CDPDaemon {
   private browserWs: WebSocket | null = null;
   private browserMessageId = 1;
   private readonly workspaceLeases = new OperationLeaseManager();
+  private readonly registrations: PageRegistrationTracker;
 
   constructor(config: Partial<DaemonConfig> = {}) {
     this.config = {
       port: config.port ?? DEFAULT_DAEMON_PORT,
       cdpUrl: config.cdpUrl ?? DEFAULT_CDP_URL,
       bufferSize: config.bufferSize ?? DEFAULT_BUFFER_SIZE,
-      workspaceRootResolver: config.workspaceRootResolver
+      workspaceRootResolver: config.workspaceRootResolver,
+      healthCheckIntervalMs: config.healthCheckIntervalMs ?? DEFAULT_HEALTH_CHECK_INTERVAL_MS,
+      registrationBaseDelayMs: config.registrationBaseDelayMs,
+      registrationMaxDelayMs: config.registrationMaxDelayMs,
+      registrationMaxAttempts: config.registrationMaxAttempts
     };
     this.context = new CDPContext(this.config.cdpUrl);
+    this.registrations = new PageRegistrationTracker({
+      baseDelayMs: this.config.registrationBaseDelayMs,
+      maxDelayMs: this.config.registrationMaxDelayMs,
+      maxAttempts: this.config.registrationMaxAttempts
+    });
+  }
+
+  /** Pages the daemon is failing to register, abandoned ones included. */
+  get unregisterablePages(): ReturnType<PageRegistrationTracker['list']> {
+    return this.registrations.list();
   }
 
   get listeningPort(): number {
@@ -123,11 +146,18 @@ export class CDPDaemon {
           }
         }
 
-        // Auto-register untracked pages
+        // A page that is gone is no longer failing, and its record must not
+        // outlive it - otherwise the map grows for the life of the daemon and
+        // a reused page id inherits a stranger's give-up.
+        this.registrations.retainOnly(pageIds);
+
+        // Auto-register untracked pages, subject to backoff. A page that
+        // cannot register is never in `sessions`, so without this gate its own
+        // failure schedules its next attempt, every tick, forever.
         for (const page of pages) {
-          if (!this.sessions.has(page.id)) {
-            await this.registerPage(page);
-          }
+          if (this.sessions.has(page.id)) continue;
+          if (!this.registrations.shouldAttempt(page.id)) continue;
+          await this.registerPage(page);
         }
       } catch {
         // Chrome not available - try to reconnect browser WS
@@ -135,7 +165,7 @@ export class CDPDaemon {
           this.startTargetDiscovery().catch(() => {});
         }
       }
-    }, 5000);
+    }, this.config.healthCheckIntervalMs);
   }
 
   /**
@@ -159,9 +189,11 @@ export class CDPDaemon {
     try {
       await session.connect();
       this.sessions.set(page.id, session);
+      this.registrations.recordSuccess(page.id);
       registered = true;
       return true;
-    } catch {
+    } catch (error) {
+      this.registrations.recordFailure(page.id, error);
       return false;
     } finally {
       // A session that is not in `sessions` is owned by nobody, so nothing
@@ -273,7 +305,11 @@ export class CDPDaemon {
         this.sendJson(res, 200, {
           status: 'ok',
           sessions: this.sessions.size,
-          cdpUrl: this.config.cdpUrl
+          cdpUrl: this.config.cdpUrl,
+          // A page the daemon has given up on is a real, ongoing fault. It
+          // must not be invisible just because the daemon stopped retrying.
+          unregisterablePages: this.registrations.list().length,
+          abandonedPages: this.registrations.abandonedCount
         });
         return;
       }
@@ -343,7 +379,10 @@ export class CDPDaemon {
             networkLogs: stats.network
           });
         }
-        this.sendJson(res, 200, { sessions });
+        this.sendJson(res, 200, {
+          sessions,
+          unregisterable: this.registrations.list()
+        });
         return;
       }
 
@@ -378,12 +417,23 @@ export class CDPDaemon {
           }
         });
 
+        // An explicit registration request is a caller asserting this page is
+        // worth trying again, so it clears any standing backoff or give-up
+        // rather than being answered out of a stale one.
+        this.registrations.forget(pageId);
+        let created = false;
         try {
           await session.connect();
           this.sessions.set(pageId, session);
+          created = true;
           this.sendJson(res, 201, { status: 'created', pageId });
         } catch (err) {
+          this.registrations.recordFailure(pageId, err);
           this.sendJson(res, 500, { error: `Failed to connect: ${(err as Error).message}` });
+        } finally {
+          // Whatever is not kept, is closed. This route is the third caller of
+          // `connect()` and it leaked exactly like `registerPage` did.
+          if (!created) session.close();
         }
         return;
       }

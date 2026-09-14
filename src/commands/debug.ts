@@ -802,6 +802,18 @@ export async function dialog(
 /**
  * Get combined status of daemon and Chrome
  */
+/**
+ * Detail for abandoned pages, best effort: an old daemon has no such route,
+ * and status must still report everything else it did learn.
+ */
+async function listUnregisterable(client: DaemonClient): Promise<unknown[]> {
+  try {
+    return await client.listUnregisterablePages();
+  } catch {
+    return [];
+  }
+}
+
 export async function status(context: CDPContext): Promise<void> {
   try {
     // Check daemon status
@@ -843,7 +855,15 @@ export async function status(context: CDPContext): Promise<void> {
       },
       daemon: {
         running: daemonStatus.running,
-        sessions: daemonStatus.sessions
+        sessions: daemonStatus.sessions,
+        // Pages the daemon cannot register - and, of those, the ones it has
+        // stopped retrying. A wedged page is otherwise invisible here: it
+        // never becomes a session, so `sessions` alone reads as healthy.
+        unregisterablePages: daemonStatus.unregisterablePages,
+        abandonedPages: daemonStatus.abandonedPages,
+        ...(daemonStatus.abandonedPages
+          ? { unregisterable: await listUnregisterable(client) }
+          : {})
       },
       chrome: chromeStatus
     });
