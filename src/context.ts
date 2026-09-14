@@ -530,8 +530,34 @@ export class CDPContext {
   /**
    * Check if a JavaScript dialog (alert/confirm/prompt) is currently open
    * Uses multiple strategies since dialog events only fire at open time
+   *
+   * Returns only the dialog. Callers that must tell "no dialog, and the page
+   * answered" from "no dialog, because the page answered nothing" need
+   * `inspectDialogState` instead - a null here means both.
    */
   async checkForDialog(ws: WebSocket): Promise<DialogInfo | null> {
+    return (await this.inspectDialogState(ws)).dialog;
+  }
+
+  /**
+   * Dialog state PLUS how much the check actually established.
+   *
+   * `checkForDialog` returns null both when a responsive page reported no
+   * dialog and when the renderer never answered the probe at all. Those are
+   * opposite facts, and collapsing them is what let `cdp-cli dialog` answer
+   * "No dialog present" with a success exit code for a wedged page - the exact
+   * "reported health while unusable" failure this tool exists to stop. The
+   * observation is therefore returned alongside the dialog, and only a probe
+   * that positively answered yields `absent`.
+   *
+   * `probeTimeoutMs` caps the Strategy 2 responsiveness probe so a caller that
+   * knows its page is legitimately slow can raise it via `--timeout` rather
+   * than be told the renderer is wedged.
+   */
+  async inspectDialogState(
+    ws: WebSocket,
+    probeTimeoutMs: number = 300
+  ): Promise<{ dialog: DialogInfo | null; observation: DialogObservation }> {
     // Strategy 1: Listen for dialog event while enabling Page domain
     const eventBasedCheck = new Promise<DialogInfo | null>((resolve) => {
       let dialogInfo: DialogInfo | null = null;
@@ -585,33 +611,42 @@ export class CDPContext {
     });
 
     const result = await eventBasedCheck;
-    if (result) return result;
+    // The dialog event is the only trustworthy positive signal, and seeing it
+    // fire is itself proof the page answered.
+    if (result) return { dialog: result, observation: 'absent' };
 
-    // Strategy 2: Try Runtime.evaluate - if it times out, dialog is likely blocking
-    // This catches already-open dialogs that we missed the event for
+    // Strategy 2: a bounded responsiveness probe. It cannot prove a dialog -
+    // navigation, target teardown and a busy renderer all look identical here
+    // - but answering it DOES prove the renderer is alive, which is what lets
+    // Strategy 1's silence be read as "no dialog" rather than "no answer".
     try {
       const evalPromise = this.sendCommand(ws, 'Runtime.evaluate', {
         expression: '1',
-        timeout: 200
+        timeout: Math.max(1, Math.floor(probeTimeoutMs * 2 / 3))
       });
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('timeout')), 300)
+        setTimeout(() => reject(new Error('timeout')), probeTimeoutMs)
       );
       await Promise.race([evalPromise, timeoutPromise]);
-      // If we get here, no dialog is blocking
-      return null;
+      // The page answered and no dialog event fired: a dialog is ruled out.
+      return { dialog: null, observation: 'absent' };
     } catch {
-      // A timeout or execution error is not proof of a dialog: navigation,
-      // target teardown, and a busy renderer look identical here. Only the
-      // Page.javascriptDialogOpening event is a trustworthy positive signal.
-      return null;
+      // Nothing was established. Reporting this as "no dialog" would be a
+      // claim the probe never earned, so it is returned as `unknown` and the
+      // caller decides how loudly to say so.
+      return { dialog: null, observation: 'unknown' };
     }
   }
 
   /**
    * Dismiss or accept a JavaScript dialog
    */
-  async handleDialog(ws: WebSocket, accept: boolean, promptText?: string): Promise<void> {
+  async handleDialog(
+    ws: WebSocket,
+    accept: boolean,
+    promptText?: string,
+    timeoutMs?: number
+  ): Promise<void> {
     // Ensure Page domain is enabled (required for handleJavaScriptDialog)
     // This may timeout if dialog is blocking, which is fine
     try {
@@ -626,7 +661,7 @@ export class CDPContext {
     await this.sendCommand(ws, 'Page.handleJavaScriptDialog', {
       accept,
       promptText
-    });
+    }, timeoutMs);
   }
 
   /**

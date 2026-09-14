@@ -727,6 +727,83 @@ describe('Debug Commands', () => {
       expect(result.success).toBe(true);
       expect(result.dialog).toBeNull();
       expect(result.message).toBe('No dialog present');
+      // Only claimed once the probe positively answered - see the wedged-page
+      // test below for the case this flag exists to separate it from.
+      expect(result.rendererResponsive).toBe(true);
+    });
+
+    // A5 regression. Before the fix, `checkForDialog` returned null both when a
+    // responsive page reported no dialog and when the renderer answered nothing
+    // at all, and `dialog` turned the second into
+    // {"success":true,"dialog":null,"message":"No dialog present"} with exit 0.
+    // That is the tool reporting health for an unusable page - and it is the
+    // command the wedge diagnosis tells agents to run to establish dialog state,
+    // so the false all-clear is what convinces a caller the page is fine.
+    it('should refuse to report "no dialog" when the renderer never answered', async () => {
+      const capture = captureConsoleOutput();
+      const exit = mockProcessExit();
+      const context = new CDPContext();
+
+      const originalConnect = context.connect.bind(context);
+      context.connect = async (page) => {
+        const ws = await originalConnect(page) as MockWebSocket;
+        // A wedged renderer accepts the bytes and replies to nothing. Page.enable
+        // and the Runtime.evaluate probe both hit their caps.
+        ws.send = () => {};
+        return ws;
+      };
+
+      // process.exit is mocked to throw, so the command's exit is caught here.
+      await expect(debug.dialog(context, { page: 'page1', timeout: 40 })).rejects.toThrow('process.exit(1)');
+
+      const logs = capture.getLogs();
+      const errors = capture.getErrors();
+      capture.restore();
+      exit.restore();
+
+      // The load-bearing assertion: no success line at all.
+      expect(logs.filter(l => l.includes('"success":true'))).toHaveLength(0);
+      expect(logs.join('') + errors.join('')).not.toContain('No dialog present');
+
+      const reported = JSON.parse([...logs, ...errors].find(l => l.includes('"error":true'))!);
+      expect(reported.error).toBe(true);
+      expect(reported.code).toBe('DIALOG_FAILED');
+      expect(reported.message).toContain('could NOT be established');
+      expect(reported.message).toContain('wedged');
+      expect(reported.details.cause.details).toMatchObject({
+        timeoutMs: 40,
+        phase: 'command'
+      });
+      expect(exit.exitCode).toBe(1);
+    });
+
+    it('should refuse to dismiss blindly when the renderer never answered', async () => {
+      const capture = captureConsoleOutput();
+      const exit = mockProcessExit();
+      const context = new CDPContext();
+      const sent: any[] = [];
+
+      const originalConnect = context.connect.bind(context);
+      context.connect = async (page) => {
+        const ws = await originalConnect(page) as MockWebSocket;
+        ws.send = (data: string) => { sent.push(JSON.parse(data)); };
+        return ws;
+      };
+
+      await expect(
+        debug.dialog(context, { page: 'page1', dismiss: true, timeout: 40 })
+      ).rejects.toThrow('process.exit(1)');
+
+      const logs = capture.getLogs();
+      const errors = capture.getErrors();
+      capture.restore();
+      exit.restore();
+
+      // It must not claim it dismissed anything, and must not actually fire the
+      // dismissal against a page whose dialog state it could not establish.
+      expect(logs.join('') + errors.join('')).not.toContain('dismissed');
+      expect(sent.filter(m => m.method === 'Page.handleJavaScriptDialog')).toHaveLength(0);
+      expect(exit.exitCode).toBe(1);
     });
 
     it('should report dialog info when dialog is present', async () => {

@@ -806,6 +806,19 @@ cli.command(
         type: 'string',
         description: 'Text to enter for prompt dialogs before accepting',
         alias: 't'
+      })
+      .option('timeout', {
+        type: 'number',
+        description: 'Max milliseconds to wait for the page to prove it is answering (default: 300)'
+      })
+      .check((argv) => {
+        if (argv.timeout !== undefined) {
+          const invalid = validateCommandTimeout(argv.timeout);
+          if (invalid) {
+            throw new Error(invalid);
+          }
+        }
+        return true;
       });
   },
   async (argv) => {
@@ -814,7 +827,8 @@ cli.command(
       page: argv.page as string,
       dismiss: argv.dismiss as boolean | undefined,
       accept: argv.accept as boolean | undefined,
-      promptText: argv['prompt-text'] as string | undefined
+      promptText: argv['prompt-text'] as string | undefined,
+      timeout: argv.timeout as number | undefined
     });
   }
 );
