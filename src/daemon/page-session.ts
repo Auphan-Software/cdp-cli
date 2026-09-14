@@ -63,35 +63,71 @@ export class PageSession {
       throw new Error('Session is closed');
     }
 
-    return new Promise((resolve, reject) => {
-      this.ws = new WebSocket(this.webSocketUrl);
+    // A connect that does not complete MUST NOT leave its socket open. The
+    // reject paths below run with the socket already ESTABLISHED (the open
+    // handler rejects when `enableLogging` fails - a wedged renderer answers
+    // neither Runtime.enable nor Network.enable), and `ws` pins its TCP socket
+    // to the event loop, so an unclosed one is never collected. The caller in
+    // `Daemon.registerPage` drops the session on failure, and the 5s health
+    // check re-registers any page that is not in `sessions` - which a failed
+    // registration never is. One page that cannot register therefore leaked one
+    // ESTABLISHED socket every 5 seconds, without bound, until the machine ran
+    // out of ephemeral ports. Measured at ~1/tick from a single wedged page.
+    try {
+      await new Promise<void>((resolve, reject) => {
+        this.ws = new WebSocket(this.webSocketUrl);
 
-      this.ws.on('open', async () => {
-        try {
-          await this.enableLogging();
-          resolve();
-        } catch (err) {
+        this.ws.on('open', async () => {
+          try {
+            await this.enableLogging();
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        });
+
+        this.ws.on('message', (data: Buffer) => {
+          this.handleMessage(data);
+        });
+
+        this.ws.on('close', () => {
+          this.ws = null;
+          if (!this.closed && this.onCloseCallback) {
+            this.onCloseCallback();
+          }
+          // A socket that closes before the handshake completes must settle
+          // this promise; otherwise `connect()` never returns and the caller
+          // holds the session forever.
+          reject(new Error(`Page ${this.pageId} closed its debugging connection while connecting`));
+        });
+
+        this.ws.on('error', (err) => {
           reject(err);
-        }
+        });
       });
+    } catch (error) {
+      this.abortSocket();
+      throw error;
+    }
+  }
 
-      this.ws.on('message', (data: Buffer) => {
-        this.handleMessage(data);
-      });
-
-      this.ws.on('close', () => {
-        this.ws = null;
-        if (!this.closed && this.onCloseCallback) {
-          this.onCloseCallback();
-        }
-      });
-
-      this.ws.on('error', (err) => {
-        if (this.ws?.readyState === WebSocket.CONNECTING) {
-          reject(err);
-        }
-      });
-    });
+  /**
+   * Discard the socket of a connection that failed to come up.
+   *
+   * `terminate()` rather than `close()`: this connection is being thrown away,
+   * a close handshake with an endpoint that just failed us may never complete
+   * (ws then holds the socket for its own 30s close timeout), and an abort
+   * leaves no TIME_WAIT behind for a path the health check retries every 5s.
+   */
+  private abortSocket(): void {
+    const ws = this.ws;
+    this.ws = null;
+    if (!ws) return;
+    try {
+      ws.terminate();
+    } catch {
+      // Already gone; the socket is what mattered.
+    }
   }
 
   /**

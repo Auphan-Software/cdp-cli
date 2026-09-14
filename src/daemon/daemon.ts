@@ -155,12 +155,20 @@ export class CDPDaemon {
       }
     });
 
+    let registered = false;
     try {
       await session.connect();
       this.sessions.set(page.id, session);
+      registered = true;
       return true;
     } catch {
       return false;
+    } finally {
+      // A session that is not in `sessions` is owned by nobody, so nothing
+      // will ever close it - and the health check re-registers this page in
+      // 5s, forever. `connect()` already aborts its own socket, but the
+      // ownership rule belongs here too: whatever is not kept, is closed.
+      if (!registered) session.close();
     }
   }
 
