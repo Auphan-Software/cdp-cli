@@ -315,8 +315,35 @@ export class WorkspaceSessionService {
   }
 }
 
+/**
+ * One browser is one session store, regardless of how its endpoint was spelled.
+ *
+ * The store filename is sha256 of the CDP url. Unnormalized, `--cdp-url http://localhost:9333`
+ * and the default `http://127.0.0.1:9333` hash to different files, so restarting a daemon with
+ * the other spelling boots an EMPTY registry while pages are still attached - every page command
+ * then fails SESSION_NOT_FOUND while `session list` and `/health` still look fine (wi:7468).
+ *
+ * `localhost` and `[::1]` fold onto `127.0.0.1`, scheme and host lowercase, a default port and a
+ * trailing slash are dropped. `http://127.0.0.1:9333` - the spelling every store on disk was
+ * written under - normalizes to itself, so no live store is orphaned by this change.
+ */
+export function normalizeCdpEndpoint(cdpUrl: string): string {
+  let url: URL;
+  try {
+    url = new URL(cdpUrl.trim());
+  } catch {
+    return cdpUrl.trim().replace(/[/]+$/, '');
+  }
+  const host = url.hostname.toLowerCase();
+  url.hostname = host === 'localhost' || host === '::1' || host === '[::1]' ? '127.0.0.1' : host;
+  if ((url.protocol === 'http:' && url.port === '80') || (url.protocol === 'https:' && url.port === '443')) {
+    url.port = '';
+  }
+  return `${url.protocol}//${url.host}${url.pathname.replace(/[/]+$/, '')}${url.search}`;
+}
+
 export function defaultWorkspaceSessionStorePath(cdpUrl: string): string {
-  const endpointKey = createHash('sha256').update(cdpUrl).digest('hex').slice(0, 16);
+  const endpointKey = createHash('sha256').update(normalizeCdpEndpoint(cdpUrl)).digest('hex').slice(0, 16);
   return join(homedir(), '.cdp-cli', `sessions-${endpointKey}.json`);
 }
 
