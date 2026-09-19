@@ -175,9 +175,6 @@ export async function createExecSession(
     // Daemon not running, fall through to direct connection
   }
 
-  // Fall back to direct WebSocket connection
-  const ws = await context.connect(page);
-
   // Check if daemon has a session for this page - if so, skip DevTools check
   let daemonConnectedToPage = false;
   try {
@@ -187,6 +184,15 @@ export async function createExecSession(
     rethrowDaemonConfigError(context, error);
     // Daemon not running
   }
+
+  // Fall back to direct WebSocket connection. The DevTools check must run BEFORE
+  // we open our own connection: Target.getTargets cannot distinguish our own
+  // attachment from a real DevTools frontend, so checking after connect() means
+  // we are always "attached" to ourselves (context.ts:isDevToolsAttached).
+  if (!daemonConnectedToPage) {
+    await context.assertNoDevTools(page.id);
+  }
+  const ws = await context.connect(page);
 
   return {
     pageId: page.id,
@@ -200,9 +206,7 @@ export async function createExecSession(
       (method, params, timeoutMs) => context.sendCommand(ws, method, params, timeoutMs),
       () => 'unknown'
     ),
-    assertNoDevTools: daemonConnectedToPage
-      ? async () => {}
-      : () => context.assertNoDevTools(page.id),
+    assertNoDevTools: async () => {}, // already checked above, before connect()
     assertNoDialog: () => context.assertNoDialog(ws),
     close: () => ws.close()
   };
@@ -268,7 +272,6 @@ export async function createExecSessionByPageRef(
 
   // Fall back to traditional path: findPage + direct WebSocket
   const page = await context.findPage(pageIdOrTitle);
-  const ws = await context.connect(page);
 
   // Check if daemon has a session for this page - if so, skip DevTools check
   // (daemon's connection shows as attached but doesn't block commands)
@@ -281,6 +284,14 @@ export async function createExecSessionByPageRef(
     // Daemon not running
   }
 
+  // The DevTools check must run BEFORE we open our own connection: Target.getTargets
+  // cannot distinguish our own attachment from a real DevTools frontend, so checking
+  // after connect() means we are always "attached" to ourselves (context.ts:isDevToolsAttached).
+  if (!daemonConnectedToPage) {
+    await context.assertNoDevTools(page.id);
+  }
+  const ws = await context.connect(page);
+
   return {
     pageId: page.id,
     ws,
@@ -292,9 +303,7 @@ export async function createExecSessionByPageRef(
       (method, params, timeoutMs) => context.sendCommand(ws, method, params, timeoutMs),
       () => 'unknown'
     ),
-    assertNoDevTools: daemonConnectedToPage
-      ? async () => {} // Daemon connected - skip check
-      : () => context.assertNoDevTools(page.id),
+    assertNoDevTools: async () => {}, // already checked above, before connect()
     assertNoDialog: () => context.assertNoDialog(ws),
     close: () => ws.close()
   };
