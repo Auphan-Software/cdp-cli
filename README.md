@@ -6,6 +6,37 @@ Command-line interface for Chrome DevTools Protocol (CDP), optimized for LLM age
 
 `cdp-cli` provides CLI access to all Chrome DevTools Protocol features, making it easy to automate browser interactions, debug web applications, and inspect network traffic - all from the command line with grep/tail-friendly output.
 
+### Page state captures and diffs (experimental)
+
+Use a bounded page-state diff when the question is whether an action changed visible text or control state. The last NDJSON line from `state click`, `state diff`, and `state expect` is the result envelope.
+
+```bash
+cdp-cli state capture PAGE --name before
+cdp-cli click '#save' PAGE
+cdp-cli state capture PAGE --name after
+cdp-cli state diff before after PAGE
+
+# One call for capture, click and diff:
+cdp-cli state click '#save' PAGE
+```
+
+`state diff` reports `changed:true`, `changed:false`, or `changed:null` when coverage is incomplete. It includes added and removed controls or text regions, field transitions, and coverage warnings. Captures walk same-origin iframes and open shadow roots by default. Use `--frame '#frame-id'` to limit a capture and `--ignore '.clock'` to exclude a known volatile region. The default capture takes a second reading after 1.2 seconds to detect loading or changing content. `state click` waits for network idle by default; use `--no-wait-for-idle` only when the action is known to be synchronous. `--stability-ms=0` is intended for already settled deterministic fixtures. A delayed update that begins after the idle window still needs an explicit wait or later capture.
+
+Expectations live in a JSON file:
+
+```json
+{
+  "mustChange": [{ "key": "top|id:status", "field": "text", "from": "Ready", "to": "Saved" }],
+  "mustNotChange": [{ "key": "top|id:total", "field": "text" }]
+}
+```
+
+Run `cdp-cli state expect before after PAGE --spec expectations.json`. Its `value.outcome` is `PASSED`, `FAILED`, or `UNKNOWN`. Evaluation returns exit code zero even for a failed assertion so Jarvis can classify the final JSON line; add `--exit-on-fail` in a shell gate. A MUST-NOT-CHANGE key absent from both captures or backed only by a weak position-based identity is `UNKNOWN`. Literal `from` and `to` strings for `field:"value"` are compared through the local HMAC; entered values are stored as length and digest. Captures are scoped to the browser endpoint, session and page target under `~/.cdp-cli/state`; the newest 200 captures per target are kept by default. Set `CDP_STATE_MAX_CAPTURES=0` for unlimited retention. `state list PAGE` and `state rm REF PAGE` manage them.
+
+`state click '#save' PAGE --spec expectations.json --exit-on-fail` checks the expectation file before clicking and returns one final verdict line. Use a stable ID, `data-testid`, or row key for assertions. Captures with different frame, ignore, or element-limit options cannot be compared. Incomplete coverage, unstable content, unreachable frames, or ambiguous keys yield `UNKNOWN` instead of a false no-op. Raw visible labels and text are persisted in capture files; editable and form values are masked, but capture files should still be treated as sensitive artifacts.
+
+This prototype does not yet include console or network activity in the diff. CSS boxes are included only with `state diff ... --layout`; color, borders, imagery, closed shadow roots and other visual effects still require a targeted screenshot. A diff proves a visible transition at capture time, not persistence in the database. Use the existing browser, console, network and database checks for those questions.
+
 > **Distribution note**
 > This scoped build (`@auphansoftware/cdp-cli`) is published for Auphan Software internal use, remains under the MIT license, and bundles the upstream work originally authored by [@myers](https://github.com/myers) at [github.com/myers/cdp-cli](https://github.com/myers/cdp-cli).
 

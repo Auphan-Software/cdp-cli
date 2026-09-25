@@ -1,0 +1,5 @@
+{
+  "mustChange": [
+    { "key": "top|id:status", "field": "text", "from": "Ready", "to": "Saved" }
+  ]
+}

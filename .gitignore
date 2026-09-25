@@ -17,3 +17,6 @@ bundle/cdp-cli-exe.mjs
 
 # Screenshots written by manual test runs
 bundle/*.png
+
+# Mined eval data (transcript-derived; regenerate with evals/state-diff/mine-transcripts.mjs)
+evals/state-diff/out/

@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "name": "state-diff-runner-contract",
+  "params": {},
+  "rows": {
+    "R1": {
+      "steps": [
+        {
+          "id": "state-transition",
+          "cdp": ["state", "click", "[data-testid=action]", "{{page}}", "--stability-ms=0", "--spec", "{{spec}}", "--cdp-url", "{{cdpUrl}}"],
+          "expect": { "path": "outcome", "equals": "PASSED" }
+        }
+      ]
+    }
+  }
+}
