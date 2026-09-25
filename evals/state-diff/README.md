@@ -7,9 +7,38 @@ trust. They run in order. Each tier gates the next.
 | Tier | Question | Needs the feature? | Status |
 |---|---|---|---|
 | E1 transcript mining | What does verification cost today, and which failure classes must the diff handle? | no | **implemented** (`mine-transcripts.mjs`) |
-| E2 fixture accuracy | Does the diff report exactly the right changes, deterministically? | prototype | spec below |
-| E3 real-app replay | Does it stay quiet and useful on real mako2 pages? | prototype | spec below |
-| E4 agent A/B | Do agents reach correct verdicts with fewer tokens, calls and screenshots? | Phase 2 | spec below |
+| E2 fixture accuracy | Does the diff report exactly the right changes, deterministically? | prototype | partial live suite and seven-case agent fixture |
+| E3 real-app replay | Does it stay quiet and useful on real mako2 pages? | prototype | three quiet pages plus one manual UI action; ten journey replay pending |
+| E4 agent A/B | Do agents reach correct verdicts with fewer tokens, calls and screenshots? | Phase 2 | seven-case synthetic pilot for three models; full Mako2 A/B pending |
+
+## Prototype pilot (2026-09-25)
+
+The bounded prototype is `src/state/` plus `state capture|diff|expect|click`. Run
+`npm test`, `npm run test:live`, and the opt-in real-app suite with
+`CDP_MAKO2_EVAL_URL=http://127.0.0.1/mako2-state-diff-evals/`. The live suite
+covers controls, masked form values, same-origin frames, open shadow roots,
+dialogs, delayed fetches, concurrency, retention, and expectation gates. The
+seven-case fixture is `fixtures/qa-agent.html`; `run-agent-fixture.mjs` serves
+it on a temporary local port, then emits one compact batch observation and
+two screenshots for its visual-only case. An external fixture URL can be set
+with `CDP_STATE_EVAL_BASE_URL` when comparing against a hosted copy.
+
+The controlled pilot classified all seven cases correctly with Luna, Sol, and
+Sonnet in the batch arm, each viewing only the two visual-case screenshots.
+Unbatched compact diffs alone were not a reliable token saving: Luna made one
+false alarm on the idempotent save, and Sol used more total input tokens than
+the baseline despite fewer shell calls. The one-call batch was the large
+improvement. These are one-run, synthetic results; they do not satisfy the
+12-Mako2-task E4 ship bar below.
+
+On three booted Mako2 pages, the capture files were 33–69 KB while a no-op
+diff line was 462–470 bytes. The second capture took about 1.8 seconds,
+including the default 1.2-second stability probe. One cold SPA run returned
+`changed:null` during ongoing paint, then a fresh pair returned `false`;
+that is the intended honest coverage behavior. The original 250 ms capture
+latency bar below is **not met** with default stability checking. Console and
+network windows, visual hashes, and complete real journey replay remain
+future work.
 
 ## E1 — transcript mining (implemented)
 

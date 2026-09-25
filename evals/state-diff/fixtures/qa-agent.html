@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>State verification fixture</title>
+<style>
+  body { font: 18px system-ui; max-width: 760px; padding: 24px; }
+  button { padding: 8px 14px; margin: 10px 0; }
+  #visual-panel { width: 280px; height: 90px; border: 2px solid #888; padding: 10px; }
+  #visual-panel.highlighted { border: 8px solid #1769d2; }
+  dialog { border-radius: 6px; padding: 20px; }
+</style>
+<h1 id="case-title">Verification case</h1>
+<main id="case-root"></main>
+<script>
+  const root = document.querySelector('#case-root');
+  const current = new URL(location.href).searchParams.get('case');
+  const cases = {
+    noop: {
+      title: 'Save status',
+      html: '<p id="status">Ready</p><button data-testid="action">Save</button>',
+      act: () => {}
+    },
+    total: {
+      title: 'Cart total',
+      html: '<p>Items: <span id="count">1</span></p><p>Total: <span id="total">$5.00</span></p><button data-testid="action">Add item</button>',
+      act: () => { document.querySelector('#count').textContent = '2'; }
+    },
+    dialog: {
+      title: 'Payment dialog',
+      html: '<p id="payment-status">Awaiting payment</p><button data-testid="action">Pay</button><dialog id="payment-dialog">Choose a tender</dialog>',
+      act: () => {}
+    },
+    visual: {
+      title: 'Visual highlight',
+      html: '<div id="visual-panel">Selected product</div><button data-testid="action">Highlight</button>',
+      act: () => { document.querySelector('#visual-panel').classList.add('highlighted'); }
+    },
+    clean: {
+      title: 'Working cart',
+      html: '<p>Items: <span id="count">1</span></p><p>Total: <span id="total">$5.00</span></p><button data-testid="action">Add item</button>',
+      act: () => { document.querySelector('#count').textContent = '2'; document.querySelector('#total').textContent = '$10.00'; }
+    },
+    idempotent: {
+      title: 'Save without changing cart',
+      html: '<p id="status">Ready</p><p>Total: <span id="total">$5.00</span></p><button data-testid="action">Save</button>',
+      act: () => { document.querySelector('#status').textContent = 'Saved'; }
+    },
+    frame: {
+      title: 'Embedded panel refresh',
+      html: '<iframe id="panel" title="Panel" src="?case=framechild"></iframe><button data-testid="action">Refresh panel</button>',
+      act: () => {}
+    },
+    framechild: { title: 'Panel', html: '<p id="panel-status">Old panel</p>', act: () => {} }
+  };
+  const selected = cases[current] || cases.noop;
+  document.querySelector('#case-title').textContent = selected.title;
+  root.innerHTML = selected.html;
+  root.querySelector('[data-testid=action]')?.addEventListener('click', selected.act);
+</script>
+</html>
