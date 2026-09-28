@@ -14,6 +14,7 @@ import { hideBin } from 'yargs/helpers';
 import { CDPContext, setDefaultWorkspaceSession } from './context.js';
 import { versionString } from './version.js';
 import { validateCommandTimeout } from './cdp/command-timeout.js';
+import { recordSuccessfulAction, replayActions } from './recording.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 import * as pages from './commands/pages.js';
@@ -463,6 +464,7 @@ cli.command(
       argv.page as string,
       waitOptions
     );
+    recordSuccessfulAction(argv.page as string);
   }
 );
 
@@ -660,6 +662,24 @@ cli.command(
 
 // Structured, persisted page state. The existing snapshot discovery output stays stable.
 cli.command(
+  'record <operation> <file> [page]',
+  'Replay an opt-in successful action journal (set CDP_RECORD_FILE while exploring)',
+  (yargs) => yargs
+    .positional('operation', { type: 'string', choices: ['replay'] })
+    .positional('file', { type: 'string', demandOption: true })
+    .positional('page', { type: 'string' })
+    .option('params', { type: 'string', description: 'JSON object supplying recorded fill values and parameterized URLs' }),
+  async (argv) => {
+    if (!argv.page) throw new Error('record replay requires a page');
+    replayActions(argv.file as string, argv.page as string, {
+      paramsFile: argv.params as string | undefined,
+      cdpUrl: argv['cdp-url'] as string,
+      session: argv.session as string | undefined
+    });
+  }
+);
+
+cli.command(
   'state <operation> [first] [second] [third]',
   'Capture, diff, expect, click with a diff, list or remove page state',
   (yargs) => yargs.positional('operation', { type: 'string', choices: ['capture', 'diff', 'expect', 'click', 'list', 'rm'] })
@@ -702,6 +722,9 @@ cli.command(
       stabilityMs: argv['stability-ms'] as number, waitForIdle: argv['wait-for-idle'] as boolean,
       spec: argv.spec as string | undefined, exitOnFail: argv['exit-on-fail'] as boolean,
       layout: argv.layout as boolean, maxChanges: argv['max-changes'] as number });
+    if (operation === 'click' && argv.spec && argv['exit-on-fail'] && !process.exitCode) {
+      recordSuccessfulAction(required(second, '<page>'), { frame: argv.frame as string | undefined, verification: 'expectation' });
+    }
     else if (operation === 'list') await state.list(context, required(first, '<page>'));
     else if (operation === 'rm') await state.remove(context, required(second, '<page>'), required(first, '<ref>'));
   }
@@ -1056,6 +1079,14 @@ cli.command(
         ...waitOptions
       }
     );
+    if (process.env.CDP_RECORD_FILE) {
+      // yargs can bind the optional click selector and required page in reverse;
+      // input.click resolves that ambiguity, so mirror its page fallback here.
+      let recordedPage = argv.page as string;
+      try { await context.findPage(recordedPage); }
+      catch { if (typeof argv.selector === 'string') recordedPage = argv.selector; }
+      recordSuccessfulAction(recordedPage, { frame: argv.frame as string | undefined });
+    }
   }
 );
 
@@ -1153,6 +1184,7 @@ cli.command(
         ...waitOptions
       }
     );
+    recordSuccessfulAction(argv.page as string, { frame: argv.frame as string | undefined });
   }
 );
 
@@ -1297,6 +1329,7 @@ cli.command(
         ...waitOptions
       }
     );
+    recordSuccessfulAction(pageRef, { frame: argv.frame as string | undefined });
   }
 );
 
@@ -1354,6 +1387,7 @@ cli.command(
       page: argv.page as string,
       ...waitOptions
     });
+    recordSuccessfulAction(argv.page as string);
   }
 );
 

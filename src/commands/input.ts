@@ -646,13 +646,16 @@ async function armDocumentClickWitness(
           expectedY,
           expectedEventType,
           seen: false,
-          event: null
+          event: null,
+          last: null
         };
         doc.__cdpDocumentClickWitnessListener = (event) => {
           const witness = doc.__cdpDocumentClickWitness;
           if (!witness || witness.seen) return;
           if (event.type !== witness.expectedEventType) return;
           const eventPoint = event.type === 'touchstart' ? event.touches[0] : event;
+          if (eventPoint) witness.last = { x: eventPoint.clientX, y: eventPoint.clientY,
+            target: event.target?.tagName?.toLowerCase() ?? null };
           if (!eventPoint ||
               (event.type === 'mousedown' && event.button !== 0) ||
               Math.abs(eventPoint.clientX - witness.expectedX) > 1 ||
@@ -702,7 +705,7 @@ async function verifyDocumentClickDelivered(
           return {
             documentSurvives: !!doc.defaultView && doc.defaultView.document === doc,
             seen: witness ? witness.seen === true : null,
-            event: witness ? witness.event : null
+            event: witness ? witness.event ?? witness.last : null
           };
         }
       `,
@@ -1149,7 +1152,9 @@ async function getIframeRect(
 ): Promise<{ x: number; y: number; width: number; height: number }> {
   const result = await context.sendCommand(ws, 'Runtime.evaluate', {
     expression: `(() => {
-      const iframe = document.querySelector(${JSON.stringify(frameSpec)});
+      const iframe = ${/^\d+$/.test(frameSpec)
+        ? `document.querySelectorAll('iframe')[${Number(frameSpec) - 1}]`
+        : `document.querySelector(${JSON.stringify(frameSpec)})`};
       if (!iframe || iframe.tagName !== 'IFRAME') return null;
       let rect = iframe.getBoundingClientRect();
       // Frame-local coordinates are offset by this rect, so the iframe itself
@@ -1159,7 +1164,11 @@ async function getIframeRect(
         iframe.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
         rect = iframe.getBoundingClientRect();
       }
-      return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+      // Child document viewport coordinates start inside the iframe border.
+      // Omitting clientLeft/clientTop dispatches a real click a few pixels away
+      // from the point the frame-local delivery witness expects.
+      return { x: rect.x + iframe.clientLeft, y: rect.y + iframe.clientTop,
+        width: iframe.clientWidth, height: iframe.clientHeight };
     })()`,
     returnByValue: true
   });

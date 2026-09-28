@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Opt-in action recording and iframe replay
+
+- Set `CDP_RECORD_FILE` to append successful navigation and input actions as portable NDJSON. Fills require `--expect-value` and store a replay parameter instead of the typed value. A `state click` enters the journal only when its explicit expectation passes with `--exit-on-fail`.
+- `record replay <file> <page> [--params <json>]` runs those actions in order, stops at the first failure, and emits one bounded verdict. Same-origin frame replay uses a stable iframe selector; frame indexes are refused in recordings.
+- Iframe selector resolution now maps to the exact DOM owner rather than guessing from frame URL or name. Pointer coordinates include the iframe border offset, avoiding false click-delivery failures on bordered frames.
+
 ### `eval` can raise its round-trip cap, and a blown cap says so
 
 `cdp-cli eval` had no timeout option, and its cap covered the whole CDP round
