@@ -22,6 +22,8 @@ seven-case fixture is `fixtures/qa-agent.html`; `run-agent-fixture.mjs` serves
 it on a temporary local port, then emits one compact batch observation and
 two screenshots for its visual-only case. An external fixture URL can be set
 with `CDP_STATE_EVAL_BASE_URL` when comparing against a hosted copy.
+For a browser with an attached cdp-cli daemon, set `CDP_STATE_EVAL_DAEMON_URL`
+to that browser's daemon endpoint. The runner otherwise uses direct CDP.
 
 The controlled pilot classified all seven cases correctly with Luna, Sol, and
 Sonnet in the batch arm, each viewing only the two visual-case screenshots.

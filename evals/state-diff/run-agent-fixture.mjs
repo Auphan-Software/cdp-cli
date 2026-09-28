@@ -12,6 +12,9 @@ const outRoot = process.argv[3] ?? join(tmpdir(), 'cdp-state-agent-eval');
 await mkdir(outRoot, { recursive: true });
 const runDir = await mkdtemp(join(outRoot, 'run-'));
 const cliPath = resolve(dirname(fileURLToPath(import.meta.url)), '../../build/index.js');
+// Managed browsers may already have the cdp-cli daemon attached to every tab.
+// Keep direct CDP as the default, but accept an explicit matching daemon.
+const daemonUrl = process.env.CDP_STATE_EVAL_DAEMON_URL ?? '';
 const cases = ['noop', 'total', 'dialog', 'visual', 'clean', 'idempotent', 'frame'];
 let base = process.env.CDP_STATE_EVAL_BASE_URL;
 let server;
@@ -27,7 +30,7 @@ if (!base) {
 
 async function cli(...args) {
   const { stdout } = await execFileAsync(process.execPath, [cliPath, ...args, '--cdp-url', cdpUrl], {
-    env: { ...process.env, CDP_DAEMON_URL: '', CDP_SESSION: '', CDP_PAGE: '', CDP_URL: '' },
+    env: { ...process.env, CDP_DAEMON_URL: daemonUrl, CDP_SESSION: '', CDP_PAGE: '', CDP_URL: '' },
     maxBuffer: 1024 * 1024
   });
   const lines = stdout.trim().split(/\r?\n/);
