@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+## 2.1.0
+
+### Opt-in page state captures, diffs, and expectations
+
+- `state capture`, `state diff`, `state expect`, and `state click` provide bounded
+  before/after evidence for visible text and controls. Diffs report additions,
+  removals, field changes, and `UNKNOWN` when coverage or identity is uncertain.
+- Captures include same-origin frames and open shadow roots. Stable aliases,
+  scoped captures, ignore selectors, and optional layout data support repeated
+  checks without changing the existing `snapshot` command.
+- Expectation files assert required transitions and fields that must stay
+  unchanged. The opt-in `--exit-on-fail` flag supports shell gates.
+
+The state diff is structural evidence. Console/network activity, visual styling,
+clipping, and persistence still need existing checks or targeted screenshots.
+
 ### Opt-in action recording and iframe replay
 
 - Set `CDP_RECORD_FILE` to append successful navigation and input actions as portable NDJSON. Fills require `--expect-value` and store a replay parameter instead of the typed value. A `state click` enters the journal only when its explicit expectation passes with `--exit-on-fail`.
