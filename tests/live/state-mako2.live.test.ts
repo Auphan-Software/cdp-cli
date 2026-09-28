@@ -69,13 +69,16 @@ it.skipIf(!base)('captures quiet, booted Mako2 pages in a disposable worktree', 
     let before = await run(page.id, 'capture', '--name', `${name}-before`, ...ignore);
     let after = await run(page.id, 'capture', '--name', `${name}-after`, ...ignore);
     let delta = await run(page.id, 'diff', `${name}-before`, `${name}-after`, '--max-changes=200');
-    // A booted SPA can still be painting. An incomplete no-op is an honest
-    // UNKNOWN; take a fresh pair after it settles instead of treating it as quiet.
+    // A booted SPA can still be painting. An incomplete or unstable pair is
+    // UNKNOWN; take a bounded fresh pair instead of treating it as quiet.
     const firstChanged = delta.output.value.changed;
-    if (firstChanged === null) {
-      before = await run(page.id, 'capture', '--name', `${name}-before-retry`, ...ignore);
-      after = await run(page.id, 'capture', '--name', `${name}-after-retry`, ...ignore);
-      delta = await run(page.id, 'diff', `${name}-before-retry`, `${name}-after-retry`, '--max-changes=200');
+    const firstUnstable = !!delta.output.value.coverage.unstable;
+    let retries = 0;
+    while ((delta.output.value.changed === null || delta.output.value.coverage.unstable) && retries < 2) {
+      retries++;
+      before = await run(page.id, 'capture', '--name', `${name}-before-retry${retries}`, ...ignore);
+      after = await run(page.id, 'capture', '--name', `${name}-after-retry${retries}`, ...ignore);
+      delta = await run(page.id, 'diff', `${name}-before-retry${retries}`, `${name}-after-retry${retries}`, '--max-changes=200');
     }
     const snapshot = await execFileAsync(process.execPath,
       [resolve('build/index.js'), 'snapshot', page.id, '--format', 'text', '--cdp-url', chrome.cdpUrl],
@@ -87,11 +90,13 @@ it.skipIf(!base)('captures quiet, booted Mako2 pages in a disposable worktree', 
       captureBytes: statSync(after.output.value.path).size, captureOutputBytes: after.bytes,
       diffOutputBytes: delta.bytes, snapshotTextBytes: Buffer.byteLength(snapshot.stdout),
       frameSnapshotTextBytes: frameSnapshot ? Buffer.byteLength(frameSnapshot.stdout) : undefined,
-      coverage: after.output.value.coverage, firstChanged, changed: delta.output.value.changed, changes: delta.output.value.changes });
+      coverage: after.output.value.coverage, firstChanged, firstUnstable, retries,
+      changed: delta.output.value.changed, changes: delta.output.value.changes });
     expect(before.output.success).toBe(true);
     expect(after.output.success).toBe(true);
     expect(after.output.value.elements).toBeGreaterThan(name === 'foh' ? 30 : 100);
-    expect(delta.output.value.changed, `${name} no-op should produce an empty diff: ${JSON.stringify(delta.output.value)}`).toBe(false);
+    expect(delta.output.value.changed,
+      `${name} no-op should be quiet after ${retries} retries; coverage=${JSON.stringify(delta.output.value.coverage)} changes=${delta.output.value.changes.length}`).toBe(false);
   }
   if (process.env.CDP_MAKO2_METRICS) writeFileSync(process.env.CDP_MAKO2_METRICS, JSON.stringify(metrics, null, 2));
 }, 120_000);
