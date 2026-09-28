@@ -9,6 +9,7 @@ import { CdpSession, LiveChrome, waitFor } from './harness.js';
 
 const execFileAsync = promisify(execFile);
 const base = process.env.CDP_MAKO2_EVAL_URL;
+const canaryExe = process.env.CDP_LIVE_EXE;
 let chrome: LiveChrome;
 let stateRoot: string;
 
@@ -20,7 +21,8 @@ async function run(page: string, ...args: string[]): Promise<{ output: any; byte
     : ['state', operation, page, ...rest];
   let stdout: string;
   try {
-    ({ stdout } = await execFileAsync(process.execPath, [resolve('build/index.js'), ...command, '--cdp-url', chrome.cdpUrl], {
+    ({ stdout } = await execFileAsync(canaryExe ?? process.execPath,
+      [...(canaryExe ? [] : [resolve('build/index.js')]), ...command, '--cdp-url', chrome.cdpUrl], {
       env: { ...process.env, CDP_STATE_ROOT: stateRoot, CDP_DAEMON_URL: '' }, maxBuffer: 1024 * 1024
     }));
   } catch (error) {
