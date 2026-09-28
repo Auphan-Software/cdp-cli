@@ -37,6 +37,25 @@ Run `cdp-cli state expect before after PAGE --spec expectations.json`. Its `valu
 
 This prototype does not yet include console or network activity in the diff. CSS boxes are included only with `state diff ... --layout`; color, borders, imagery, closed shadow roots and other visual effects still require a targeted screenshot. A diff proves a visible transition at capture time, not persistence in the database. Use the existing browser, console, network and database checks for those questions.
 
+### Record successful actions and replay them
+
+Set `CDP_RECORD_FILE` to a new NDJSON file while exploring a journey. Successful `navigate`, `click`, `fill`, `select`, and `press-key` commands append a step. `state click` is recorded only with `--spec ... --exit-on-fail` and a passing expectation. Failed actions do not enter the journal. Each step replaces the page ID with `{{page}}`, so it can run against another page in the same kind of test environment.
+
+```powershell
+$env:CDP_RECORD_FILE = 'C:/qa/menu-journey.ndjson'
+cdp-cli click '#menu' PAGE --frame '#page-engine2-iframe' --wait-for '#menu-form'
+cdp-cli fill '#name' 'Lunch' PAGE --frame '#page-engine2-iframe' --expect-value
+Remove-Item Env:CDP_RECORD_FILE
+
+# Fill values become value2, not literal text in the journal:
+# params.json: { "value2": "Lunch" }
+cdp-cli record replay C:/qa/menu-journey.ndjson PAGE --params C:/qa/params.json
+```
+
+Replay runs the saved commands in order, stops on the first failure, and prints one compact verdict. It checks click/frame delivery and requires recorded state expectations to pass again. A recorded `--frame` must be a stable CSS selector; frame indexes are rejected. Frame selection now resolves the iframe's actual DOM owner, so two frames with the same URL cannot be confused. Same-origin frame commands are supported; use the existing `target-frame` and `target-*` commands for out-of-process frames. Review action files before using them in another environment: command success proves that the browser action ran, while `state click --spec` proves the specified state transition. Visual defects still need screenshots.
+
+In Jarvis `browser-qa-run`, one step can call `{"cdp":["record","replay","C:/qa/menu-journey.ndjson","{{page}}","--params","C:/qa/params.json"],"parse":"json","expect":{"path":"outcome","equals":"PASSED"}}`. Keep the QA row's business assertion and targeted screenshot separate from replay. The journal is append-only and limited to 200 actions; use one file per journey. Review it before reuse because selectors, labels, and literal navigation URLs may still contain page text.
+
 > **Distribution note**
 > This scoped build (`@auphansoftware/cdp-cli`) is published for Auphan Software internal use, remains under the MIT license, and bundles the upstream work originally authored by [@myers](https://github.com/myers) at [github.com/myers/cdp-cli](https://github.com/myers/cdp-cli).
 

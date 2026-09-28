@@ -1,5 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmdirSync, unlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { CDPContext } from '../../src/context.js';
+import type { RecordedAction } from '../../src/recording.js';
 import { fill } from '../../src/commands/input.js';
 import { armNetworkIdleWatcher } from '../../src/commands/wait.js';
 import { CdpSession, LiveChrome, startFixture, waitFor, type LiveFixture } from './harness.js';
@@ -50,9 +55,14 @@ beforeAll(async () => {
         <iframe id="cross-origin-frame" name="cross-origin-frame" src="${crossOrigin.baseUrl}/cross-frame.html"></iframe>`);
       return;
     }
+    if (url.pathname === '/duplicate-frames.html') {
+      response.writeHead(200, { 'content-type': 'text/html' });
+      response.end('<!doctype html><title>duplicate frames</title><iframe id="first" src="/same-frame.html"></iframe><iframe id="second" src="/same-frame.html"></iframe>');
+      return;
+    }
     if (url.pathname === '/same-frame.html') {
       response.writeHead(200, { 'content-type': 'text/html' });
-      response.end('<!doctype html><title>same frame</title><p id="same-frame">same origin</p>');
+      response.end('<!doctype html><title>same frame</title><p id="same-frame">same origin</p><button id="in-frame" onclick="document.querySelector(\'#same-frame\').textContent=\'done\'">Go</button>');
       return;
     }
     if (url.pathname === '/network.html') {
@@ -163,6 +173,96 @@ describe('live Chrome contracts', () => {
       browser.close();
     }
   });
+
+  it('resolves an iframe by its DOM owner when two frames share the same URL', async () => {
+    const page = await chrome.createPage(`${app.baseUrl}/duplicate-frames.html`);
+    const context = new CDPContext(chrome.cdpUrl);
+    const session = await CdpSession.connect(page.webSocketDebuggerUrl);
+    try {
+      await waitFor(async () => {
+        const result = await context.evaluateInFrame(session.ws,
+          'window.frameElement.id', '#second', { returnByValue: true });
+        if (result.result?.value !== 'second') throw new Error('Second frame context is not ready');
+      });
+      await expect(context.resolveFrameId(session.ws, 'iframe')).rejects.toThrow('exactly one iframe');
+    } finally {
+      session.close();
+    }
+  });
+
+  it('records and replays a verified action in the selected iframe', async () => {
+    const page = await chrome.createPage(`${app.baseUrl}/duplicate-frames.html`);
+    const dir = mkdtempSync(join(tmpdir(), 'cdp-frame-replay-'));
+    const file = join(dir, 'actions.ndjson');
+    const cli = join(process.cwd(), 'build', 'index.js');
+    const env = { ...process.env, CDP_RECORD_FILE: file, CDP_SESSION: '' };
+    const run = (...args: string[]) => spawnSync(process.execPath,
+      [cli, ...args, '--cdp-url', chrome.cdpUrl],
+      { encoding: 'utf8', env, timeout: 30_000, windowsHide: true });
+    try {
+      await waitFor(async () => {
+        const session = await CdpSession.connect(page.webSocketDebuggerUrl);
+        try {
+          const ready = await session.command('Runtime.evaluate', {
+            expression: 'document.querySelector("#second")?.contentDocument?.querySelector("#in-frame") != null',
+            returnByValue: true
+          });
+          if (!ready.result.value) throw new Error('Frame not loaded');
+        } finally { session.close(); }
+      });
+      await new Promise(resolve => setTimeout(resolve, 750));
+      const first = run('click', '#in-frame', page.id, '--frame', '#second', '--wait-for-text', 'done');
+      const probe = await CdpSession.connect(page.webSocketDebuggerUrl);
+      let observed = '';
+      try {
+        const read = await probe.command('Runtime.evaluate', { expression: 'document.querySelector("#second").contentDocument.querySelector("#same-frame").textContent', returnByValue: true });
+        observed = String(read.result.value);
+      } finally { probe.close(); }
+      expect(first.status, first.stdout + first.stderr + ` observed=${observed}`).toBe(0);
+      const recorded = JSON.parse(readFileSync(file, 'utf8').trim()) as RecordedAction;
+      expect(recorded.argv).toContain('{{page}}');
+      expect(recorded.frame).toBe('#second');
+      const session = await CdpSession.connect(page.webSocketDebuggerUrl);
+      try {
+        await session.command('Runtime.evaluate', {
+          expression: 'document.querySelector("#second").contentDocument.querySelector("#same-frame").textContent = "same origin"'
+        });
+      } finally { session.close(); }
+      const replay = run('record', 'replay', file, page.id);
+      expect(replay.status, replay.stdout + replay.stderr).toBe(0);
+      expect(JSON.parse(replay.stdout.trim()).outcome).toBe('PASSED');
+      if (process.env.CDP_LIVE_EXE) {
+        const reset = await CdpSession.connect(page.webSocketDebuggerUrl);
+        try {
+          await reset.command('Runtime.evaluate', {
+            expression: 'document.querySelector("#second").contentDocument.querySelector("#same-frame").textContent = "same origin"'
+          });
+        } finally { reset.close(); }
+        const exeReplay = spawnSync(process.env.CDP_LIVE_EXE,
+          ['record', 'replay', file, page.id, '--cdp-url', chrome.cdpUrl],
+          { encoding: 'utf8', env, timeout: 30_000, windowsHide: true });
+        expect(exeReplay.status, exeReplay.stdout + exeReplay.stderr).toBe(0);
+        expect(JSON.parse(exeReplay.stdout.trim()).outcome).toBe('PASSED');
+        const exeFile = join(dir, 'exe-actions.ndjson');
+        const again = await CdpSession.connect(page.webSocketDebuggerUrl);
+        try {
+          await again.command('Runtime.evaluate', {
+            expression: 'document.querySelector("#second").contentDocument.querySelector("#same-frame").textContent = "same origin"'
+          });
+        } finally { again.close(); }
+        const exeRecord = spawnSync(process.env.CDP_LIVE_EXE,
+          ['click', '#in-frame', page.id, '--frame', '#second', '--wait-for-text', 'done', '--cdp-url', chrome.cdpUrl],
+          { encoding: 'utf8', env: { ...env, CDP_RECORD_FILE: exeFile }, timeout: 30_000, windowsHide: true });
+        expect(exeRecord.status, exeRecord.stdout + exeRecord.stderr).toBe(0);
+        expect((JSON.parse(readFileSync(exeFile, 'utf8').trim()) as RecordedAction).argv).toContain('{{page}}');
+        unlinkSync(exeFile);
+      }
+    } finally {
+      try { unlinkSync(file); } catch { /* no journal */ }
+      try { unlinkSync(join(dir, 'exe-actions.ndjson')); } catch { /* no exe journal */ }
+      rmdirSync(dir);
+    }
+  }, 60_000);
 
   it('reports successful and failed fetches through their real CDP lifecycle events', async () => {
     const page = await chrome.createPage(`${app.baseUrl}/network.html`);

@@ -1132,42 +1132,34 @@ export class CDPContext {
       throw new Error(`Frame index ${index} not found. Available: 0-${frames.length - 1}`);
     }
 
-    // Otherwise treat as CSS selector - find the iframe element in the top
-    // document, then match it to a frame by URL or name.
-    await this.sendCommand(ws, 'Runtime.enable');
-    const iframeInfo = await this.sendCommand(ws, 'Runtime.evaluate', {
-      expression: `(() => {
-        const iframe = document.querySelector(${JSON.stringify(frameSpec)});
-        if (!iframe || iframe.tagName !== 'IFRAME') return null;
-        return {
-          src: iframe.src,
-          name: iframe.name || iframe.id || '',
-          contentWindow: !!iframe.contentWindow
-        };
-      })()`,
-      returnByValue: true
+    // URL/name matching selects the wrong document when iframes share a src,
+    // and about:blank frames often share both. Resolve the actual owner node.
+    await this.sendCommand(ws, 'DOM.enable');
+    const document = await this.sendCommand(ws, 'DOM.getDocument');
+    const matches = await this.sendCommand(ws, 'DOM.querySelectorAll', {
+      nodeId: document.root.nodeId, selector: frameSpec
     });
-
-    if (!iframeInfo.result?.value) {
-      throw new Error(`No iframe found matching selector: ${frameSpec}`);
+    if (!Array.isArray(matches.nodeIds) || matches.nodeIds.length !== 1) {
+      throw new Error(`Frame selector must match exactly one iframe: ${frameSpec} (matched ${matches.nodeIds?.length ?? 0})`);
     }
-
-    const { src, name } = iframeInfo.result.value;
-
-    const matchingFrame = frames.find(f =>
-      f.parentId && // Must be a child frame
-      (f.url === src || f.name === name || (name && f.url.includes(name)))
-    );
-
-    if (!matchingFrame) {
-      const availableFrames = frames
-        .filter(f => f.parentId)
-        .map((f, i) => `  ${i + 1}. ${f.name || '(unnamed)'} - ${f.url}`)
-        .join('\n');
-      throw new Error(`Could not find frame context for: ${frameSpec}\n\nAvailable frames:\n${availableFrames}`);
+    const described = await this.sendCommand(ws, 'DOM.describeNode', { nodeId: matches.nodeIds[0] });
+    if (described.node?.nodeName?.toLowerCase() !== 'iframe') {
+      throw new Error(`Frame selector does not identify an iframe: ${frameSpec}`);
     }
-
-    return matchingFrame.id;
+    let frameId: string | undefined = described.node.frameId;
+    if (!frameId && described.node.backendNodeId) {
+      for (const frame of frames.filter(f => f.parentId)) {
+        try {
+          const owner = await this.sendCommand(ws, 'DOM.getFrameOwner', { frameId: frame.id });
+          if (owner.backendNodeId === described.node.backendNodeId) {
+            frameId = frame.id;
+            break;
+          }
+        } catch { /* An OOPIF or detaching frame may have no owner in this target. */ }
+      }
+    }
+    if (!frameId) throw new Error(`Frame is not attached yet: ${frameSpec}`);
+    return frameId;
   }
 
   /**
