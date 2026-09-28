@@ -18,6 +18,7 @@ import { validateCommandTimeout } from './cdp/command-timeout.js';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 import * as pages from './commands/pages.js';
 import * as debug from './commands/debug.js';
+import * as state from './commands/state.js';
 import * as network from './commands/network.js';
 import {
   LIST_CONSOLE_DESCRIPTION,
@@ -654,6 +655,55 @@ cli.command(
       page: argv.page as string,
       frame: argv.frame as string | undefined
     });
+  }
+);
+
+// Structured, persisted page state. The existing snapshot discovery output stays stable.
+cli.command(
+  'state <operation> [first] [second] [third]',
+  'Capture, diff, expect, click with a diff, list or remove page state',
+  (yargs) => yargs.positional('operation', { type: 'string', choices: ['capture', 'diff', 'expect', 'click', 'list', 'rm'] })
+    .positional('first', { type: 'string' }).positional('second', { type: 'string' })
+    .positional('third', { type: 'string' })
+    .option('name', { type: 'string', description: 'Capture alias' })
+    .option('frame', { type: 'string', description: 'Same-origin iframe selector or 1-based index' })
+    .option('ignore', { type: 'array', string: true, description: 'Exclude matching regions' })
+    .option('max-elements', { type: 'number', default: 2000 })
+    .option('stability-ms', { type: 'number', default: 1200, description: 'Probe for changes before saving (0 disables)' })
+    .option('layout', { type: 'boolean', default: false })
+    .option('max-changes', { type: 'number', default: 40 })
+    .option('spec', { type: 'string', description: 'Expectation JSON file' })
+    .option('wait-for-idle', { type: 'boolean', default: true })
+    .option('exit-on-fail', { type: 'boolean', default: false }),
+  async (argv) => {
+    const context = new CDPContext(argv['cdp-url'] as string);
+    const operation = argv.operation as string;
+    const first = argv.first as string | undefined;
+    const second = argv.second as string | undefined;
+    const third = argv.third as string | undefined;
+    const required = (value: string | undefined, label: string): string => {
+      if (!value) throw new Error(`state ${operation} requires ${label}`);
+      return value;
+    };
+    if (operation === 'capture') await state.capture(context, { page: required(first, '<page>'),
+      name: argv.name as string | undefined, frame: argv.frame as string | undefined,
+      ignore: argv.ignore as string[] | undefined, maxElements: argv['max-elements'] as number,
+      stabilityMs: argv['stability-ms'] as number });
+    else if (operation === 'diff') await state.diff(context, { before: required(first, '<before>'),
+      after: required(second, '<after>'), page: required(third, '<page>'),
+      layout: argv.layout as boolean, maxChanges: argv['max-changes'] as number });
+    else if (operation === 'expect') await state.expect(context, { before: required(first, '<before>'),
+      after: required(second, '<after>'), page: required(third, '<page>'),
+      spec: required(argv.spec as string | undefined, '--spec'), exitOnFail: argv['exit-on-fail'] as boolean,
+      layout: argv.layout as boolean });
+    else if (operation === 'click') await state.clickWithDiff(context, { selector: required(first, '<selector>'),
+      page: required(second, '<page>'), frame: argv.frame as string | undefined,
+      ignore: argv.ignore as string[] | undefined, maxElements: argv['max-elements'] as number,
+      stabilityMs: argv['stability-ms'] as number, waitForIdle: argv['wait-for-idle'] as boolean,
+      spec: argv.spec as string | undefined, exitOnFail: argv['exit-on-fail'] as boolean,
+      layout: argv.layout as boolean, maxChanges: argv['max-changes'] as number });
+    else if (operation === 'list') await state.list(context, required(first, '<page>'));
+    else if (operation === 'rm') await state.remove(context, required(second, '<page>'), required(first, '<ref>'));
   }
 );
 

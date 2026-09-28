@@ -1271,8 +1271,8 @@ async function resolveClickCandidatesInFrame(
 export async function click(
   context: CDPContext,
   targetInput: ClickTargetInput | string,
-  optionsInput: { page: string; double?: boolean; longpress?: number; touch?: boolean; frame?: string; force?: boolean } & WaitOptions
-): Promise<void> {
+  optionsInput: { page: string; double?: boolean; longpress?: number; touch?: boolean; frame?: string; force?: boolean; quiet?: boolean } & WaitOptions
+): Promise<{ clickDelivered: boolean | null; frameReached: boolean | null }> {
   let ws;
   let navigationWatcher: NavigationWatcher | undefined;
   let networkIdleWatcher: NetworkIdleWatcher | undefined;
@@ -1697,7 +1697,7 @@ export async function click(
       networkResponseWatcher
     );
 
-    outputSuccess('Click performed', {
+    if (!options.quiet) outputSuccess('Click performed', {
       strategy: target.selector ? 'css' : 'text',
       selector: target.selector ?? null,
       text: target.text ?? null,
@@ -1730,6 +1730,7 @@ export async function click(
       ...(effectiveWaitFrame(options) && { waitedInFrame: effectiveWaitFrame(options) }),
       ...(options.waitForNavigation && { waitedForNavigation: true })
     });
+    return { clickDelivered, frameReached };
   } catch (error) {
     if (error instanceof ClickError) {
       outputError(error.message, error.code, error.details);
@@ -1761,6 +1762,7 @@ export async function click(
       ws.close();
     }
   }
+  throw new Error('CLICK_FAILED');
 }
 
 /**
