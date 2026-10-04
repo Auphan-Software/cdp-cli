@@ -8,7 +8,7 @@ import { LocalVisionProvider } from '../../src/experimental/local-vision.js';
 import { JevProvider } from '../../src/experimental/jev.js';
 import type { AgentView, AllowedAction } from '../../src/experimental/decision.js';
 
-it.skipIf(!process.env.CDP_VISION_URL)('CPU screenshot bounded choices', async () => {
+it.skipIf(!process.env.CDP_VISION_URL)('local screenshot bounded choices', async () => {
   const fixture = await startFixture((_req, res) => { res.writeHead(200, { 'content-type': 'text/html' });
     res.end('<html><body style="font:28px sans-serif"><h2>Choose a card</h2><div id="cards" style="display:flex;gap:25px"></div></body></html>'); });
   const chrome = await LiveChrome.launch();
@@ -33,7 +33,8 @@ it.skipIf(!process.env.CDP_VISION_URL)('CPU screenshot bounded choices', async (
       const image = await session.command('Page.captureScreenshot', { format: 'png' });
       const screenshotMs = performance.now() - screenshotStart;
       await mkdir('evals/decision/results/visual', { recursive: true });
-      await writeFile(`evals/decision/results/visual/${target}.png`, Buffer.from(image.data, 'base64'));
+      const imagePath = resolve(`evals/decision/results/visual/${randomUUID()}.png`);
+      await writeFile(imagePath, Buffer.from(image.data, 'base64'));
       for (const arm of ['semantic-only', ...(process.env.JEV_API_KEY ? ['jev-text'] : []), 'local-text', 'local-screenshot',
         ...(process.env.CDP_DECISION_LUNA==='1' ? ['luna-text', 'luna-screenshot'] : [])]) {
         const provider = arm==='jev-text' ? new JevProvider() : new LocalVisionProvider({ url: process.env.CDP_VISION_URL! });
@@ -42,7 +43,7 @@ it.skipIf(!process.env.CDP_VISION_URL)('CPU screenshot bounded choices', async (
         let luna;
         try {
           if (arm.startsWith('luna')) {
-            luna = await lunaSelect(task, state, allowed, arm==='luna-screenshot' ? resolve(`evals/decision/results/visual/${target}.png`) : undefined);
+            luna = await lunaSelect(task, state, allowed, arm==='luna-screenshot' ? imagePath : undefined);
             choice = luna.id;
           } else if (arm!=='semantic-only') choice = (await provider.decideNext(task, state, allowed,
             arm==='local-screenshot' ? { source, width: 640, height: 320, mimeType: 'image/png', data: image.data } : undefined)).actionId;

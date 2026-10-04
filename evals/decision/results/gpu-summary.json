@@ -1,0 +1,465 @@
+{
+  "warning": "Controlled transcript-derived Claude Opus5.5 reproduction/evidence pilot, 2 tasks x 2 repeats per arm. Cohorts are separate. Reported CLI list-price estimates exclude hardware and are not invoices. The main run lacks critical-node identities; do not retroactively assert zero critical omissions. Text-only visual abstention is expected, even though rawCorrect compares to the hidden visual target.",
+  "cohorts": {
+    "main": {
+      "baseline": {
+        "runs": 4,
+        "successes": 4,
+        "usage": {
+          "input_tokens": 72,
+          "cache_creation_input_tokens": 270070,
+          "cache_read_input_tokens": 1272185,
+          "output_tokens": 4486
+        },
+        "totalRecordedTokens": 1546813,
+        "missingUsageRuns": 0,
+        "toolCalls": 50,
+        "toolBatches": 32,
+        "assistantResponses": 36,
+        "toolKinds": {
+          "observe": 22,
+          "action": 17,
+          "screenshot": 6,
+          "console": 5
+        },
+        "rejectedTools": 1,
+        "meanElapsedMs": 20400.98087500001,
+        "elapsedP50Ms": 16691.773600000015,
+        "elapsedP95Ms": 28055.877500000002,
+        "meanSuccessfulElapsedMs": 20400.98087500001,
+        "reportedClaudeCostUsd": 2.5050050000000006,
+        "jevInputTokens": 0,
+        "jevEstimatedCostUsd": 0,
+        "estimatedCostPerSuccessUsd": 0.6262512500000001,
+        "providerCalls": 0,
+        "providerLatencyMs": 0,
+        "providerCacheHits": 0,
+        "projectionP50Ms": 1.4287000000185799,
+        "projectionP95Ms": 6.767000000021653,
+        "providerFallbacks": 0,
+        "canonicalNodes": 2262,
+        "retainedNodes": 2262,
+        "canonicalCharacters": 372514,
+        "projectedCharacters": 704144,
+        "estimatedProjectedTokens": 176044,
+        "goldNodes": 60,
+        "goldOmissions": 0,
+        "criticalGoldNodes": null,
+        "criticalGoldOmissions": null
+      },
+      "deterministic": {
+        "runs": 4,
+        "successes": 4,
+        "usage": {
+          "input_tokens": 78,
+          "cache_creation_input_tokens": 223265,
+          "cache_read_input_tokens": 1164011,
+          "output_tokens": 3866
+        },
+        "totalRecordedTokens": 1391220,
+        "missingUsageRuns": 0,
+        "toolCalls": 47,
+        "toolBatches": 35,
+        "assistantResponses": 39,
+        "toolKinds": {
+          "observe": 23,
+          "action": 16,
+          "screenshot": 4,
+          "console": 4
+        },
+        "rejectedTools": 0,
+        "meanElapsedMs": 19302.532150000006,
+        "elapsedP50Ms": 18449.556500000002,
+        "elapsedP95Ms": 23894.341400000005,
+        "meanSuccessfulElapsedMs": 19302.532150000006,
+        "reportedClaudeCostUsd": 2.0965542000000004,
+        "jevInputTokens": 0,
+        "jevEstimatedCostUsd": 0,
+        "estimatedCostPerSuccessUsd": 0.5241385500000001,
+        "providerCalls": 0,
+        "providerLatencyMs": 0,
+        "providerCacheHits": 0,
+        "projectionP50Ms": 1.4078999999910593,
+        "projectionP95Ms": 7.864000000001397,
+        "providerFallbacks": 0,
+        "canonicalNodes": 2267,
+        "retainedNodes": 2267,
+        "canonicalCharacters": 373719,
+        "projectedCharacters": 599078,
+        "estimatedProjectedTokens": 149778,
+        "goldNodes": 62,
+        "goldOmissions": 0,
+        "criticalGoldNodes": null,
+        "criticalGoldOmissions": null
+      },
+      "qwen": {
+        "runs": 4,
+        "successes": 4,
+        "usage": {
+          "input_tokens": 66,
+          "cache_creation_input_tokens": 150976,
+          "cache_read_input_tokens": 607247,
+          "output_tokens": 3899
+        },
+        "totalRecordedTokens": 762188,
+        "missingUsageRuns": 0,
+        "toolCalls": 48,
+        "toolBatches": 29,
+        "assistantResponses": 33,
+        "toolKinds": {
+          "observe": 24,
+          "action": 16,
+          "screenshot": 4,
+          "console": 4
+        },
+        "rejectedTools": 0,
+        "meanElapsedMs": 22161.4075,
+        "elapsedP50Ms": 18935.82150000002,
+        "elapsedP95Ms": 27292.59779999999,
+        "meanSuccessfulElapsedMs": 22161.4075,
+        "reportedClaudeCostUsd": 1.4075014000000001,
+        "jevInputTokens": 0,
+        "jevEstimatedCostUsd": 0,
+        "estimatedCostPerSuccessUsd": 0.35187535000000003,
+        "providerCalls": 24,
+        "providerLatencyMs": 17829.762700000043,
+        "providerCacheHits": 0,
+        "projectionP50Ms": 156.37900000000081,
+        "projectionP95Ms": 2017.4292000000132,
+        "providerFallbacks": 0,
+        "canonicalNodes": 2272,
+        "retainedNodes": 1098,
+        "canonicalCharacters": 374924,
+        "projectedCharacters": 432486,
+        "estimatedProjectedTokens": 108132,
+        "goldNodes": 64,
+        "goldOmissions": 8,
+        "criticalGoldNodes": null,
+        "criticalGoldOmissions": null
+      },
+      "deterministic-fused": {
+        "runs": 4,
+        "successes": 4,
+        "usage": {
+          "input_tokens": 58,
+          "cache_creation_input_tokens": 222884,
+          "cache_read_input_tokens": 830625,
+          "output_tokens": 3165
+        },
+        "totalRecordedTokens": 1056732,
+        "missingUsageRuns": 0,
+        "toolCalls": 32,
+        "toolBatches": 25,
+        "assistantResponses": 29,
+        "toolKinds": {
+          "observe": 8,
+          "action": 16,
+          "screenshot": 4,
+          "console": 4
+        },
+        "rejectedTools": 0,
+        "meanElapsedMs": 15659.3528,
+        "elapsedP50Ms": 15107.462899999984,
+        "elapsedP95Ms": 17544.53529999999,
+        "meanSuccessfulElapsedMs": 15659.3528,
+        "reportedClaudeCostUsd": 2.012729,
+        "jevInputTokens": 0,
+        "jevEstimatedCostUsd": 0,
+        "estimatedCostPerSuccessUsd": 0.50318225,
+        "providerCalls": 0,
+        "providerLatencyMs": 0,
+        "providerCacheHits": 0,
+        "projectionP50Ms": 1.0506999999925029,
+        "projectionP95Ms": 7.757400000002235,
+        "providerFallbacks": 0,
+        "canonicalNodes": 2272,
+        "retainedNodes": 2272,
+        "canonicalCharacters": 374924,
+        "projectedCharacters": 600660,
+        "estimatedProjectedTokens": 150174,
+        "goldNodes": 64,
+        "goldOmissions": 0,
+        "criticalGoldNodes": null,
+        "criticalGoldOmissions": null
+      },
+      "qwen-fused": {
+        "runs": 4,
+        "successes": 4,
+        "usage": {
+          "input_tokens": 58,
+          "cache_creation_input_tokens": 149706,
+          "cache_read_input_tokens": 529505,
+          "output_tokens": 3270
+        },
+        "totalRecordedTokens": 682539,
+        "missingUsageRuns": 0,
+        "toolCalls": 32,
+        "toolBatches": 25,
+        "assistantResponses": 29,
+        "toolKinds": {
+          "observe": 8,
+          "action": 16,
+          "screenshot": 4,
+          "console": 4
+        },
+        "rejectedTools": 0,
+        "meanElapsedMs": 19907.464349999984,
+        "elapsedP50Ms": 18327.874499999976,
+        "elapsedP95Ms": 22600.513099999996,
+        "meanSuccessfulElapsedMs": 19907.464349999984,
+        "reportedClaudeCostUsd": 1.3691810000000002,
+        "jevInputTokens": 0,
+        "jevEstimatedCostUsd": 0,
+        "estimatedCostPerSuccessUsd": 0.34229525000000005,
+        "providerCalls": 24,
+        "providerLatencyMs": 17600.06900000012,
+        "providerCacheHits": 0,
+        "projectionP50Ms": 163.81040000001667,
+        "projectionP95Ms": 2035.1407999999938,
+        "providerFallbacks": 0,
+        "canonicalNodes": 2272,
+        "retainedNodes": 1098,
+        "canonicalCharacters": 374924,
+        "projectedCharacters": 432486,
+        "estimatedProjectedTokens": 108132,
+        "goldNodes": 64,
+        "goldOmissions": 8,
+        "criticalGoldNodes": null,
+        "criticalGoldOmissions": null
+      }
+    },
+    "jev": {
+      "jev": {
+        "runs": 4,
+        "successes": 4,
+        "usage": {
+          "input_tokens": 68,
+          "cache_creation_input_tokens": 223303,
+          "cache_read_input_tokens": 982663,
+          "output_tokens": 3861
+        },
+        "totalRecordedTokens": 1209895,
+        "missingUsageRuns": 0,
+        "toolCalls": 47,
+        "toolBatches": 30,
+        "assistantResponses": 34,
+        "toolKinds": {
+          "observe": 23,
+          "action": 16,
+          "screenshot": 4,
+          "console": 4
+        },
+        "rejectedTools": 0,
+        "meanElapsedMs": 22479.903725,
+        "elapsedP50Ms": 18576.098399999995,
+        "elapsedP95Ms": 28784.7338,
+        "meanSuccessfulElapsedMs": 22479.903725,
+        "reportedClaudeCostUsd": 2.0604486,
+        "jevInputTokens": 311744,
+        "jevEstimatedCostUsd": 0.013093248000000002,
+        "estimatedCostPerSuccessUsd": 0.518385462,
+        "providerCalls": 119,
+        "providerLatencyMs": 12518.964800000023,
+        "providerCacheHits": 0,
+        "projectionP50Ms": 113.59219999999914,
+        "projectionP95Ms": 1494.0522,
+        "providerFallbacks": 0,
+        "canonicalNodes": 2267,
+        "retainedNodes": 2267,
+        "canonicalCharacters": 373719,
+        "projectedCharacters": 599101,
+        "estimatedProjectedTokens": 149782,
+        "goldNodes": 62,
+        "goldOmissions": 0,
+        "criticalGoldNodes": 39,
+        "criticalGoldOmissions": 0
+      }
+    },
+    "cache": {
+      "qwen-fused": {
+        "runs": 4,
+        "successes": 4,
+        "usage": {
+          "input_tokens": 56,
+          "cache_creation_input_tokens": 153801,
+          "cache_read_input_tokens": 521768,
+          "output_tokens": 3114
+        },
+        "totalRecordedTokens": 678739,
+        "missingUsageRuns": 0,
+        "toolCalls": 33,
+        "toolBatches": 24,
+        "assistantResponses": 28,
+        "toolKinds": {
+          "observe": 9,
+          "action": 16,
+          "screenshot": 4,
+          "console": 4
+        },
+        "rejectedTools": 0,
+        "meanElapsedMs": 20422.6755,
+        "elapsedP50Ms": 17897.919500000004,
+        "elapsedP95Ms": 26207.3557,
+        "meanSuccessfulElapsedMs": 20422.6755,
+        "reportedClaudeCostUsd": 1.3972655999999999,
+        "jevInputTokens": 0,
+        "jevEstimatedCostUsd": 0,
+        "estimatedCostPerSuccessUsd": 0.34931639999999997,
+        "providerCalls": 25,
+        "providerLatencyMs": 19443.141399999993,
+        "providerCacheHits": 0,
+        "projectionP50Ms": 166.4841999999917,
+        "projectionP95Ms": 2135.2572000000073,
+        "providerFallbacks": 0,
+        "canonicalNodes": 2491,
+        "retainedNodes": 1172,
+        "canonicalCharacters": 410530,
+        "projectedCharacters": 442151,
+        "estimatedProjectedTokens": 110549,
+        "goldNodes": 67,
+        "goldOmissions": 9,
+        "criticalGoldNodes": 42,
+        "criticalGoldOmissions": 0
+      },
+      "qwen-cached-fused": {
+        "runs": 4,
+        "successes": 4,
+        "usage": {
+          "input_tokens": 56,
+          "cache_creation_input_tokens": 153906,
+          "cache_read_input_tokens": 513052,
+          "output_tokens": 3145
+        },
+        "totalRecordedTokens": 670159,
+        "missingUsageRuns": 0,
+        "toolCalls": 33,
+        "toolBatches": 24,
+        "assistantResponses": 28,
+        "toolKinds": {
+          "observe": 9,
+          "action": 16,
+          "screenshot": 4,
+          "console": 4
+        },
+        "rejectedTools": 0,
+        "meanElapsedMs": 18152.188425,
+        "elapsedP50Ms": 17379.189000000013,
+        "elapsedP95Ms": 20205.1889,
+        "meanSuccessfulElapsedMs": 18152.188425,
+        "reportedClaudeCostUsd": 1.3969824000000002,
+        "jevInputTokens": 0,
+        "jevEstimatedCostUsd": 0,
+        "estimatedCostPerSuccessUsd": 0.34924560000000004,
+        "providerCalls": 8,
+        "providerLatencyMs": 8989.498599999999,
+        "providerCacheHits": 377,
+        "projectionP50Ms": 12.949899999999616,
+        "projectionP95Ms": 2072.190399999992,
+        "providerFallbacks": 0,
+        "canonicalNodes": 2491,
+        "retainedNodes": 1172,
+        "canonicalCharacters": 410530,
+        "projectedCharacters": 442151,
+        "estimatedProjectedTokens": 110549,
+        "goldNodes": 67,
+        "goldOmissions": 9,
+        "criticalGoldNodes": 42,
+        "criticalGoldOmissions": 0
+      }
+    }
+  },
+  "batch": {
+    "1": {
+      "runs": 3,
+      "p50Ms": 24.6712
+    },
+    "6": {
+      "runs": 3,
+      "p50Ms": 107.61950000000002
+    },
+    "12": {
+      "runs": 1,
+      "p50Ms": 207.678
+    },
+    "32": {
+      "runs": 1,
+      "p50Ms": 557.6669
+    }
+  },
+  "savedFixtureProjection": {
+    "runs": 36,
+    "p50Ms": 298.02419999999984,
+    "p95Ms": 309.7184000000002,
+    "fallbacks": 0
+  },
+  "vision": {
+    "minicpm": {
+      "semantic-only": {
+        "runs": 3,
+        "rawCorrect": 0,
+        "failures": 0,
+        "minMs": 0.01599999999962165,
+        "maxMs": 0.025900000000092405,
+        "p50Ms": 0.017299999999522697
+      },
+      "local-text": {
+        "runs": 3,
+        "rawCorrect": 1,
+        "failures": 0,
+        "minMs": 611.0053000000003,
+        "maxMs": 626.5663999999997,
+        "p50Ms": 617.2109
+      },
+      "local-screenshot": {
+        "runs": 3,
+        "rawCorrect": 3,
+        "failures": 0,
+        "minMs": 575.7438000000002,
+        "maxMs": 756.8507999999997,
+        "p50Ms": 659.0301999999992
+      },
+      "luna-text": {
+        "runs": 3,
+        "rawCorrect": 0,
+        "failures": 0,
+        "minMs": 4217.908299999999,
+        "maxMs": 5710.260799999998,
+        "p50Ms": 4953.594099999999
+      },
+      "luna-screenshot": {
+        "runs": 3,
+        "rawCorrect": 3,
+        "failures": 0,
+        "minMs": 3983.510900000001,
+        "maxMs": 5485.32,
+        "p50Ms": 4362.808099999998
+      }
+    },
+    "qwen-vl": {
+      "semantic-only": {
+        "runs": 3,
+        "rawCorrect": 0,
+        "failures": 0,
+        "minMs": 0.01040000000011787,
+        "maxMs": 0.03569999999990614,
+        "p50Ms": 0.014400000000023283
+      },
+      "local-text": {
+        "runs": 3,
+        "rawCorrect": 1,
+        "failures": 0,
+        "minMs": 386.34569999999985,
+        "maxMs": 614.4166,
+        "p50Ms": 395.6229999999996
+      },
+      "local-screenshot": {
+        "runs": 3,
+        "rawCorrect": 3,
+        "failures": 0,
+        "minMs": 414.84559999999965,
+        "maxMs": 573.3809999999999,
+        "p50Ms": 431.41849999999977
+      }
+    }
+  }
+}

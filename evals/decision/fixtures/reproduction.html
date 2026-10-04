@@ -1,0 +1,29 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Test ordering application</title>
+<style>body{font:16px Arial;margin:24px}section{padding:12px;border:1px solid #ccc;margin:8px}button,input{padding:10px;margin:6px}#catalog{max-height:290px;overflow:auto}.warning{background:#ffe6ba;padding:20px}</style></head>
+<body><main id="app"></main><script>
+const mode=new URL(location.href).searchParams.get('mode');
+let cart=0, dob='', accepted=false; const audit=[]; window.__audit=audit;
+function render(){
+ const screen=location.hash.slice(1)||'menu';
+ let html='<h1>Ordering application</h1><p id="location">'+screen+'</p>';
+ if(screen==='menu'){
+  html+='<section><h2>Order</h2><button id="open-order">Open order</button><button id="checkout">Checkout</button><p>Cart items: '+cart+'</p></section>';
+  html+='<section><h2>Catalog</h2><button id="tea">Add Tea</button><button id="wine">Add Wine</button><div id="catalog">';
+  for(let i=0;i<70;i++)html+='<section><h3>Pantry item '+i+'</h3><p>Standard catalog entry. Available in warehouse. Supplier reference '+(1000+i)+'</p><button id="item-'+i+'">Add item '+i+'</button></section>';
+  html+='</div></section>';
+ }else if(screen==='order')html+='<section><h2>Current order</h2><button id="wine">Add Wine</button><button id="return">Return to menu</button></section>';
+ else if(screen==='age')html+='<section role="dialog" aria-label="Age verification"><h2>Age verification</h2><p>Enter date of birth for Wine.</p><label for="dob">Date of birth</label><input id="dob" type="text" value="'+dob+'"><button id="validate">Validate age</button></section>';
+ else if(screen==='result')html+='<section><h2>Order result</h2><p role="status" id="outcome">'+(accepted?'Wine added. Age verified.':'Sale blocked: under age')+'</p><p id="submitted">Submitted birth date: '+dob+'</p></section>';
+ else if(screen==='checkout')html+='<section><h2>Checkout</h2><p>Tea quantity: '+cart+'</p><p role="status" id="outcome">'+(audit.includes('forward')?'Updating Cart…':'Ready to pay')+'</p></section>';
+ document.querySelector('#app').innerHTML=html;
+ for(const button of document.querySelectorAll('button'))button.onclick=()=>{
+  const id=button.id;audit.push(id);
+  if(id==='tea'){cart++;render();}else if(id==='open-order')go('order');else if(id==='checkout')go('checkout');else if(id==='wine')go('age');else if(id==='return')go('menu');
+  else if(id==='validate'){dob=document.querySelector('#dob').value;accepted=Number(dob.slice(0,4))>new Date().getFullYear()||Number(dob.slice(0,4))<2005;console.error('Age verification accepted future birth date');go('result');}
+  else {cart++;render();}
+ };
+}
+function go(screen){history.pushState({},'', '#'+screen);render();}
+window.addEventListener('popstate',()=>{audit.push(location.hash==='#checkout'?'forward':'back');if(location.hash==='#checkout')console.error('Cart calculation never settled after history restoration');render();});
+render();
+</script></body></html>

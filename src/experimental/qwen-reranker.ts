@@ -1,7 +1,8 @@
-/** Opt-in CPU llama.cpp adapter for Qwen3-Reranker GGUFs.
+/** Opt-in llama.cpp adapter for Qwen3-Reranker GGUFs (CPU or GPU).
  * Full causal-LM and classifier-head GGUFs use different endpoints and scoring paths.
  */
 import type { AgentView, AllowedAction, Decision, DecisionProvider, RelevanceUnit } from './decision.js';
+import { createHash } from 'node:crypto';
 
 export function rerankerPrompt(task: string, document: string): string {
   return '<|im_start|>system\nJudge whether the Document meets the requirements based on the Query and the Instruct provided. Note that the answer can only be "yes" or "no".<|im_end|>\n' +
@@ -28,13 +29,19 @@ export function rankDocument(unit: RelevanceUnit): string {
 }
 
 export class QwenRerankerProvider implements DecisionProvider {
-  readonly metrics = { calls: 0, latencyMs: 0, inputTokens: 0, batches: [] as Array<{ units: number; latencyMs: number; scores: number[] }> };
+  readonly metrics = { calls: 0, latencyMs: 0, inputTokens: 0, cacheHits: 0, batches: [] as Array<{ units: number; latencyMs: number; scores: number[] }> };
   private readonly url: string;
-  constructor(private readonly options: { url: string; timeoutMs?: number; threshold?: number; classifier?: boolean; fetch?: typeof fetch }) {
+  private readonly scoreCache = new Map<string, number>();
+  constructor(private readonly options: { url: string; timeoutMs?: number; threshold?: number; classifier?: boolean; fetch?: typeof fetch;
+    scoreCache?: { maxEntries: number; modelRevision: string } }) {
     const url = new URL(options.url);
     if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password ||
       !Number.isFinite(options.threshold ?? .1) || (options.threshold ?? .1) < 0 || (options.threshold ?? .1) > 1 ||
       !Number.isSafeInteger(options.timeoutMs ?? 5000) || (options.timeoutMs ?? 5000) < 1) throw new Error('LOCAL_INVALID_CONFIG');
+    if (options.scoreCache && (!options.classifier || !Number.isSafeInteger(options.scoreCache.maxEntries) ||
+      options.scoreCache.maxEntries < 1 || options.scoreCache.maxEntries > 2048 ||
+      typeof options.scoreCache.modelRevision !== 'string' || !options.scoreCache.modelRevision.trim() || options.scoreCache.modelRevision.length > 128)) throw new Error('LOCAL_INVALID_CACHE');
+    this.options = Object.freeze({ ...options, ...(options.scoreCache ? { scoreCache: Object.freeze({ ...options.scoreCache }) } : {}) });
     this.url = new URL(options.classifier ? '/rerank' : '/completion', url).href;
   }
   async projectState(task: string, _state: AgentView, units: RelevanceUnit[]): Promise<string[]> {
@@ -44,22 +51,40 @@ export class QwenRerankerProvider implements DecisionProvider {
     const selected: string[] = [];
     try {
       if (this.options.classifier && units.length) {
-        this.metrics.calls++;
-        const response = await (this.options.fetch ?? fetch)(this.url, { method: 'POST', redirect: 'error', signal,
-          headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: task, documents: units.map(rankDocument) }) });
-        if (!response.ok) throw new Error('LOCAL_REQUEST_FAILED');
-        const data = await response.json() as any;
-        if (!Array.isArray(data.results) || data.results.length !== units.length ||
-          new Set(data.results.map((r: any) => r.index)).size !== units.length ||
-          data.results.some((r: any) => !Number.isSafeInteger(r.index) || r.index < 0 || r.index >= units.length ||
-            !Number.isFinite(r.relevance_score) || r.relevance_score < 0 || r.relevance_score > 1) ||
-          !Number.isSafeInteger(data.usage?.prompt_tokens) || data.usage.prompt_tokens < 0) throw new Error('LOCAL_INVALID_SCORE');
-        this.metrics.inputTokens += data.usage.prompt_tokens;
-        const ordered = [...data.results].sort((a,b) => a.index-b.index);
-        for (const row of ordered) {
-          scores.push(row.relevance_score);
-          if (row.relevance_score >= (this.options.threshold ?? .1)) selected.push(units[row.index].id);
+        const documents = units.map(rankDocument);
+        // Ephemeral, instance-local cache of scores only. Must-keeps are reapplied by
+        // projectState before and after ranking. New task/content/revision means a miss.
+        const cacheKeys = documents.map(document => createHash('sha256').update(JSON.stringify([
+          this.options.scoreCache?.modelRevision, task, document])).digest('hex'));
+        const missing: number[] = [];
+        units.forEach((_unit, i) => {
+          const cached = this.options.scoreCache ? this.scoreCache.get(cacheKeys[i]) : undefined;
+          if (cached === undefined) missing.push(i);
+          else { scores[i] = cached; this.metrics.cacheHits++; this.scoreCache.delete(cacheKeys[i]); this.scoreCache.set(cacheKeys[i], cached); }
+        });
+        if (missing.length) {
+          this.metrics.calls++;
+          const response = await (this.options.fetch ?? fetch)(this.url, { method: 'POST', redirect: 'error', signal,
+            headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: task, documents: missing.map(i => documents[i]) }) });
+          if (!response.ok) throw new Error('LOCAL_REQUEST_FAILED');
+          const data = await response.json() as any;
+          if (!Array.isArray(data.results) || data.results.length !== missing.length ||
+            new Set(data.results.map((r: any) => r.index)).size !== missing.length ||
+            data.results.some((r: any) => !Number.isSafeInteger(r.index) || r.index < 0 || r.index >= missing.length ||
+              !Number.isFinite(r.relevance_score) || r.relevance_score < 0 || r.relevance_score > 1) ||
+            !Number.isSafeInteger(data.usage?.prompt_tokens) || data.usage.prompt_tokens < 0) throw new Error('LOCAL_INVALID_SCORE');
+          this.metrics.inputTokens += data.usage.prompt_tokens;
+          const ordered = [...data.results].sort((a,b) => a.index-b.index);
+          for (const row of ordered) {
+            const index = missing[row.index];
+            scores[index] = row.relevance_score;
+            if (this.options.scoreCache) {
+              this.scoreCache.delete(cacheKeys[index]); this.scoreCache.set(cacheKeys[index], row.relevance_score);
+              while (this.scoreCache.size > this.options.scoreCache.maxEntries) this.scoreCache.delete(this.scoreCache.keys().next().value!);
+            }
+          }
         }
+        units.forEach((unit, i) => { if (scores[i] >= (this.options.threshold ?? .1)) selected.push(unit.id); });
         return selected;
       }
       for (const unit of units) {

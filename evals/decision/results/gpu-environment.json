@@ -1,0 +1,14 @@
+{
+  "dateUTC": "2026-10-04T05:56:04.1400595Z",
+  "cpu": {
+    "Name": "AMD Ryzen 9 7940HS w/ Radeon 780M Graphics     ",
+    "NumberOfCores": 8,
+    "NumberOfLogicalProcessors": 16
+  },
+  "memoryGiB": 47.21,
+  "gpu": "NVIDIA GeForce RTX 4060 Laptop GPU, 581.57, 8188 MiB, 444 MiB, 73, 41.70 W, 47 %",
+  "node": "v22.17.0",
+  "cuda": "12.8.93",
+  "llamaCommit": "11fe02151f79c41d0d4af7da708755d73b9c0da6",
+  "notes": "Shared Windows laptop with other existing Claude processes. Sequential benchmarks; model service bound only to loopback. Resident VRAM snapshots, not an instrumented lifetime peak."
+}

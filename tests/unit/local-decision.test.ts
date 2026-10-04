@@ -50,4 +50,43 @@ describe('local inference correctness boundaries', () => {
     invalid = true;
     await expect(provider.projectState('task', view, units)).rejects.toThrow();
   });
+  it('reuses exact content scores across fresh identities while remapping misses and invalidating changed tasks', async () => {
+    const batches: string[][] = [];
+    const cache = { maxEntries: 2, modelRevision: 'pinned-q8' };
+    const provider = new QwenRerankerProvider({ url: 'http://localhost:8084', classifier: true, scoreCache: cache, fetch: async (_url, init) => {
+      const documents = JSON.parse(init!.body as string).documents as string[]; batches.push(documents);
+      return new Response(JSON.stringify({ usage: { prompt_tokens: 10 }, results: documents.map((doc,index) =>
+        ({ index, relevance_score: doc.includes('Distractor') ? .02 : .9 })).reverse() }));
+    } });
+    const a = { id: 'old-a', keys: ['a'], nodes: view.elements };
+    const b = { id: 'old-b', keys: ['b'], nodes: [{ k: 'b', kq: 'strong' as const, role: 'paragraph', name: 'Distractor' }] };
+    expect(await provider.projectState('task', view, [a,b])).toEqual(['old-a']);
+    const fresh = [{ ...b, id: 'new-b' }, { ...a, id: 'new-a' }];
+    expect(await provider.projectState('task', { ...view, source: { ...view.source, id: 's2' } }, fresh)).toEqual(['new-a']);
+    expect(batches).toHaveLength(1);
+    const changed = [{ ...fresh[0], nodes: [{ ...b.nodes[0], name: 'Changed useful evidence' }] }, fresh[1]];
+    expect(await provider.projectState('task', view, changed)).toEqual(['new-b','new-a']);
+    expect(batches[1]).toHaveLength(1); // Server index 0 maps to the miss, not the cached second unit.
+    await provider.projectState('different task', view, changed);
+    expect(batches[2]).toHaveLength(2);
+    // Caller mutation cannot bypass validated bounds or change the pinned model.
+    cache.modelRevision = ''; cache.maxEntries = -1;
+    await provider.projectState('different task', view, changed);
+    expect(batches).toHaveLength(3);
+    expect(provider.metrics.cacheHits).toBe(5);
+  });
+  it('never caches malformed batches or enables unbounded/unversioned caching', async () => {
+    let valid = false;
+    const provider = new QwenRerankerProvider({ url: 'http://localhost:8084', classifier: true,
+      scoreCache: { maxEntries: 1, modelRevision: 'pinned' }, fetch: async () => new Response(JSON.stringify({ usage: { prompt_tokens: 10 },
+        results: [{ index: 0, relevance_score: valid ? .02 : 5 }] })) });
+    const units = [{ id: 'a', keys: ['a'], nodes: view.elements }];
+    await expect(provider.projectState('task', view, units)).rejects.toThrow();
+    valid = true;
+    expect(await provider.projectState('task', view, units)).toEqual([]);
+    expect(provider.metrics.calls).toBe(2);
+    for (const scoreCache of [{ maxEntries: 0, modelRevision: 'pinned' }, { maxEntries: 2049, modelRevision: 'pinned' }, { maxEntries: 1, modelRevision: '' }]) {
+      expect(() => new QwenRerankerProvider({ url: 'http://localhost:8084', classifier: true, scoreCache })).toThrow('LOCAL_INVALID_CACHE');
+    }
+  });
 });

@@ -1,5 +1,11 @@
 # Optional decision-provider experiment
 
+See [LOCAL-GPU.md](LOCAL-GPU.md) for the RTX 4060 assessment and sustained real
+Claude reproduction/evidence comparisons. [TRANSCRIPT-WORKLOADS.md](TRANSCRIPT-WORKLOADS.md)
+defines the acceptance metric from recent Mako2 and WhiteTip2 Claude sessions:
+complete-agent token/cost consumption, verified evidence, tool batches and
+whole-episode latency. State reduction alone does not establish an improvement.
+
 Recommendation: use canonical captures, deterministic compact views and explicit
 semantic transition checks first. Keep learned relevance filtering opt-in. A bounded
 choice endpoint is a plausible escalation stage, but these results do not establish

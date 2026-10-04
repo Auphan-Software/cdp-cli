@@ -1,0 +1,14 @@
+{
+"warning": "Raw constrained-choice accuracy; uncalibrated scores cannot authorize execution. Synthetic screenshots, no browser-agent completion.",
+"rows": [
+{"target":"B","arm":"semantic-only","choice":"escalate","failure":false,"rawCorrect":false,"ms":0.03569999999990614,"screenshotMs":75.09349999999995,"metrics":{"calls":0,"latencyMs":0,"inputTokens":0,"outputTokens":0,"missingUsageCalls":0,"rawChoice":null},"lunaUsage":null,"executionQualified":false},
+{"target":"B","arm":"local-text","choice":"A","failure":false,"rawCorrect":false,"ms":614.4166,"screenshotMs":75.09349999999995,"metrics":{"calls":1,"latencyMs":614.1172999999999,"inputTokens":468,"outputTokens":7,"missingUsageCalls":0,"rawChoice":"A"},"lunaUsage":null,"executionQualified":false},
+{"target":"B","arm":"local-screenshot","choice":"B","failure":false,"rawCorrect":true,"ms":573.3809999999999,"screenshotMs":75.09349999999995,"metrics":{"calls":1,"latencyMs":573.3558999999996,"inputTokens":670,"outputTokens":15,"missingUsageCalls":0,"rawChoice":"B"},"lunaUsage":null,"executionQualified":false},
+{"target":"A","arm":"semantic-only","choice":"escalate","failure":false,"rawCorrect":false,"ms":0.01040000000011787,"screenshotMs":69.3128000000006,"metrics":{"calls":0,"latencyMs":0,"inputTokens":0,"outputTokens":0,"missingUsageCalls":0,"rawChoice":null},"lunaUsage":null,"executionQualified":false},
+{"target":"A","arm":"local-text","choice":"A","failure":false,"rawCorrect":true,"ms":386.34569999999985,"screenshotMs":69.3128000000006,"metrics":{"calls":1,"latencyMs":386.32890000000043,"inputTokens":466,"outputTokens":7,"missingUsageCalls":0,"rawChoice":"A"},"lunaUsage":null,"executionQualified":false},
+{"target":"A","arm":"local-screenshot","choice":"A","failure":false,"rawCorrect":true,"ms":431.41849999999977,"screenshotMs":69.3128000000006,"metrics":{"calls":1,"latencyMs":431.39300000000003,"inputTokens":668,"outputTokens":15,"missingUsageCalls":0,"rawChoice":"A"},"lunaUsage":null,"executionQualified":false},
+{"target":"C","arm":"semantic-only","choice":"escalate","failure":false,"rawCorrect":false,"ms":0.014400000000023283,"screenshotMs":59.82690000000002,"metrics":{"calls":0,"latencyMs":0,"inputTokens":0,"outputTokens":0,"missingUsageCalls":0,"rawChoice":null},"lunaUsage":null,"executionQualified":false},
+{"target":"C","arm":"local-text","choice":"A","failure":false,"rawCorrect":false,"ms":395.6229999999996,"screenshotMs":59.82690000000002,"metrics":{"calls":1,"latencyMs":395.6060000000007,"inputTokens":460,"outputTokens":7,"missingUsageCalls":0,"rawChoice":"A"},"lunaUsage":null,"executionQualified":false},
+{"target":"C","arm":"local-screenshot","choice":"C","failure":false,"rawCorrect":true,"ms":414.84559999999965,"screenshotMs":59.82690000000002,"metrics":{"calls":1,"latencyMs":414.8236999999999,"inputTokens":662,"outputTokens":15,"missingUsageCalls":0,"rawChoice":"C"},"lunaUsage":null,"executionQualified":false}
+]
+}

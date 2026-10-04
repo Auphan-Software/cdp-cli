@@ -1,0 +1,8 @@
+{
+"warning": "Three overlapping requests with both models resident. Throughput/memory smoke, not accuracy calibration or an agent completion experiment.",
+"rows": [
+{"repeat":0,"elapsedMs":772.953,"rankingMs":513.76,"visionMs":737.7379000000001,"visionChoice":"B","rankingTokens":561},
+{"repeat":1,"elapsedMs":323.54549999999995,"rankingMs":137.54180000000008,"visionMs":323.078,"visionChoice":"B","rankingTokens":561},
+{"repeat":2,"elapsedMs":338.24209999999994,"rankingMs":126.90350000000012,"visionMs":337.7630999999999,"visionChoice":"B","rankingTokens":561}
+]
+}
