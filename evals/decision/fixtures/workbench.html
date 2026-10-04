@@ -1,0 +1,43 @@
+<!doctype html><html><head><title>Decision workbench</title></head><body>
+<nav aria-label="Navigation"><button id="home">Home</button><button id="reports">Reports</button></nav>
+<main aria-label="Workspace">
+  <section id="orders" aria-label="Orders">
+    <div data-row-key="Alpha"><span id="alpha-label">Alpha account</span><button id="alpha-edit">Edit</button></div>
+    <div data-row-key="Beta"><span id="beta-label">Beta account</span><button id="beta-edit">Edit</button></div>
+    <button id="save">Save</button><button id="submit">Submit</button><button id="remove">Remove</button>
+    <input id="reference" aria-label="Reference" value="fixture"><input id="approved" type="checkbox" checked>
+    <select id="method" aria-label="Method"><option selected>Card</option><option>Cash</option></select>
+    <span id="clue">Account frozen</span><span id="orderbook">Orderbook assistance</span><span id="result" role="status">Ready</span>
+    <div id="live" aria-live="polite"><span>Processing settled</span></div>
+    <div id="warning" role="alert" hidden>Authorization failed</div>
+    <div id="modal" role="dialog" hidden><button id="dismiss">Dismiss</button></div>
+  </section>
+  <section id="inventory" aria-label="Inventory"></section>
+</main><footer aria-label="Footer"><span>Service terms</span></footer>
+<script>
+for(let i=0;i<120;i++){
+  const p=document.createElement('p');p.id='catalog-'+i;p.textContent='Catalog reference '+i+' Standard item available in warehouse';
+  if(i===0)p.textContent='Orderbook lookup reference';
+  document.querySelector('#inventory').append(p);
+}
+for(let i=0;i<30;i++){
+  const p=document.createElement('p');p.id='hidden-'+i;p.hidden=true;p.textContent='Hidden template '+i;
+  document.querySelector('#inventory').append(p);
+}
+window.resetFixture=function(mode){
+  window.clicked=null;window.effectCount=0;
+  document.querySelector('#result').textContent=mode==='preexisting'?'Saved':'Ready';
+  document.querySelector('#warning').hidden=true;document.querySelector('#modal').hidden=true;
+  document.querySelector('#reference').blur();
+  if(mode==='focus')document.querySelector('#reference').focus();
+  if(mode==='error')document.querySelector('#warning').hidden=false;
+  if(mode==='dialog')document.querySelector('#modal').hidden=false;
+  for(const button of document.querySelectorAll('button'))button.onclick=function(){
+    window.clicked=this.id;
+    if(mode==='noop'||mode==='preexisting')return;
+    window.effectCount++;
+    document.querySelector('#result').textContent='Effect '+window.effectCount+' '+this.id;
+  };
+};
+window.resetFixture('normal');
+</script></body></html>

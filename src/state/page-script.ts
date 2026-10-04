@@ -1,6 +1,6 @@
 // @ts-nocheck
 /** A self-contained browser expression. The host replaces only the serialized options. */
-export function captureExpression(options: { frame?: string; ignore: string[]; maxElements: number }): string {
+export function captureExpression(options: { frame?: string; ignore: string[]; maxElements: number; experimentalHints?: boolean }): string {
   return `(${capturePage.toString()})(${JSON.stringify(options)})`;
 }
 
@@ -150,7 +150,7 @@ function capturePage(options: any): any {
       const rawValue = editable ? String(el.innerText || '') : interactive &&
         !/^(checkbox|radio|submit|button|reset|file|hidden)$/i.test(el.type || '') && 'value' in el ? String(el.value) : undefined;
       candidates.push({ fp, candidate, role, name, text, rawValue,
-        state, box, path: path(el) });
+        state, box, path: path(el), ...(options.experimentalHints ? { el } : {}) });
     }
   };
   let root = document;
@@ -169,6 +169,31 @@ function capturePage(options: any): any {
       kq: duplicate ? 'ambiguous' : item.candidate.includes('path:') ? 'weak' : 'strong',
       role: item.role, ...(item.name ? { name: item.name } : {}), ...(item.text ? { text: item.text } : {}),
       ...(item.rawValue !== undefined ? { rawValue: item.rawValue } : {}), state: item.state, box: item.box });
+  }
+  // Opt-in experiment metadata; ordinary captures retain their existing shape.
+  const hints: Record<string, any> = {};
+  let focus;
+  if (options.experimentalHints) {
+    const keys = new Map(candidates.map((item: any, index: number) => [item.el, result[index].k]));
+    for (let i = 0; i < candidates.length; i++) {
+      const el = candidates[i].el;
+      const parents: string[] = [];
+      let ancestor = el.parentElement;
+      while (ancestor) {
+        if (keys.has(ancestor)) parents.push(keys.get(ancestor));
+        ancestor = ancestor.parentElement;
+      }
+      const region = el.closest('nav,main,aside,footer,section,form,[role="dialog"],[role="navigation"],[role="region"]');
+      const row = el.closest('[data-row-key],[data-key],[data-id],tr,li');
+      // Context descriptors avoid form values and arbitrary container text.
+      const context = [region, row].filter(Boolean).map((container: any) =>
+        clean(container.getAttribute('aria-label') || container.getAttribute('data-row-key') ||
+          container.getAttribute('data-key') || container.getAttribute('data-id') || container.id || container.tagName.toLowerCase()));
+      hints[result[i].k] = { parents, context, region: region ? `${candidates[i].fp}|${path(region)}` : undefined,
+        live: !!el.closest('[aria-live]:not([aria-live="off"]),[role="status"],[role="alert"]'),
+        editable: !!el.isContentEditable || /^(input|textarea|select)$/.test(el.tagName.toLowerCase()) };
+      if (el === el.getRootNode().activeElement) focus = result[i].k;
+    }
   }
   const visibleText: string[] = [];
   const collectVisibleText = (container: any) => {
@@ -191,6 +216,6 @@ function capturePage(options: any): any {
   if (root?.body) collectVisibleText(root.body);
   const bodyText = clean(visibleText.join(' '));
   return { url: root?.defaultView?.location?.href ?? location.href, title: document.title, readyState: document.readyState,
-    bodyTextHash: hash(bodyText), nodeCount, elements: result, coverage: { truncated, unreachableFrames, blockedByDialog: false,
+    bodyTextHash: hash(bodyText), nodeCount, elements: result, ...(options.experimentalHints ? { hints, focus } : {}), coverage: { truncated, unreachableFrames, blockedByDialog: false,
       ambiguousKeys: result.filter((item: any) => item.kq === 'ambiguous').map((item: any) => item.k) } };
 }
