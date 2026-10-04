@@ -85,7 +85,7 @@ beforeAll(async () => {
 }, 30_000);
 afterAll(async () => {
   session?.close(); await chrome?.close(); await fixture?.close();
-  if (process.env.CDP_DECISION_DATASET) await writeFile(process.env.CDP_DECISION_DATASET, JSON.stringify(dataset, null, 2));
+  if (process.env.CDP_DECISION_DATASET) await writeFile(process.env.CDP_DECISION_DATASET, `[\n${dataset.map(d=>JSON.stringify(d)).join(',\n')}\n]\n`);
   const path = process.env.CDP_DECISION_EVAL_METRICS;
   if (path) {
     await mkdir(dirname(path), { recursive: true });
