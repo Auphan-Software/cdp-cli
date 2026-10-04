@@ -1,0 +1,111 @@
+{
+    "sourceCommit":  "55262c28311a947af6b932cc744127fc42187ca5",
+    "cpuAvx512":  false,
+    "llamaCppCommit":  "11fe02151f79c41d0d4af7da708755d73b9c0da6",
+    "cudaToolkit":  "12.8.93",
+    "deployedAtUtc":  "2026-10-04T19:47:56.5043261Z",
+    "firewallScope":  "192.168.0.0/16",
+    "files":  [
+                  {
+                      "sha256":  "9513540e4ec4c51ee9e7304138c2cc255c29a8c181f9e80c38efa25738becd99",
+                      "name":  "cublas64_12.dll",
+                      "bytes":  113716224
+                  },
+                  {
+                      "sha256":  "b199d1ff892a81b7fd3d57ba1781549609b41500b36008fef326038393ad46c7",
+                      "name":  "cublasLt64_12.dll",
+                      "bytes":  674667520
+                  },
+                  {
+                      "sha256":  "c2c9a9c22a9bcba90e261825968836787b331038047a26770cffb7a583c28344",
+                      "name":  "cudart64_12.dll",
+                      "bytes":  573952
+                  },
+                  {
+                      "sha256":  "84b5353f096a9fc636f76707367fb7407b3719764a526019276aa9e09e6acf32",
+                      "name":  "ggml-base.dll",
+                      "bytes":  676352
+                  },
+                  {
+                      "sha256":  "5746cabb50a043d7c5e822fc50495c4ea437d292480b01a51b3393df74e5da48",
+                      "name":  "ggml-cpu.dll",
+                      "bytes":  769024
+                  },
+                  {
+                      "sha256":  "c82a4224b9d0d21f56ed240bdb8fe4363f49dc8fb8c3e1ba4c1dc7e1a821e547",
+                      "name":  "ggml-cuda.dll",
+                      "bytes":  33383424
+                  },
+                  {
+                      "sha256":  "8e5f6002c741d792a809de3eb54fea54473561ffdb603082dd09ec16dc9b1050",
+                      "name":  "ggml.dll",
+                      "bytes":  61952
+                  },
+                  {
+                      "sha256":  "f77f1976a89a56511f90cb24e00e52a4c44d06529de72c09252dce09ccdc9833",
+                      "name":  "libcrypto-3-x64.dll",
+                      "bytes":  6342144
+                  },
+                  {
+                      "sha256":  "e506c6335ba2770fafe15a0f17f711a9d076cf14b89ef8a69dba6a1f43ab1822",
+                      "name":  "libssl-3-x64.dll",
+                      "bytes":  1171456
+                  },
+                  {
+                      "sha256":  "c08eb5c71e6e07f758b1f362f80d3ae84e3a240b688785b34b162c18b124fe61",
+                      "name":  "llama-common.dll",
+                      "bytes":  3654656
+                  },
+                  {
+                      "sha256":  "c5adcc4588ca561a155656ebb2b41857f59422d91f551774d288513680e17322",
+                      "name":  "llama-server-impl.dll",
+                      "bytes":  5387264
+                  },
+                  {
+                      "sha256":  "adbe93b2a904f9003af7077e2b6735af83171bd0f8a608845542dece2a851f2b",
+                      "name":  "llama-server.exe",
+                      "bytes":  10752
+                  },
+                  {
+                      "sha256":  "0a076b7348ba75bb6066a03732feac6e925452f0488f2409595ff603745d7353",
+                      "name":  "llama.dll",
+                      "bytes":  2746880
+                  },
+                  {
+                      "sha256":  "9c253fa141f34202d63899a02ea43d135ce674df634b4b3d96e6057bdcbd0ed7",
+                      "name":  "mtmd.dll",
+                      "bytes":  1441280
+                  }
+              ],
+    "gpu":  "NVIDIA GeForce GTX 1080 Ti, 11264 MiB, 6135 MiB, 4972 MiB, 0 %, 25, 560.94",
+    "workerBind":  "127.0.0.1:8126",
+    "cpuNative":  false,
+    "serviceSha256":  "8951bc7fdea852570db869a292ebdad69bba5836dc52afb5d7b161edb49dfb5e",
+    "gateway":  "http://192.168.1.140:8125",
+    "host":  "office-pc / Henry-Work-PC",
+    "modelSha256":  "18f099b292864fde542713d7c41aa4464860e11bc07b045b51543e9e59e6e7e7",
+    "ram":  [
+                {
+                    "TotalVisibleMemorySize":  33493828,
+                    "FreePhysicalMemory":  14976624
+                }
+            ],
+    "worker":  [
+                   {
+                       "Id":  14740,
+                       "WorkingSet64":  247336960,
+                       "PeakWorkingSet64":  1307455488,
+                       "PriorityClass":  16384
+                   }
+               ],
+    "transcriptionPid":  18916,
+    "forceMmq":  true,
+    "cudaArchitecture":  "61",
+    "cpu":  [
+                {
+                    "Name":  "Intel(R) Core(TM) i7-6700K CPU @ 4.00GHz",
+                    "NumberOfCores":  4,
+                    "NumberOfLogicalProcessors":  8
+                }
+            ]
+}

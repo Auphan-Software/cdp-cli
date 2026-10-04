@@ -3,7 +3,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { resolve, join } from 'node:path';
 import { mkdirSync } from 'node:fs';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import { CDPContext } from './context.js';
 import { capture } from './commands/state.js';
 import { StateStore } from './state/store.js';
@@ -84,10 +84,18 @@ export async function workflow(context: CDPContext, operation: string, options: 
   options = { ...options, page: page.id, frame: options.frame === '0' ? undefined : options.frame };
   const store = new StateStore(context.cdpUrl, context.workspaceSessionName, page.id, process.env.CDP_STATE_ROOT);
   const previous = options.source ? store.load(options.source) : undefined;
-  const take = async (stabilityMs = options.stabilityMs ?? 200): Promise<PageState> => {
+  const observationAlias = `workflow-${createHash('sha256').update(JSON.stringify([options.frame, options.maxElements ?? 2000])).digest('hex').slice(0, 16)}`;
+  let observedBefore: PageState | undefined;
+  let historyUnavailable = false;
+  if (!previous && ['observe', 'screenshot'].includes(operation)) {
+    try { observedBefore = store.load(observationAlias); }
+    catch (error) { historyUnavailable = !(error instanceof Error && error.message.startsWith('STATE_NOT_FOUND:')); }
+  }
+  const take = async (stabilityMs = options.stabilityMs ?? 200, recordObservation = true): Promise<PageState> => {
     let state: PageState | undefined;
     if (!await capture(context, { page: page.id, frame: options.frame, maxElements: options.maxElements ?? 2000,
-      stabilityMs, quiet: true, includeHints: true, onCaptured: value => { state = value; } }) || !state) throw new Error('WORKFLOW_OBSERVATION_FAILED');
+      stabilityMs, quiet: true, includeHints: true, name: recordObservation ? observationAlias : undefined,
+      onCaptured: value => { state = value; } }) || !state) throw new Error('WORKFLOW_OBSERVATION_FAILED');
     return state;
   };
   if (operation === 'expand') {
@@ -101,7 +109,7 @@ export async function workflow(context: CDPContext, operation: string, options: 
   if (operation === 'act') {
     if (!previous) throw new Error('WORKFLOW_SOURCE_REQUIRED');
     const args = actionArgs(options);
-    const before = await take(0);
+    const before = await take(0, false);
     if (previous.coverage.unstable || before.coverage.blockedByDialog || before.coverage.dialogProbeUnavailable ||
       semanticSignature(previous) !== semanticSignature(before)) throw new Error('WORKFLOW_STALE_SOURCE: observe again; no action delivered');
     let deliveryUnknown = false;
@@ -125,9 +133,11 @@ export async function workflow(context: CDPContext, operation: string, options: 
     catch { return { success: false, type: 'workflow-action', value: { action, observationUnavailable: true,
       instruction: 'Observe to recover evidence; do not repeat the action blindly.' } }; }
   } else current = await take();
-  const diff = previous ? diffStates(previous, current) : undefined;
+  const diffBase = previous ?? (observedBefore?.captureProfile === current.captureProfile ? observedBefore : undefined);
+  const diff = diffBase ? diffStates(diffBase, current) : undefined;
   const errors: Array<{ source: 'console' | 'network'; message: string }> = [];
   const diagnostics: Record<string, unknown> = { boundedLast: 100, console: 'unavailable', network: 'unavailable' };
+  if (historyUnavailable) diagnostics.workflowHistory = 'unavailable';
   let daemon: DaemonClient | undefined;
   try { daemon = new DaemonClient({ cdpUrl: context.cdpUrl }); }
   catch { diagnostics.daemon = 'unconfigured'; }
@@ -144,7 +154,11 @@ export async function workflow(context: CDPContext, operation: string, options: 
     } catch { /* Never interpret unavailable logs as a clean page. */ }
   }
   const view = await projectState(options.task, current, { prune: !options.full, hints: current.hints, diff, errors,
-    provider: options.full ? undefined : workflowProjectionProvider() });
+    provider: options.full || historyUnavailable || (observedBefore && observedBefore.captureProfile !== current.captureProfile) ||
+      current.coverage.unstable || current.coverage.truncated || current.coverage.unreachableFrames.length ||
+      current.coverage.dialogProbeUnavailable || current.coverage.blockedByDialog || diff?.coverage.unstable || diff?.coverage.truncated ||
+      diff?.coverage.unreachableFrames.length || diff?.coverage.dialogProbeUnavailable ||
+      diff?.changes.some(change => change.kind === 'text-unmodelled') ? undefined : workflowProjectionProvider() });
   let screenshot: unknown;
   if (operation === 'screenshot' || options.screenshot) {
     try {
@@ -154,7 +168,7 @@ export async function workflow(context: CDPContext, operation: string, options: 
       const result = await runCli(['screenshot', page.id, '--output', path, '--format', 'png', '--cdp-url', context.cdpUrl,
         ...(context.workspaceSessionName ? ['--session', context.workspaceSessionName] : [])]);
       screenshot = { available: result.ok, path: result.ok ? path : undefined, source: view.source, evidence: result.rows,
-        semanticStable: result.ok ? semanticSignature(current) === semanticSignature(await take(0)) : false };
+        semanticStable: result.ok ? semanticSignature(current) === semanticSignature(await take(0, false)) : false };
     } catch {
       screenshot = { available: false, semanticStable: null, source: view.source,
         instruction: 'Screenshot or alignment capture failed; action/state evidence remains valid at its capture time. Recover pixels without repeating the action.' };

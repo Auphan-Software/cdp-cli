@@ -21,7 +21,7 @@ const tools = ['observe', 'act', 'expand', 'screenshot'].map(name => ({ name,
   description: name === 'act' ? 'Perform one bounded browser action and return fresh compact state, diff and diagnostic errors in the same call. Requires the last source ID. Never retry a possibly delivered action blindly.' :
     name === 'expand' ? 'Read the full canonical historical capture for a source ID; it is not a fresh observation.' :
     name === 'screenshot' ? 'Capture owned-page screenshot pixels and compact state together. Use for visual evidence, not every step.' :
-    'Observe the inherited owned CDP page with deterministic pruning and protected evidence. No local or paid model runs.',
+    'Observe the inherited owned CDP page with protected evidence and optional configured relevance projection. Busy or unavailable providers retain the deterministic view.',
   inputSchema: { type: 'object', properties, required: name === 'act' ? ['task', 'source', 'action'] : name === 'expand' ? ['task', 'source'] : ['task'], additionalProperties: false }
 }));
 

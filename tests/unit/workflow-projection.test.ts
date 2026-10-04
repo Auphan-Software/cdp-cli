@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { workflowProjectionProvider } from '../../src/workflow-projection.js';
 import { projectState } from '../../src/experimental/decision.js';
 import { QwenRerankerProvider } from '../../src/experimental/qwen-reranker.js';
+import { diffStates } from '../../src/state/diff.js';
 import type { PageState } from '../../src/state/types.js';
 
 const state = { id: 'source', digest: 'digest', targetId: 'owned', url: 'https://example.test', title: 'Test',
@@ -54,5 +55,21 @@ describe('optional shared workflow projection', () => {
         results: [{ index: 0, relevance_score: 0 }], usage: { prompt_tokens: 1 } }) }) });
     const view = await projectState('inspect', state, { provider });
     expect(view.providerStatus).toBe('fallback'); expect(view.elements.map(e => e.k)).toEqual(['alert', 'other']);
+  });
+  it('preserves previously volatile or ambiguous evidence when a later capture stabilizes', async () => {
+    for (const ambiguous of [false, true]) {
+      const current = structuredClone(state);
+      Object.assign(current, { schema: 'cdp-cli.page-state/1', seq: 2, captureProfile: 'profile', bodyTextHash: 'same' });
+      current.coverage = { truncated: false, unreachableFrames: [], blockedByDialog: false };
+      const before = structuredClone(current); before.id = 'prior'; before.seq = 1;
+      const priorNode = before.elements.find(node => node.k === 'other')!;
+      priorNode.name = 'Earlier result';
+      current.elements.find(node => node.k === 'other')!.name = 'Latest result';
+      if (ambiguous) { priorNode.kq = 'ambiguous'; before.coverage.ambiguousKeys = ['other']; }
+      else { before.coverage.volatileKeys = ['other']; before.coverage.unstable = true; }
+      const view = await projectState('inspect', current, { diff: diffStates(before, current),
+        provider: { projectState: async () => [], decideNext: async () => { throw new Error('unused'); } } });
+      expect(view.elements).toEqual(expect.arrayContaining([expect.objectContaining({ k: 'other', name: 'Latest result' })]));
+    }
   });
 });

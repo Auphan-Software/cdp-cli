@@ -65,6 +65,8 @@ describe('deployed deterministic browser workflow', () => {
     const rejected = await cli('act',page.id,['--source',observed.value.view.source.id,'--action','click','--selector','#save']);
     expect(rejected.error).toBe(true); expect(rejected.message).toContain('STALE_SOURCE');
     const current = await cli('observe',page.id);
+    expect(current.value.view.diff.from.id).toBe(observed.value.view.source.id);
+    expect(current.value.view.diff.changes).toEqual(expect.arrayContaining([expect.objectContaining({key:'top|id:result',to:'External change'})]));
     expect(current.value.view.elements).toEqual(expect.arrayContaining([expect.objectContaining({k:'top|id:result',text:'External change'})]));
   });
   it('serves owned actions, diagnostics and actual image blocks through stdio MCP', async () => {

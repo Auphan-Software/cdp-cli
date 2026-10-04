@@ -1,0 +1,1910 @@
+{
+  "warning": "Office LAN HTTP batch and saved-fixture projection measurements. Not live Mako2/WhiteTip2 full-agent effectiveness or transcription peak-load qualification. Repeat0 may include shared cache from prior tasks; tokens0 establishes a score-cache hit.",
+  "batchRows": [
+    {
+      "units": 1,
+      "repeat": 0,
+      "status": 200,
+      "latencyMs": 526.472,
+      "promptTokens": 101,
+      "resultCount": 1
+    },
+    {
+      "units": 1,
+      "repeat": 1,
+      "status": 200,
+      "latencyMs": 90.62649999999996,
+      "promptTokens": 0,
+      "resultCount": 1
+    },
+    {
+      "units": 1,
+      "repeat": 2,
+      "status": 200,
+      "latencyMs": 19.680200000000013,
+      "promptTokens": 0,
+      "resultCount": 1
+    },
+    {
+      "units": 6,
+      "repeat": 0,
+      "status": 200,
+      "latencyMs": 439.49530000000004,
+      "promptTokens": 606,
+      "resultCount": 6
+    },
+    {
+      "units": 6,
+      "repeat": 1,
+      "status": 200,
+      "latencyMs": 88.2179000000001,
+      "promptTokens": 0,
+      "resultCount": 6
+    },
+    {
+      "units": 6,
+      "repeat": 2,
+      "status": 200,
+      "latencyMs": 24.18139999999994,
+      "promptTokens": 0,
+      "resultCount": 6
+    },
+    {
+      "units": 12,
+      "repeat": 0,
+      "status": 200,
+      "latencyMs": 516.0994000000001,
+      "promptTokens": 1226,
+      "resultCount": 12
+    },
+    {
+      "units": 12,
+      "repeat": 1,
+      "status": 200,
+      "latencyMs": 35.38729999999987,
+      "promptTokens": 0,
+      "resultCount": 12
+    },
+    {
+      "units": 12,
+      "repeat": 2,
+      "status": 200,
+      "latencyMs": 22.65729999999985,
+      "promptTokens": 0,
+      "resultCount": 12
+    },
+    {
+      "units": 32,
+      "repeat": 0,
+      "status": 200,
+      "latencyMs": 988.5426000000002,
+      "promptTokens": 3286,
+      "resultCount": 32
+    },
+    {
+      "units": 32,
+      "repeat": 1,
+      "status": 200,
+      "latencyMs": 53.38159999999971,
+      "promptTokens": 0,
+      "resultCount": 32
+    },
+    {
+      "units": 32,
+      "repeat": 2,
+      "status": 200,
+      "latencyMs": 48.424700000000485,
+      "promptTokens": 0,
+      "resultCount": 32
+    }
+  ],
+  "projectionRows": [
+    {
+      "task": "save",
+      "repeat": 0,
+      "projectionMs": 873.0303000000004,
+      "status": "applied",
+      "baselineNodes": 172,
+      "deterministicNodes": 141,
+      "retainedNodes": 18,
+      "baselineCharacters": 31085,
+      "deterministicCharacters": 21222,
+      "projectedCharacters": 2691,
+      "goldNodes": 1,
+      "missingGold": [],
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 870.2727999999997,
+        "inputTokens": 2225,
+        "cacheHits": 0,
+        "batches": [
+          {
+            "units": 4,
+            "latencyMs": 870.2727999999997,
+            "scores": [
+              0.003883077297359705,
+              0.24025091528892517,
+              0.02427132986485958,
+              0.004326516296714544
+            ]
+          }
+        ]
+      },
+      "retainedKeys": [
+        "top|row:Alpha>id:alpha-label",
+        "top|row:Alpha>id:alpha-edit",
+        "top|row:Beta>id:beta-label",
+        "top|row:Beta>id:beta-edit",
+        "top|id:save",
+        "top|id:submit",
+        "top|id:remove",
+        "top|id:reference",
+        "top|id:approved",
+        "top|id:method",
+        "top|path:id:method>option:1",
+        "top|path:id:method>option:2",
+        "top|id:clue",
+        "top|id:orderbook",
+        "top|id:result",
+        "top|path:id:live>span:1",
+        "top|id:warning",
+        "top|id:modal"
+      ]
+    },
+    {
+      "task": "synonym",
+      "repeat": 0,
+      "projectionMs": 569.7776999999996,
+      "status": "applied",
+      "baselineNodes": 172,
+      "deterministicNodes": 141,
+      "retainedNodes": 18,
+      "baselineCharacters": 31085,
+      "deterministicCharacters": 21222,
+      "projectedCharacters": 2691,
+      "goldNodes": 1,
+      "missingGold": [],
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 567.5457999999999,
+        "inputTokens": 2231,
+        "cacheHits": 0,
+        "batches": [
+          {
+            "units": 4,
+            "latencyMs": 567.5457999999999,
+            "scores": [
+              0.003283666679635644,
+              0.2419608235359192,
+              0.024300118908286095,
+              0.002530207857489586
+            ]
+          }
+        ]
+      },
+      "retainedKeys": [
+        "top|row:Alpha>id:alpha-label",
+        "top|row:Alpha>id:alpha-edit",
+        "top|row:Beta>id:beta-label",
+        "top|row:Beta>id:beta-edit",
+        "top|id:save",
+        "top|id:submit",
+        "top|id:remove",
+        "top|id:reference",
+        "top|id:approved",
+        "top|id:method",
+        "top|path:id:method>option:1",
+        "top|path:id:method>option:2",
+        "top|id:clue",
+        "top|id:orderbook",
+        "top|id:result",
+        "top|path:id:live>span:1",
+        "top|id:warning",
+        "top|id:modal"
+      ]
+    },
+    {
+      "task": "row-alpha",
+      "repeat": 0,
+      "projectionMs": 635.6001999999999,
+      "status": "applied",
+      "baselineNodes": 172,
+      "deterministicNodes": 141,
+      "retainedNodes": 14,
+      "baselineCharacters": 31085,
+      "deterministicCharacters": 21222,
+      "projectedCharacters": 2324,
+      "goldNodes": 1,
+      "missingGold": [],
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 632.8672999999999,
+        "inputTokens": 2190,
+        "cacheHits": 0,
+        "batches": [
+          {
+            "units": 4,
+            "latencyMs": 632.8672999999999,
+            "scores": [
+              0.012111070565879345,
+              0.0010193141642957926,
+              0.0003886091581080109,
+              0.005164231173694134
+            ]
+          }
+        ]
+      },
+      "retainedKeys": [
+        "top|row:Alpha>id:alpha-label",
+        "top|row:Alpha>id:alpha-edit",
+        "top|row:Beta>id:beta-label",
+        "top|row:Beta>id:beta-edit",
+        "top|id:reference",
+        "top|id:approved",
+        "top|id:method",
+        "top|path:id:method>option:1",
+        "top|path:id:method>option:2",
+        "top|id:clue",
+        "top|id:result",
+        "top|path:id:live>span:1",
+        "top|id:warning",
+        "top|id:modal"
+      ]
+    },
+    {
+      "task": "row-beta",
+      "repeat": 0,
+      "projectionMs": 580.6809000000003,
+      "status": "applied",
+      "baselineNodes": 172,
+      "deterministicNodes": 141,
+      "retainedNodes": 14,
+      "baselineCharacters": 31085,
+      "deterministicCharacters": 21222,
+      "projectedCharacters": 2324,
+      "goldNodes": 1,
+      "missingGold": [],
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 578.4151999999995,
+        "inputTokens": 2190,
+        "cacheHits": 0,
+        "batches": [
+          {
+            "units": 4,
+            "latencyMs": 578.4151999999995,
+            "scores": [
+              0.011943608522415161,
+              0.003959798254072666,
+              0.0005083437426947057,
+              0.006152371410280466
+            ]
+          }
+        ]
+      },
+      "retainedKeys": [
+        "top|row:Alpha>id:alpha-label",
+        "top|row:Alpha>id:alpha-edit",
+        "top|row:Beta>id:beta-label",
+        "top|row:Beta>id:beta-edit",
+        "top|id:reference",
+        "top|id:approved",
+        "top|id:method",
+        "top|path:id:method>option:1",
+        "top|path:id:method>option:2",
+        "top|id:clue",
+        "top|id:result",
+        "top|path:id:live>span:1",
+        "top|id:warning",
+        "top|id:modal"
+      ]
+    },
+    {
+      "task": "ambiguous",
+      "repeat": 0,
+      "projectionMs": 704.028800000001,
+      "status": "applied",
+      "baselineNodes": 172,
+      "deterministicNodes": 141,
+      "retainedNodes": 14,
+      "baselineCharacters": 31085,
+      "deterministicCharacters": 21222,
+      "projectedCharacters": 2324,
+      "goldNodes": 0,
+      "missingGold": [],
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 702.2659999999996,
+        "inputTokens": 2186,
+        "cacheHits": 0,
+        "batches": [
+          {
+            "units": 4,
+            "latencyMs": 702.2659999999996,
+            "scores": [
+              0.00693235220387578,
+              0.0011660087620839477,
+              0.00015369591710623354,
+              0.00186349474824965
+            ]
+          }
+        ]
+      },
+      "retainedKeys": [
+        "top|row:Alpha>id:alpha-label",
+        "top|row:Alpha>id:alpha-edit",
+        "top|row:Beta>id:beta-label",
+        "top|row:Beta>id:beta-edit",
+        "top|id:reference",
+        "top|id:approved",
+        "top|id:method",
+        "top|path:id:method>option:1",
+        "top|path:id:method>option:2",
+        "top|id:clue",
+        "top|id:result",
+        "top|path:id:live>span:1",
+        "top|id:warning",
+        "top|id:modal"
+      ]
+    },
+    {
+      "task": "error",
+      "repeat": 0,
+      "projectionMs": 82.44599999999991,
+      "status": "applied",
+      "baselineNodes": 172,
+      "deterministicNodes": 141,
+      "retainedNodes": 18,
+      "baselineCharacters": 31655,
+      "deterministicCharacters": 21736,
+      "projectedCharacters": 3205,
+      "goldNodes": 1,
+      "missingGold": [],
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 79.49649999999929,
+        "inputTokens": 139,
+        "cacheHits": 0,
+        "batches": [
+          {
+            "units": 4,
+            "latencyMs": 79.49649999999929,
+            "scores": [
+              0.003883077297359705,
+              0.24662227928638458,
+              0.02427132986485958,
+              0.004326516296714544
+            ]
+          }
+        ]
+      },
+      "retainedKeys": [
+        "top|row:Alpha>id:alpha-label",
+        "top|row:Alpha>id:alpha-edit",
+        "top|row:Beta>id:beta-label",
+        "top|row:Beta>id:beta-edit",
+        "top|id:save",
+        "top|id:submit",
+        "top|id:remove",
+        "top|id:reference",
+        "top|id:approved",
+        "top|id:method",
+        "top|path:id:method>option:1",
+        "top|path:id:method>option:2",
+        "top|id:clue",
+        "top|id:orderbook",
+        "top|id:result",
+        "top|path:id:live>span:1",
+        "top|id:warning",
+        "top|id:modal"
+      ]
+    },
+    {
+      "task": "focus",
+      "repeat": 0,
+      "projectionMs": 87.56259999999929,
+      "status": "applied",
+      "baselineNodes": 172,
+      "deterministicNodes": 141,
+      "retainedNodes": 18,
+      "baselineCharacters": 31112,
+      "deterministicCharacters": 21249,
+      "projectedCharacters": 2718,
+      "goldNodes": 1,
+      "missingGold": [],
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 84.23149999999987,
+        "inputTokens": 0,
+        "cacheHits": 0,
+        "batches": [
+          {
+            "units": 4,
+            "latencyMs": 84.23149999999987,
+            "scores": [
+              0.003883077297359705,
+              0.24025091528892517,
+              0.02427132986485958,
+              0.004326516296714544
+            ]
+          }
+        ]
+      },
+      "retainedKeys": [
+        "top|row:Alpha>id:alpha-label",
+        "top|row:Alpha>id:alpha-edit",
+        "top|row:Beta>id:beta-label",
+        "top|row:Beta>id:beta-edit",
+        "top|id:save",
+        "top|id:submit",
+        "top|id:remove",
+        "top|id:reference",
+        "top|id:approved",
+        "top|id:method",
+        "top|path:id:method>option:1",
+        "top|path:id:method>option:2",
+        "top|id:clue",
+        "top|id:orderbook",
+        "top|id:result",
+        "top|path:id:live>span:1",
+        "top|id:warning",
+        "top|id:modal"
+      ]
+    },
+    {
+      "task": "dialog",
+      "repeat": 0,
+      "projectionMs": 632.1280999999999,
+      "status": "applied",
+      "baselineNodes": 172,
+      "deterministicNodes": 142,
+      "retainedNodes": 10,
+      "baselineCharacters": 31093,
+      "deterministicCharacters": 21290,
+      "projectedCharacters": 1854,
+      "goldNodes": 1,
+      "missingGold": [],
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 629.5460999999996,
+        "inputTokens": 2231,
+        "cacheHits": 0,
+        "batches": [
+          {
+            "units": 4,
+            "latencyMs": 629.5460999999996,
+            "scores": [
+              0.006229930557310581,
+              0.0036529076751321554,
+              0.0022369155194610357,
+              0.0044177221134305
+            ]
+          }
+        ]
+      },
+      "retainedKeys": [
+        "top|id:reference",
+        "top|id:approved",
+        "top|id:method",
+        "top|path:id:method>option:1",
+        "top|path:id:method>option:2",
+        "top|id:result",
+        "top|path:id:live>span:1",
+        "top|id:warning",
+        "top|id:modal",
+        "top|id:dismiss"
+      ]
+    },
+    {
+      "task": "noop",
+      "repeat": 0,
+      "projectionMs": 80.0576000000001,
+      "status": "applied",
+      "baselineNodes": 172,
+      "deterministicNodes": 141,
+      "retainedNodes": 18,
+      "baselineCharacters": 31085,
+      "deterministicCharacters": 21222,
+      "projectedCharacters": 2691,
+      "goldNodes": 1,
+      "missingGold": [],
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 78.3114999999998,
+        "inputTokens": 0,
+        "cacheHits": 0,
+        "batches": [
+          {
+            "units": 4,
+            "latencyMs": 78.3114999999998,
+            "scores": [
+              0.003883077297359705,
+              0.24025091528892517,
+              0.02427132986485958,
+              0.004326516296714544
+            ]
+          }
+        ]
+      },
+      "retainedKeys": [
+        "top|row:Alpha>id:alpha-label",
+        "top|row:Alpha>id:alpha-edit",
+        "top|row:Beta>id:beta-label",
+        "top|row:Beta>id:beta-edit",
+        "top|id:save",
+        "top|id:submit",
+        "top|id:remove",
+        "top|id:reference",
+        "top|id:approved",
+        "top|id:method",
+        "top|path:id:method>option:1",
+        "top|path:id:method>option:2",
+        "top|id:clue",
+        "top|id:orderbook",
+        "top|id:result",
+        "top|path:id:live>span:1",
+        "top|id:warning",
+        "top|id:modal"
+      ]
+    },
+    {
+      "task": "preexisting",
+      "repeat": 0,
+      "projectionMs": 101.3153999999995,
+      "status": "applied",
+      "baselineNodes": 172,
+      "deterministicNodes": 141,
+      "retainedNodes": 18,
+      "baselineCharacters": 31085,
+      "deterministicCharacters": 21222,
+      "projectedCharacters": 2691,
+      "goldNodes": 1,
+      "missingGold": [],
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 99.60659999999916,
+        "inputTokens": 0,
+        "cacheHits": 0,
+        "batches": [
+          {
+            "units": 4,
+            "latencyMs": 99.60659999999916,
+            "scores": [
+              0.003883077297359705,
+              0.24025091528892517,
+              0.02427132986485958,
+              0.004326516296714544
+            ]
+          }
+        ]
+      },
+      "retainedKeys": [
+        "top|row:Alpha>id:alpha-label",
+        "top|row:Alpha>id:alpha-edit",
+        "top|row:Beta>id:beta-label",
+        "top|row:Beta>id:beta-edit",
+        "top|id:save",
+        "top|id:submit",
+        "top|id:remove",
+        "top|id:reference",
+        "top|id:approved",
+        "top|id:method",
+        "top|path:id:method>option:1",
+        "top|path:id:method>option:2",
+        "top|id:clue",
+        "top|id:orderbook",
+        "top|id:result",
+        "top|path:id:live>span:1",
+        "top|id:warning",
+        "top|id:modal"
+      ]
+    },
+    {
+      "task": "unmatched-clue",
+      "repeat": 0,
+      "projectionMs": 688.1475999999984,
+      "status": "applied",
+      "baselineNodes": 172,
+      "deterministicNodes": 141,
+      "retainedNodes": 18,
+      "baselineCharacters": 31085,
+      "deterministicCharacters": 21222,
+      "projectedCharacters": 2691,
+      "goldNodes": 2,
+      "missingGold": [],
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 685.4515999999985,
+        "inputTokens": 2225,
+        "cacheHits": 0,
+        "batches": [
+          {
+            "units": 4,
+            "latencyMs": 685.4515999999985,
+            "scores": [
+              0.004654041491448879,
+              0.25156474113464355,
+              0.009262682870030403,
+              0.0023020219523459673
+            ]
+          }
+        ]
+      },
+      "retainedKeys": [
+        "top|row:Alpha>id:alpha-label",
+        "top|row:Alpha>id:alpha-edit",
+        "top|row:Beta>id:beta-label",
+        "top|row:Beta>id:beta-edit",
+        "top|id:save",
+        "top|id:submit",
+        "top|id:remove",
+        "top|id:reference",
+        "top|id:approved",
+        "top|id:method",
+        "top|path:id:method>option:1",
+        "top|path:id:method>option:2",
+        "top|id:clue",
+        "top|id:orderbook",
+        "top|id:result",
+        "top|path:id:live>span:1",
+        "top|id:warning",
+        "top|id:modal"
+      ]
+    },
+    {
+      "task": "reports",
+      "repeat": 0,
+      "projectionMs": 569.8105999999989,
+      "status": "applied",
+      "baselineNodes": 172,
+      "deterministicNodes": 141,
+      "retainedNodes": 10,
+      "baselineCharacters": 31085,
+      "deterministicCharacters": 21222,
+      "projectedCharacters": 1881,
+      "goldNodes": 1,
+      "missingGold": [],
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 567.4219000000012,
+        "inputTokens": 2221,
+        "cacheHits": 0,
+        "batches": [
+          {
+            "units": 4,
+            "latencyMs": 567.4219000000012,
+            "scores": [
+              0.025407982990145683,
+              0.0018927684286609292,
+              0.00420000683516264,
+              0.010348819196224213
+            ]
+          }
+        ]
+      },
+      "retainedKeys": [
+        "top|id:reports",
+        "top|id:reference",
+        "top|id:approved",
+        "top|id:method",
+        "top|path:id:method>option:1",
+        "top|path:id:method>option:2",
+        "top|id:result",
+        "top|path:id:live>span:1",
+        "top|id:warning",
+        "top|id:modal"
+      ]
+    },
+    {
+      "task": "save",
+      "repeat": 1,
+      "projectionMs": 104.76200000000063,
+      "status": "applied",
+      "baselineNodes": 172,
+      "deterministicNodes": 141,
+      "retainedNodes": 18,
+      "baselineCharacters": 31085,
+      "deterministicCharacters": 21222,
+      "projectedCharacters": 2691,
+      "goldNodes": 1,
+      "missingGold": [],
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 102.4929000000011,
+        "inputTokens": 0,
+        "cacheHits": 0,
+        "batches": [
+          {
+            "units": 4,
+            "latencyMs": 102.4929000000011,
+            "scores": [
+              0.003883077297359705,
+              0.24025091528892517,
+              0.02427132986485958,
+              0.004326516296714544
+            ]
+          }
+        ]
+      },
+      "retainedKeys": [
+        "top|row:Alpha>id:alpha-label",
+        "top|row:Alpha>id:alpha-edit",
+        "top|row:Beta>id:beta-label",
+        "top|row:Beta>id:beta-edit",
+        "top|id:save",
+        "top|id:submit",
+        "top|id:remove",
+        "top|id:reference",
+        "top|id:approved",
+        "top|id:method",
+        "top|path:id:method>option:1",
+        "top|path:id:method>option:2",
+        "top|id:clue",
+        "top|id:orderbook",
+        "top|id:result",
+        "top|path:id:live>span:1",
+        "top|id:warning",
+        "top|id:modal"
+      ]
+    },
+    {
+      "task": "synonym",
+      "repeat": 1,
+      "projectionMs": 101.39799999999923,
+      "status": "applied",
+      "baselineNodes": 172,
+      "deterministicNodes": 141,
+      "retainedNodes": 18,
+      "baselineCharacters": 31085,
+      "deterministicCharacters": 21222,
+      "projectedCharacters": 2691,
+      "goldNodes": 1,
+      "missingGold": [],
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 99.47710000000006,
+        "inputTokens": 0,
+        "cacheHits": 0,
+        "batches": [
+          {
+            "units": 4,
+            "latencyMs": 99.47710000000006,
+            "scores": [
+              0.003283666679635644,
+              0.2419608235359192,
+              0.024300118908286095,
+              0.002530207857489586
+            ]
+          }
+        ]
+      },
+      "retainedKeys": [
+        "top|row:Alpha>id:alpha-label",
+        "top|row:Alpha>id:alpha-edit",
+        "top|row:Beta>id:beta-label",
+        "top|row:Beta>id:beta-edit",
+        "top|id:save",
+        "top|id:submit",
+        "top|id:remove",
+        "top|id:reference",
+        "top|id:approved",
+        "top|id:method",
+        "top|path:id:method>option:1",
+        "top|path:id:method>option:2",
+        "top|id:clue",
+        "top|id:orderbook",
+        "top|id:result",
+        "top|path:id:live>span:1",
+        "top|id:warning",
+        "top|id:modal"
+      ]
+    },
+    {
+      "task": "row-alpha",
+      "repeat": 1,
+      "projectionMs": 88.15259999999944,
+      "status": "applied",
+      "baselineNodes": 172,
+      "deterministicNodes": 141,
+      "retainedNodes": 14,
+      "baselineCharacters": 31085,
+      "deterministicCharacters": 21222,
+      "projectedCharacters": 2324,
+      "goldNodes": 1,
+      "missingGold": [],
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 86.13320000000022,
+        "inputTokens": 0,
+        "cacheHits": 0,
+        "batches": [
+          {
+            "units": 4,
+            "latencyMs": 86.13320000000022,
+            "scores": [
+              0.012111070565879345,
+              0.0010193141642957926,
+              0.0003886091581080109,
+              0.005164231173694134
+            ]
+          }
+        ]
+      },
+      "retainedKeys": [
+        "top|row:Alpha>id:alpha-label",
+        "top|row:Alpha>id:alpha-edit",
+        "top|row:Beta>id:beta-label",
+        "top|row:Beta>id:beta-edit",
+        "top|id:reference",
+        "top|id:approved",
+        "top|id:method",
+        "top|path:id:method>option:1",
+        "top|path:id:method>option:2",
+        "top|id:clue",
+        "top|id:result",
+        "top|path:id:live>span:1",
+        "top|id:warning",
+        "top|id:modal"
+      ]
+    },
+    {
+      "task": "row-beta",
+      "repeat": 1,
+      "projectionMs": 76.125,
+      "status": "applied",
+      "baselineNodes": 172,
+      "deterministicNodes": 141,
+      "retainedNodes": 14,
+      "baselineCharacters": 31085,
+      "deterministicCharacters": 21222,
+      "projectedCharacters": 2324,
+      "goldNodes": 1,
+      "missingGold": [],
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 74.28420000000006,
+        "inputTokens": 0,
+        "cacheHits": 0,
+        "batches": [
+          {
+            "units": 4,
+            "latencyMs": 74.28420000000006,
+            "scores": [
+              0.011943608522415161,
+              0.003959798254072666,
+              0.0005083437426947057,
+              0.006152371410280466
+            ]
+          }
+        ]
+      },
+      "retainedKeys": [
+        "top|row:Alpha>id:alpha-label",
+        "top|row:Alpha>id:alpha-edit",
+        "top|row:Beta>id:beta-label",
+        "top|row:Beta>id:beta-edit",
+        "top|id:reference",
+        "top|id:approved",
+        "top|id:method",
+        "top|path:id:method>option:1",
+        "top|path:id:method>option:2",
+        "top|id:clue",
+        "top|id:result",
+        "top|path:id:live>span:1",
+        "top|id:warning",
+        "top|id:modal"
+      ]
+    },
+    {
+      "task": "ambiguous",
+      "repeat": 1,
+      "projectionMs": 42.787500000000364,
+      "status": "applied",
+      "baselineNodes": 172,
+      "deterministicNodes": 141,
+      "retainedNodes": 14,
+      "baselineCharacters": 31085,
+      "deterministicCharacters": 21222,
+      "projectedCharacters": 2324,
+      "goldNodes": 0,
+      "missingGold": [],
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 41.04880000000048,
+        "inputTokens": 0,
+        "cacheHits": 0,
+        "batches": [
+          {
+            "units": 4,
+            "latencyMs": 41.04880000000048,
+            "scores": [
+              0.00693235220387578,
+              0.0011660087620839477,
+              0.00015369591710623354,
+              0.00186349474824965
+            ]
+          }
+        ]
+      },
+      "retainedKeys": [
+        "top|row:Alpha>id:alpha-label",
+        "top|row:Alpha>id:alpha-edit",
+        "top|row:Beta>id:beta-label",
+        "top|row:Beta>id:beta-edit",
+        "top|id:reference",
+        "top|id:approved",
+        "top|id:method",
+        "top|path:id:method>option:1",
+        "top|path:id:method>option:2",
+        "top|id:clue",
+        "top|id:result",
+        "top|path:id:live>span:1",
+        "top|id:warning",
+        "top|id:modal"
+      ]
+    },
+    {
+      "task": "error",
+      "repeat": 1,
+      "projectionMs": 73.61330000000089,
+      "status": "applied",
+      "baselineNodes": 172,
+      "deterministicNodes": 141,
+      "retainedNodes": 18,
+      "baselineCharacters": 31655,
+      "deterministicCharacters": 21736,
+      "projectedCharacters": 3205,
+      "goldNodes": 1,
+      "missingGold": [],
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 71.59809999999925,
+        "inputTokens": 0,
+        "cacheHits": 0,
+        "batches": [
+          {
+            "units": 4,
+            "latencyMs": 71.59809999999925,
+            "scores": [
+              0.003883077297359705,
+              0.24662227928638458,
+              0.02427132986485958,
+              0.004326516296714544
+            ]
+          }
+        ]
+      },
+      "retainedKeys": [
+        "top|row:Alpha>id:alpha-label",
+        "top|row:Alpha>id:alpha-edit",
+        "top|row:Beta>id:beta-label",
+        "top|row:Beta>id:beta-edit",
+        "top|id:save",
+        "top|id:submit",
+        "top|id:remove",
+        "top|id:reference",
+        "top|id:approved",
+        "top|id:method",
+        "top|path:id:method>option:1",
+        "top|path:id:method>option:2",
+        "top|id:clue",
+        "top|id:orderbook",
+        "top|id:result",
+        "top|path:id:live>span:1",
+        "top|id:warning",
+        "top|id:modal"
+      ]
+    },
+    {
+      "task": "focus",
+      "repeat": 1,
+      "projectionMs": 87.76710000000094,
+      "status": "applied",
+      "baselineNodes": 172,
+      "deterministicNodes": 141,
+      "retainedNodes": 18,
+      "baselineCharacters": 31112,
+      "deterministicCharacters": 21249,
+      "projectedCharacters": 2718,
+      "goldNodes": 1,
+      "missingGold": [],
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 85.14300000000003,
+        "inputTokens": 0,
+        "cacheHits": 0,
+        "batches": [
+          {
+            "units": 4,
+            "latencyMs": 85.14300000000003,
+            "scores": [
+              0.003883077297359705,
+              0.24025091528892517,
+              0.02427132986485958,
+              0.004326516296714544
+            ]
+          }
+        ]
+      },
+      "retainedKeys": [
+        "top|row:Alpha>id:alpha-label",
+        "top|row:Alpha>id:alpha-edit",
+        "top|row:Beta>id:beta-label",
+        "top|row:Beta>id:beta-edit",
+        "top|id:save",
+        "top|id:submit",
+        "top|id:remove",
+        "top|id:reference",
+        "top|id:approved",
+        "top|id:method",
+        "top|path:id:method>option:1",
+        "top|path:id:method>option:2",
+        "top|id:clue",
+        "top|id:orderbook",
+        "top|id:result",
+        "top|path:id:live>span:1",
+        "top|id:warning",
+        "top|id:modal"
+      ]
+    },
+    {
+      "task": "dialog",
+      "repeat": 1,
+      "projectionMs": 86.0586000000003,
+      "status": "applied",
+      "baselineNodes": 172,
+      "deterministicNodes": 142,
+      "retainedNodes": 10,
+      "baselineCharacters": 31093,
+      "deterministicCharacters": 21290,
+      "projectedCharacters": 1854,
+      "goldNodes": 1,
+      "missingGold": [],
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 84.21919999999955,
+        "inputTokens": 0,
+        "cacheHits": 0,
+        "batches": [
+          {
+            "units": 4,
+            "latencyMs": 84.21919999999955,
+            "scores": [
+              0.006229930557310581,
+              0.0036529076751321554,
+              0.0022369155194610357,
+              0.0044177221134305
+            ]
+          }
+        ]
+      },
+      "retainedKeys": [
+        "top|id:reference",
+        "top|id:approved",
+        "top|id:method",
+        "top|path:id:method>option:1",
+        "top|path:id:method>option:2",
+        "top|id:result",
+        "top|path:id:live>span:1",
+        "top|id:warning",
+        "top|id:modal",
+        "top|id:dismiss"
+      ]
+    },
+    {
+      "task": "noop",
+      "repeat": 1,
+      "projectionMs": 86.43109999999979,
+      "status": "applied",
+      "baselineNodes": 172,
+      "deterministicNodes": 141,
+      "retainedNodes": 18,
+      "baselineCharacters": 31085,
+      "deterministicCharacters": 21222,
+      "projectedCharacters": 2691,
+      "goldNodes": 1,
+      "missingGold": [],
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 84.53559999999925,
+        "inputTokens": 0,
+        "cacheHits": 0,
+        "batches": [
+          {
+            "units": 4,
+            "latencyMs": 84.53559999999925,
+            "scores": [
+              0.003883077297359705,
+              0.24025091528892517,
+              0.02427132986485958,
+              0.004326516296714544
+            ]
+          }
+        ]
+      },
+      "retainedKeys": [
+        "top|row:Alpha>id:alpha-label",
+        "top|row:Alpha>id:alpha-edit",
+        "top|row:Beta>id:beta-label",
+        "top|row:Beta>id:beta-edit",
+        "top|id:save",
+        "top|id:submit",
+        "top|id:remove",
+        "top|id:reference",
+        "top|id:approved",
+        "top|id:method",
+        "top|path:id:method>option:1",
+        "top|path:id:method>option:2",
+        "top|id:clue",
+        "top|id:orderbook",
+        "top|id:result",
+        "top|path:id:live>span:1",
+        "top|id:warning",
+        "top|id:modal"
+      ]
+    },
+    {
+      "task": "preexisting",
+      "repeat": 1,
+      "projectionMs": 40.28239999999823,
+      "status": "applied",
+      "baselineNodes": 172,
+      "deterministicNodes": 141,
+      "retainedNodes": 18,
+      "baselineCharacters": 31085,
+      "deterministicCharacters": 21222,
+      "projectedCharacters": 2691,
+      "goldNodes": 1,
+      "missingGold": [],
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 37.25279999999839,
+        "inputTokens": 0,
+        "cacheHits": 0,
+        "batches": [
+          {
+            "units": 4,
+            "latencyMs": 37.25279999999839,
+            "scores": [
+              0.003883077297359705,
+              0.24025091528892517,
+              0.02427132986485958,
+              0.004326516296714544
+            ]
+          }
+        ]
+      },
+      "retainedKeys": [
+        "top|row:Alpha>id:alpha-label",
+        "top|row:Alpha>id:alpha-edit",
+        "top|row:Beta>id:beta-label",
+        "top|row:Beta>id:beta-edit",
+        "top|id:save",
+        "top|id:submit",
+        "top|id:remove",
+        "top|id:reference",
+        "top|id:approved",
+        "top|id:method",
+        "top|path:id:method>option:1",
+        "top|path:id:method>option:2",
+        "top|id:clue",
+        "top|id:orderbook",
+        "top|id:result",
+        "top|path:id:live>span:1",
+        "top|id:warning",
+        "top|id:modal"
+      ]
+    },
+    {
+      "task": "unmatched-clue",
+      "repeat": 1,
+      "projectionMs": 43.59339999999975,
+      "status": "applied",
+      "baselineNodes": 172,
+      "deterministicNodes": 141,
+      "retainedNodes": 18,
+      "baselineCharacters": 31085,
+      "deterministicCharacters": 21222,
+      "projectedCharacters": 2691,
+      "goldNodes": 2,
+      "missingGold": [],
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 41.671299999999974,
+        "inputTokens": 0,
+        "cacheHits": 0,
+        "batches": [
+          {
+            "units": 4,
+            "latencyMs": 41.671299999999974,
+            "scores": [
+              0.004654041491448879,
+              0.25156474113464355,
+              0.009262682870030403,
+              0.0023020219523459673
+            ]
+          }
+        ]
+      },
+      "retainedKeys": [
+        "top|row:Alpha>id:alpha-label",
+        "top|row:Alpha>id:alpha-edit",
+        "top|row:Beta>id:beta-label",
+        "top|row:Beta>id:beta-edit",
+        "top|id:save",
+        "top|id:submit",
+        "top|id:remove",
+        "top|id:reference",
+        "top|id:approved",
+        "top|id:method",
+        "top|path:id:method>option:1",
+        "top|path:id:method>option:2",
+        "top|id:clue",
+        "top|id:orderbook",
+        "top|id:result",
+        "top|path:id:live>span:1",
+        "top|id:warning",
+        "top|id:modal"
+      ]
+    },
+    {
+      "task": "reports",
+      "repeat": 1,
+      "projectionMs": 86.8707000000013,
+      "status": "applied",
+      "baselineNodes": 172,
+      "deterministicNodes": 141,
+      "retainedNodes": 10,
+      "baselineCharacters": 31085,
+      "deterministicCharacters": 21222,
+      "projectedCharacters": 1881,
+      "goldNodes": 1,
+      "missingGold": [],
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 84.39860000000044,
+        "inputTokens": 0,
+        "cacheHits": 0,
+        "batches": [
+          {
+            "units": 4,
+            "latencyMs": 84.39860000000044,
+            "scores": [
+              0.025407982990145683,
+              0.0018927684286609292,
+              0.00420000683516264,
+              0.010348819196224213
+            ]
+          }
+        ]
+      },
+      "retainedKeys": [
+        "top|id:reports",
+        "top|id:reference",
+        "top|id:approved",
+        "top|id:method",
+        "top|path:id:method>option:1",
+        "top|path:id:method>option:2",
+        "top|id:result",
+        "top|path:id:live>span:1",
+        "top|id:warning",
+        "top|id:modal"
+      ]
+    },
+    {
+      "task": "save",
+      "repeat": 2,
+      "projectionMs": 49.60070000000087,
+      "status": "applied",
+      "baselineNodes": 172,
+      "deterministicNodes": 141,
+      "retainedNodes": 18,
+      "baselineCharacters": 31085,
+      "deterministicCharacters": 21222,
+      "projectedCharacters": 2691,
+      "goldNodes": 1,
+      "missingGold": [],
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 47.339500000000044,
+        "inputTokens": 0,
+        "cacheHits": 0,
+        "batches": [
+          {
+            "units": 4,
+            "latencyMs": 47.339500000000044,
+            "scores": [
+              0.003883077297359705,
+              0.24025091528892517,
+              0.02427132986485958,
+              0.004326516296714544
+            ]
+          }
+        ]
+      },
+      "retainedKeys": [
+        "top|row:Alpha>id:alpha-label",
+        "top|row:Alpha>id:alpha-edit",
+        "top|row:Beta>id:beta-label",
+        "top|row:Beta>id:beta-edit",
+        "top|id:save",
+        "top|id:submit",
+        "top|id:remove",
+        "top|id:reference",
+        "top|id:approved",
+        "top|id:method",
+        "top|path:id:method>option:1",
+        "top|path:id:method>option:2",
+        "top|id:clue",
+        "top|id:orderbook",
+        "top|id:result",
+        "top|path:id:live>span:1",
+        "top|id:warning",
+        "top|id:modal"
+      ]
+    },
+    {
+      "task": "synonym",
+      "repeat": 2,
+      "projectionMs": 135.97450000000026,
+      "status": "applied",
+      "baselineNodes": 172,
+      "deterministicNodes": 141,
+      "retainedNodes": 18,
+      "baselineCharacters": 31085,
+      "deterministicCharacters": 21222,
+      "projectedCharacters": 2691,
+      "goldNodes": 1,
+      "missingGold": [],
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 133.82340000000113,
+        "inputTokens": 0,
+        "cacheHits": 0,
+        "batches": [
+          {
+            "units": 4,
+            "latencyMs": 133.82340000000113,
+            "scores": [
+              0.003283666679635644,
+              0.2419608235359192,
+              0.024300118908286095,
+              0.002530207857489586
+            ]
+          }
+        ]
+      },
+      "retainedKeys": [
+        "top|row:Alpha>id:alpha-label",
+        "top|row:Alpha>id:alpha-edit",
+        "top|row:Beta>id:beta-label",
+        "top|row:Beta>id:beta-edit",
+        "top|id:save",
+        "top|id:submit",
+        "top|id:remove",
+        "top|id:reference",
+        "top|id:approved",
+        "top|id:method",
+        "top|path:id:method>option:1",
+        "top|path:id:method>option:2",
+        "top|id:clue",
+        "top|id:orderbook",
+        "top|id:result",
+        "top|path:id:live>span:1",
+        "top|id:warning",
+        "top|id:modal"
+      ]
+    },
+    {
+      "task": "row-alpha",
+      "repeat": 2,
+      "projectionMs": 81.84079999999994,
+      "status": "applied",
+      "baselineNodes": 172,
+      "deterministicNodes": 141,
+      "retainedNodes": 14,
+      "baselineCharacters": 31085,
+      "deterministicCharacters": 21222,
+      "projectedCharacters": 2324,
+      "goldNodes": 1,
+      "missingGold": [],
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 79.75300000000061,
+        "inputTokens": 0,
+        "cacheHits": 0,
+        "batches": [
+          {
+            "units": 4,
+            "latencyMs": 79.75300000000061,
+            "scores": [
+              0.012111070565879345,
+              0.0010193141642957926,
+              0.0003886091581080109,
+              0.005164231173694134
+            ]
+          }
+        ]
+      },
+      "retainedKeys": [
+        "top|row:Alpha>id:alpha-label",
+        "top|row:Alpha>id:alpha-edit",
+        "top|row:Beta>id:beta-label",
+        "top|row:Beta>id:beta-edit",
+        "top|id:reference",
+        "top|id:approved",
+        "top|id:method",
+        "top|path:id:method>option:1",
+        "top|path:id:method>option:2",
+        "top|id:clue",
+        "top|id:result",
+        "top|path:id:live>span:1",
+        "top|id:warning",
+        "top|id:modal"
+      ]
+    },
+    {
+      "task": "row-beta",
+      "repeat": 2,
+      "projectionMs": 84.31860000000052,
+      "status": "applied",
+      "baselineNodes": 172,
+      "deterministicNodes": 141,
+      "retainedNodes": 14,
+      "baselineCharacters": 31085,
+      "deterministicCharacters": 21222,
+      "projectedCharacters": 2324,
+      "goldNodes": 1,
+      "missingGold": [],
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 82.3775999999998,
+        "inputTokens": 0,
+        "cacheHits": 0,
+        "batches": [
+          {
+            "units": 4,
+            "latencyMs": 82.3775999999998,
+            "scores": [
+              0.011943608522415161,
+              0.003959798254072666,
+              0.0005083437426947057,
+              0.006152371410280466
+            ]
+          }
+        ]
+      },
+      "retainedKeys": [
+        "top|row:Alpha>id:alpha-label",
+        "top|row:Alpha>id:alpha-edit",
+        "top|row:Beta>id:beta-label",
+        "top|row:Beta>id:beta-edit",
+        "top|id:reference",
+        "top|id:approved",
+        "top|id:method",
+        "top|path:id:method>option:1",
+        "top|path:id:method>option:2",
+        "top|id:clue",
+        "top|id:result",
+        "top|path:id:live>span:1",
+        "top|id:warning",
+        "top|id:modal"
+      ]
+    },
+    {
+      "task": "ambiguous",
+      "repeat": 2,
+      "projectionMs": 95.67619999999988,
+      "status": "applied",
+      "baselineNodes": 172,
+      "deterministicNodes": 141,
+      "retainedNodes": 14,
+      "baselineCharacters": 31085,
+      "deterministicCharacters": 21222,
+      "projectedCharacters": 2324,
+      "goldNodes": 0,
+      "missingGold": [],
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 93.90949999999975,
+        "inputTokens": 0,
+        "cacheHits": 0,
+        "batches": [
+          {
+            "units": 4,
+            "latencyMs": 93.90949999999975,
+            "scores": [
+              0.00693235220387578,
+              0.0011660087620839477,
+              0.00015369591710623354,
+              0.00186349474824965
+            ]
+          }
+        ]
+      },
+      "retainedKeys": [
+        "top|row:Alpha>id:alpha-label",
+        "top|row:Alpha>id:alpha-edit",
+        "top|row:Beta>id:beta-label",
+        "top|row:Beta>id:beta-edit",
+        "top|id:reference",
+        "top|id:approved",
+        "top|id:method",
+        "top|path:id:method>option:1",
+        "top|path:id:method>option:2",
+        "top|id:clue",
+        "top|id:result",
+        "top|path:id:live>span:1",
+        "top|id:warning",
+        "top|id:modal"
+      ]
+    },
+    {
+      "task": "error",
+      "repeat": 2,
+      "projectionMs": 83.2609999999986,
+      "status": "applied",
+      "baselineNodes": 172,
+      "deterministicNodes": 141,
+      "retainedNodes": 18,
+      "baselineCharacters": 31655,
+      "deterministicCharacters": 21736,
+      "projectedCharacters": 3205,
+      "goldNodes": 1,
+      "missingGold": [],
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 81.42829999999958,
+        "inputTokens": 0,
+        "cacheHits": 0,
+        "batches": [
+          {
+            "units": 4,
+            "latencyMs": 81.42829999999958,
+            "scores": [
+              0.003883077297359705,
+              0.24662227928638458,
+              0.02427132986485958,
+              0.004326516296714544
+            ]
+          }
+        ]
+      },
+      "retainedKeys": [
+        "top|row:Alpha>id:alpha-label",
+        "top|row:Alpha>id:alpha-edit",
+        "top|row:Beta>id:beta-label",
+        "top|row:Beta>id:beta-edit",
+        "top|id:save",
+        "top|id:submit",
+        "top|id:remove",
+        "top|id:reference",
+        "top|id:approved",
+        "top|id:method",
+        "top|path:id:method>option:1",
+        "top|path:id:method>option:2",
+        "top|id:clue",
+        "top|id:orderbook",
+        "top|id:result",
+        "top|path:id:live>span:1",
+        "top|id:warning",
+        "top|id:modal"
+      ]
+    },
+    {
+      "task": "focus",
+      "repeat": 2,
+      "projectionMs": 81.20219999999972,
+      "status": "applied",
+      "baselineNodes": 172,
+      "deterministicNodes": 141,
+      "retainedNodes": 18,
+      "baselineCharacters": 31112,
+      "deterministicCharacters": 21249,
+      "projectedCharacters": 2718,
+      "goldNodes": 1,
+      "missingGold": [],
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 78.66669999999795,
+        "inputTokens": 0,
+        "cacheHits": 0,
+        "batches": [
+          {
+            "units": 4,
+            "latencyMs": 78.66669999999795,
+            "scores": [
+              0.003883077297359705,
+              0.24025091528892517,
+              0.02427132986485958,
+              0.004326516296714544
+            ]
+          }
+        ]
+      },
+      "retainedKeys": [
+        "top|row:Alpha>id:alpha-label",
+        "top|row:Alpha>id:alpha-edit",
+        "top|row:Beta>id:beta-label",
+        "top|row:Beta>id:beta-edit",
+        "top|id:save",
+        "top|id:submit",
+        "top|id:remove",
+        "top|id:reference",
+        "top|id:approved",
+        "top|id:method",
+        "top|path:id:method>option:1",
+        "top|path:id:method>option:2",
+        "top|id:clue",
+        "top|id:orderbook",
+        "top|id:result",
+        "top|path:id:live>span:1",
+        "top|id:warning",
+        "top|id:modal"
+      ]
+    },
+    {
+      "task": "dialog",
+      "repeat": 2,
+      "projectionMs": 41.96240000000034,
+      "status": "applied",
+      "baselineNodes": 172,
+      "deterministicNodes": 142,
+      "retainedNodes": 10,
+      "baselineCharacters": 31093,
+      "deterministicCharacters": 21290,
+      "projectedCharacters": 1854,
+      "goldNodes": 1,
+      "missingGold": [],
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 40.07840000000215,
+        "inputTokens": 0,
+        "cacheHits": 0,
+        "batches": [
+          {
+            "units": 4,
+            "latencyMs": 40.07840000000215,
+            "scores": [
+              0.006229930557310581,
+              0.0036529076751321554,
+              0.0022369155194610357,
+              0.0044177221134305
+            ]
+          }
+        ]
+      },
+      "retainedKeys": [
+        "top|id:reference",
+        "top|id:approved",
+        "top|id:method",
+        "top|path:id:method>option:1",
+        "top|path:id:method>option:2",
+        "top|id:result",
+        "top|path:id:live>span:1",
+        "top|id:warning",
+        "top|id:modal",
+        "top|id:dismiss"
+      ]
+    },
+    {
+      "task": "noop",
+      "repeat": 2,
+      "projectionMs": 88.27289999999994,
+      "status": "applied",
+      "baselineNodes": 172,
+      "deterministicNodes": 141,
+      "retainedNodes": 18,
+      "baselineCharacters": 31085,
+      "deterministicCharacters": 21222,
+      "projectedCharacters": 2691,
+      "goldNodes": 1,
+      "missingGold": [],
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 85.10880000000179,
+        "inputTokens": 0,
+        "cacheHits": 0,
+        "batches": [
+          {
+            "units": 4,
+            "latencyMs": 85.10880000000179,
+            "scores": [
+              0.003883077297359705,
+              0.24025091528892517,
+              0.02427132986485958,
+              0.004326516296714544
+            ]
+          }
+        ]
+      },
+      "retainedKeys": [
+        "top|row:Alpha>id:alpha-label",
+        "top|row:Alpha>id:alpha-edit",
+        "top|row:Beta>id:beta-label",
+        "top|row:Beta>id:beta-edit",
+        "top|id:save",
+        "top|id:submit",
+        "top|id:remove",
+        "top|id:reference",
+        "top|id:approved",
+        "top|id:method",
+        "top|path:id:method>option:1",
+        "top|path:id:method>option:2",
+        "top|id:clue",
+        "top|id:orderbook",
+        "top|id:result",
+        "top|path:id:live>span:1",
+        "top|id:warning",
+        "top|id:modal"
+      ]
+    },
+    {
+      "task": "preexisting",
+      "repeat": 2,
+      "projectionMs": 91.06719999999768,
+      "status": "applied",
+      "baselineNodes": 172,
+      "deterministicNodes": 141,
+      "retainedNodes": 18,
+      "baselineCharacters": 31085,
+      "deterministicCharacters": 21222,
+      "projectedCharacters": 2691,
+      "goldNodes": 1,
+      "missingGold": [],
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 89.01919999999882,
+        "inputTokens": 0,
+        "cacheHits": 0,
+        "batches": [
+          {
+            "units": 4,
+            "latencyMs": 89.01919999999882,
+            "scores": [
+              0.003883077297359705,
+              0.24025091528892517,
+              0.02427132986485958,
+              0.004326516296714544
+            ]
+          }
+        ]
+      },
+      "retainedKeys": [
+        "top|row:Alpha>id:alpha-label",
+        "top|row:Alpha>id:alpha-edit",
+        "top|row:Beta>id:beta-label",
+        "top|row:Beta>id:beta-edit",
+        "top|id:save",
+        "top|id:submit",
+        "top|id:remove",
+        "top|id:reference",
+        "top|id:approved",
+        "top|id:method",
+        "top|path:id:method>option:1",
+        "top|path:id:method>option:2",
+        "top|id:clue",
+        "top|id:orderbook",
+        "top|id:result",
+        "top|path:id:live>span:1",
+        "top|id:warning",
+        "top|id:modal"
+      ]
+    },
+    {
+      "task": "unmatched-clue",
+      "repeat": 2,
+      "projectionMs": 91.4246000000021,
+      "status": "applied",
+      "baselineNodes": 172,
+      "deterministicNodes": 141,
+      "retainedNodes": 18,
+      "baselineCharacters": 31085,
+      "deterministicCharacters": 21222,
+      "projectedCharacters": 2691,
+      "goldNodes": 2,
+      "missingGold": [],
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 89.86889999999767,
+        "inputTokens": 0,
+        "cacheHits": 0,
+        "batches": [
+          {
+            "units": 4,
+            "latencyMs": 89.86889999999767,
+            "scores": [
+              0.004654041491448879,
+              0.25156474113464355,
+              0.009262682870030403,
+              0.0023020219523459673
+            ]
+          }
+        ]
+      },
+      "retainedKeys": [
+        "top|row:Alpha>id:alpha-label",
+        "top|row:Alpha>id:alpha-edit",
+        "top|row:Beta>id:beta-label",
+        "top|row:Beta>id:beta-edit",
+        "top|id:save",
+        "top|id:submit",
+        "top|id:remove",
+        "top|id:reference",
+        "top|id:approved",
+        "top|id:method",
+        "top|path:id:method>option:1",
+        "top|path:id:method>option:2",
+        "top|id:clue",
+        "top|id:orderbook",
+        "top|id:result",
+        "top|path:id:live>span:1",
+        "top|id:warning",
+        "top|id:modal"
+      ]
+    },
+    {
+      "task": "reports",
+      "repeat": 2,
+      "projectionMs": 85.89500000000044,
+      "status": "applied",
+      "baselineNodes": 172,
+      "deterministicNodes": 141,
+      "retainedNodes": 10,
+      "baselineCharacters": 31085,
+      "deterministicCharacters": 21222,
+      "projectedCharacters": 1881,
+      "goldNodes": 1,
+      "missingGold": [],
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 84.41279999999824,
+        "inputTokens": 0,
+        "cacheHits": 0,
+        "batches": [
+          {
+            "units": 4,
+            "latencyMs": 84.41279999999824,
+            "scores": [
+              0.025407982990145683,
+              0.0018927684286609292,
+              0.00420000683516264,
+              0.010348819196224213
+            ]
+          }
+        ]
+      },
+      "retainedKeys": [
+        "top|id:reports",
+        "top|id:reference",
+        "top|id:approved",
+        "top|id:method",
+        "top|path:id:method>option:1",
+        "top|path:id:method>option:2",
+        "top|id:result",
+        "top|path:id:live>span:1",
+        "top|id:warning",
+        "top|id:modal"
+      ]
+    }
+  ],
+  "health": {
+    "status": "ok",
+    "modelRevision": "18f099b292864fde542713d7c41aa4464860e11bc07b045b51543e9e59e6e7e7",
+    "runtimeRevision": "11fe02151f79c41d0d4af7da708755d73b9c0da6",
+    "capacity": {
+      "available": true,
+      "reason": "gpu-headroom",
+      "freeMiB": 4980,
+      "utilization": 0
+    },
+    "busy": false,
+    "counters": {
+      "accepted": 48,
+      "rejected": 0,
+      "failed": 0,
+      "cacheHits": 213
+    }
+  },
+  "goldIdentityCorrection": "Initial reporting incorrectly assumed flat IDs for row-scoped Alpha/Beta edit targets. Gold corrected against actual canonical identities; selected views reconstructed from recorded scores and exact character/node counts verified. No latency or model results changed."
+}

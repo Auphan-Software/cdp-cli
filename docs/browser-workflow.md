@@ -88,6 +88,10 @@ semantic text are sent over the trusted office LAN, never screenshots, raw
 canonical captures, browser handles or console/network streams. Canonical state
 and all must-keep evidence stay local and remain protected before and after
 ranking. The provider proposes relevance only and cannot execute actions.
+Workflow observations automatically diff against the last workflow capture of
+the same profile, protecting external changes after a stale rejection. Guard
+and screenshot-alignment captures do not replace that reference. Incomplete,
+unstable or unmodelled-text captures bypass learned projection.
 
 The office gateway listens on `192.168.1.140:8125`; its llama.cpp worker listens
 only on loopback8126. Windows firewall permits the office `192.168.0.0/16`

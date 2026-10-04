@@ -23,11 +23,13 @@ for (let repeat = 0; repeat < 3; repeat++) for (const item of dataset) {
   const provider = new QwenRerankerProvider({ url, classifier: true, timeoutMs: 2500, expectedModelRevision: revision, expectedRuntimeRevision: runtime });
   const started = performance.now();
   const view = await projectState(item.task.task, item.state, { ...item.evidence, provider, granularity: 'region' });
-  const gold = [...(item.task.target ? [`top|id:${item.task.target}`] : []), ...(item.task.clue ? [item.task.clue] : [])];
+  const targets = item.task.target ? item.state.elements.filter(node => node.k.endsWith(`|id:${item.task.target}`) || node.k.endsWith(`>id:${item.task.target}`)) : [];
+  if (item.task.target && targets.length !== 1) throw new Error('GOLD_TARGET_IDENTITY_MISMATCH');
+  const gold = [...targets.map(node => node.k), ...(item.task.clue ? [item.task.clue] : [])];
   projectionRows.push({ task: item.task.name, repeat, projectionMs: performance.now() - started, status: view.providerStatus,
     baselineNodes: baseline.elements.length, deterministicNodes: deterministic.elements.length, retainedNodes: view.elements.length,
     baselineCharacters: JSON.stringify(baseline).length, deterministicCharacters: JSON.stringify(deterministic).length,
-    projectedCharacters: JSON.stringify(view).length, goldNodes: gold.length, missingGold: gold.filter(key => !view.elements.some(node => node.k === key)), metrics: provider.metrics });
+    projectedCharacters: JSON.stringify(view).length, retainedKeys: view.elements.map(node => node.k), goldNodes: gold.length, missingGold: gold.filter(key => !view.elements.some(node => node.k === key)), metrics: provider.metrics });
   await new Promise(resolve => setTimeout(resolve, 150));
 }
 const health = await (await fetch(new URL('/health', url))).json();

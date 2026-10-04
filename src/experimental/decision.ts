@@ -34,6 +34,8 @@ const stop = new Set(['the', 'and', 'for', 'with', 'from', 'this', 'that', 'plea
 export function mustKeep(task: string, state: PageState, evidence: Evidence = {}): Set<string> {
   const terms = words(task).filter(w => !stop.has(w));
   const keep = new Set([...(evidence.targets ?? []), ...(state.focus ? [state.focus] : []),
+    ...(state.coverage.volatileKeys ?? []), ...(state.coverage.ambiguousKeys ?? []),
+    ...(evidence.diff?.coverage?.volatileKeys ?? []), ...(evidence.diff?.coverage?.ambiguousKeys ?? []),
     ...(evidence.diff?.changes.flatMap(c => c.key ? [c.key] : []) ?? [])]);
   for (const e of state.elements) {
     const s = e.state ?? {};
