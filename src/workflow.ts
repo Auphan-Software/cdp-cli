@@ -11,6 +11,7 @@ import { diffStates } from './state/diff.js';
 import type { PageState } from './state/types.js';
 import { projectState } from './experimental/decision.js';
 import { DaemonClient } from './daemon/client.js';
+import { workflowProjectionProvider } from './workflow-projection.js';
 
 const execFileAsync = promisify(execFile);
 const exeMode = typeof CDP_CLI_EXE_MODE !== 'undefined' && CDP_CLI_EXE_MODE === true;
@@ -142,7 +143,8 @@ export async function workflow(context: CDPContext, operation: string, options: 
       diagnostics.network = 'available'; diagnostics.networkAtLimit = logs.length >= 100;
     } catch { /* Never interpret unavailable logs as a clean page. */ }
   }
-  const view = await projectState(options.task, current, { prune: !options.full, hints: current.hints, diff, errors });
+  const view = await projectState(options.task, current, { prune: !options.full, hints: current.hints, diff, errors,
+    provider: options.full ? undefined : workflowProjectionProvider() });
   let screenshot: unknown;
   if (operation === 'screenshot' || options.screenshot) {
     try {

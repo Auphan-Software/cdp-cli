@@ -304,8 +304,9 @@ describe('list-network and list-console command windows', () => {
       return ws as never;
     };
 
+    const listeners = process.listenerCount('SIGINT');
     const pending = debug.listConsole(context, { page: 'page1', follow: true });
-    await new Promise((resolve) => setTimeout(resolve, 30));
+    await vi.waitFor(() => expect(process.listenerCount('SIGINT')).toBeGreaterThan(listeners), { timeout: 2000 });
     process.emit('SIGINT');
     await pending;
 

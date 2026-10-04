@@ -34,6 +34,10 @@ again before acting on new state. Never treat incomplete coverage or unavailable
 diagnostics as a clean pass. Use existing console/network tools when bounded logs
 hit their limit or the acceptance criterion requires a complete trace.
 
+The optional office reranker is transparent to this workflow. `providerStatus:fallback`
+means the deterministic view was retained; continue without retrying the service.
+Use canonical expansion when omitted evidence matters to the task.
+
 On stale state, observe again. If action delivery succeeded or is uncertain but
 observation/wait failed, recover evidence without blindly repeating the action.
 Use the existing browser-agent/CLI path for cross-origin fields, frame keyboard

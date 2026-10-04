@@ -1,7 +1,8 @@
-# Deterministic browser evidence workflow (2.2.0)
+# Browser evidence workflow (2.2.1)
 
 This deployment uses action-plus-state results, deterministic pruning and the
-existing agent fallback. It does not enable Qwen, Jev or a vision decision model.
+existing agent fallback. Qwen relevance projection is optional through the
+shared office service; Jev and vision decision models are not enabled.
 The acceptance metric remains complete bug-reproduction/evidence task tokens,
 including cache reads, tool batches, verified quality and elapsed time.
 
@@ -61,6 +62,55 @@ Recover evidence first because the action may already have occurred.
 Expansion is historical: observe again before a new action.
 
 ## Local installation and routing
+
+### Shared office reranker
+
+Office clients can set `CDP_RERANK_URL=http://192.168.1.140:8125` for CLI and
+MCP workflow calls. An optional user config at `%LOCALAPPDATA%\cdp-cli\reranker.json`
+(Linux/macOS: `~/.config/cdp-cli/reranker.json`) uses this contract:
+
+```json
+{"url":"http://192.168.1.140:8125","timeoutMs":2500,"modelRevision":"18f099b292864fde542713d7c41aa4464860e11bc07b045b51543e9e59e6e7e7","runtimeRevision":"11fe02151f79c41d0d4af7da708755d73b9c0da6"}
+```
+
+`CDP_RERANK_CONFIG` can name another config. `CDP_RERANK_URL=off` disables
+ranking, and `workflow ... --full` always bypasses it. `CDP_RERANK_TIMEOUT_MS`
+overrides the bounded client deadline (50–5000ms). A matching pinned model and
+runtime are validated in responses. The shared service holds a512-entry exact
+task/document score cache containing hashed keys and scores only. It is reused
+across separate CLI/MCP child processes and cleared on service restart.
+Revision mismatch, failed
+admission, malformed scores, timeout and unreachable service return the intact
+deterministic view with `providerStatus:fallback`; no retry or new tool call.
+
+Only unprotected relevance units reach the service. The task and their masked
+semantic text are sent over the trusted office LAN, never screenshots, raw
+canonical captures, browser handles or console/network streams. Canonical state
+and all must-keep evidence stay local and remain protected before and after
+ranking. The provider proposes relevance only and cannot execute actions.
+
+The office gateway listens on `192.168.1.140:8125`; its llama.cpp worker listens
+only on loopback8126. Windows firewall permits the office `192.168.0.0/16`
+network. There is no WAN port forwarding or public/authenticated service. Use
+VPN or an authenticated TLS gateway before extending beyond that trusted LAN.
+`GET /health` reports pinned revisions, aggregate counts and current admission
+capacity without UI text. The service does not log request bodies.
+
+The persistent `CDP-Reranker` startup task runs a low-priority CUDA worker.
+Admission requires healthy GPU transcription with zero active jobs, at least
+2GiB free VRAM, and initial GPU utilization below25%. It accepts one request,
+never queues, checks transcription between at most eight-document microbatches,
+and has a2-second ranking budget. Monitor failures reject work. A transcription
+job can start during a microbatch: this is bounded best-effort sharing, not
+GPU preemption or an exclusive reservation. Loaded model memory remains resident
+while transcription is busy. Runtime logs and deployment manifest live in
+`C:\ProgramData\cdp-reranker`; stopping the exact scheduled task and owned worker
+and setting `CDP_RERANK_URL=off` rolls back to deterministic behavior.
+
+Install scripts are in `scripts/reranker/`. Stage the pinned model/runtime and
+config first; `install-service.ps1` verifies model identity and vacant ports,
+creates the scoped firewall rule and registers the startup task. Reinstallation
+refuses an existing task so upgrades require an explicit inspect/stop procedure.
 
 `npm run install:exe` rebuilds and installs Windows executable copies on PATH,
 then checks cmd.exe/Git Bash/PHP build identity. The npm shim uses the same build.

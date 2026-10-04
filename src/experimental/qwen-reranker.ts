@@ -33,7 +33,7 @@ export class QwenRerankerProvider implements DecisionProvider {
   private readonly url: string;
   private readonly scoreCache = new Map<string, number>();
   constructor(private readonly options: { url: string; timeoutMs?: number; threshold?: number; classifier?: boolean; fetch?: typeof fetch;
-    scoreCache?: { maxEntries: number; modelRevision: string } }) {
+    scoreCache?: { maxEntries: number; modelRevision: string }; expectedModelRevision?: string; expectedRuntimeRevision?: string }) {
     const url = new URL(options.url);
     if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password ||
       !Number.isFinite(options.threshold ?? .1) || (options.threshold ?? .1) < 0 || (options.threshold ?? .1) > 1 ||
@@ -68,6 +68,8 @@ export class QwenRerankerProvider implements DecisionProvider {
             headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: task, documents: missing.map(i => documents[i]) }) });
           if (!response.ok) throw new Error('LOCAL_REQUEST_FAILED');
           const data = await response.json() as any;
+          if (this.options.expectedModelRevision && data.modelRevision !== this.options.expectedModelRevision) throw new Error('LOCAL_MODEL_REVISION_MISMATCH');
+          if (this.options.expectedRuntimeRevision && data.runtimeRevision !== this.options.expectedRuntimeRevision) throw new Error('LOCAL_RUNTIME_REVISION_MISMATCH');
           if (!Array.isArray(data.results) || data.results.length !== missing.length ||
             new Set(data.results.map((r: any) => r.index)).size !== missing.length ||
             data.results.some((r: any) => !Number.isSafeInteger(r.index) || r.index < 0 || r.index >= missing.length ||

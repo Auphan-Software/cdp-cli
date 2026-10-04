@@ -20,7 +20,9 @@ async function cli(operation: string, page: string, args: string[] = []) {
   let stdout: string;
   try { ({stdout} = await exec(binary ?? process.execPath, call, options)); }
   catch(error) { stdout = (error as {stdout:string}).stdout; }
-  return JSON.parse(stdout.trim().split(/\r?\n/).at(-1)!);
+  const result = JSON.parse(stdout.trim().split(/\r?\n/).at(-1)!);
+  if (process.env.CDP_WORKFLOW_REQUIRE_RERANK === '1' && result.success && result.value?.view) expect(result.value.view.providerStatus).toBe('applied');
+  return result;
 }
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'cdp-workflow-live-'));
@@ -86,6 +88,7 @@ describe('deployed deterministic browser workflow', () => {
       const observed = await request('tools/call',{name:'observe',arguments:{task:'reproduce Save',stabilityMs:20}});
       expect(observed.isError,JSON.stringify(observed)).not.toBe(true);
       const state = JSON.parse(observed.content[0].text);
+      if (process.env.CDP_WORKFLOW_REQUIRE_RERANK === '1') expect(state.value.view.providerStatus).toBe('applied');
       expect(state.value.diagnostics.console).toBe('available');
       const changed = await request('tools/call',{name:'act',arguments:{task:'reproduce Save',source:state.value.view.source.id,action:'click',selector:'#save',screenshot:true,stabilityMs:20}});
       expect(changed.isError,JSON.stringify(changed.content.filter((c:any)=>c.type==='text'))).not.toBe(true);
@@ -108,5 +111,21 @@ describe('deployed deterministic browser workflow', () => {
     expect(result.value.action.commandSucceeded).toBe(false);
     expect(result.value.action.instruction).toContain('do not repeat the action blindly');
     expect(result.value.view.elements).toEqual(expect.arrayContaining([expect.objectContaining({k:'top|id:result',text:'Saved'})]));
+  },20000);
+  it('completes a real action with deterministic evidence when the optional service is unreachable', async () => {
+    const saved = { url: process.env.CDP_RERANK_URL, timeout: process.env.CDP_RERANK_TIMEOUT_MS, required: process.env.CDP_WORKFLOW_REQUIRE_RERANK };
+    process.env.CDP_RERANK_URL = 'http://127.0.0.1:1'; process.env.CDP_RERANK_TIMEOUT_MS = '50'; delete process.env.CDP_WORKFLOW_REQUIRE_RERANK;
+    try {
+      const page = await chrome.createPage(app.baseUrl);
+      const observed = await cli('observe', page.id);
+      expect(observed.value.view.providerStatus).toBe('fallback');
+      const clicked = await cli('act', page.id, ['--source', observed.value.view.source.id, '--action', 'click', '--selector', '#save']);
+      expect(clicked.value.action.commandSucceeded).toBe(true);
+      expect(clicked.value.view.elements).toEqual(expect.arrayContaining([expect.objectContaining({k:'top|id:result',text:'Saved'})]));
+    } finally {
+      for (const [key, value] of [['CDP_RERANK_URL',saved.url],['CDP_RERANK_TIMEOUT_MS',saved.timeout],['CDP_WORKFLOW_REQUIRE_RERANK',saved.required]]) {
+        if (value === undefined) delete process.env[key!]; else process.env[key!] = value;
+      }
+    }
   },20000);
 });
