@@ -12,6 +12,8 @@ import type { PageState, StateDiff, StateElement } from '../state/types.js';
 
 interface RawElement extends Omit<StateElement, 'value'> { rawValue?: string }
 interface RawCapture {
+  hints?: PageState['hints'];
+  focus?: string;
   url: string;
   title: string;
   readyState: string;
@@ -54,11 +56,11 @@ function normalize(raw: RawCapture, store: StateStore): Omit<PageState, 'id' | '
     ...element,
     ...(rawValue !== undefined ? { value: store.mask(rawValue) } : {})
   }));
-  return { url: raw.url, title: raw.title, readyState: raw.readyState, bodyTextHash: raw.bodyTextHash,
+  return { ...(raw.hints ? { hints: raw.hints } : {}), ...(raw.focus ? { focus: raw.focus } : {}), url: raw.url, title: raw.title, readyState: raw.readyState, bodyTextHash: raw.bodyTextHash,
     nodeCount: raw.nodeCount, elements, coverage: raw.coverage };
 }
 
-export async function capture(context: CDPContext, options: { page: string; name?: string; frame?: string; ignore?: string[]; maxElements?: number; stabilityMs?: number; quiet?: boolean }): Promise<boolean> {
+export async function capture(context: CDPContext, options: { page: string; name?: string; frame?: string; ignore?: string[]; maxElements?: number; stabilityMs?: number; quiet?: boolean; includeHints?: boolean; onCaptured?: (state: PageState) => void }): Promise<boolean> {
   try {
     if (options.maxElements !== undefined && (!Number.isSafeInteger(options.maxElements) || options.maxElements < 1 || options.maxElements > 10_000)) {
       throw new Error('STATE_INVALID_MAX_ELEMENTS');
@@ -86,7 +88,7 @@ export async function capture(context: CDPContext, options: { page: string; name
             await exec.exec('Runtime.enable');
             const read = async (): Promise<RawCapture> => {
               const result = await exec.exec('Runtime.evaluate', {
-                expression: captureExpression({ frame: options.frame, ignore: options.ignore ?? [], maxElements: options.maxElements ?? 2000 }),
+                expression: captureExpression({ frame: options.frame, ignore: options.ignore ?? [], maxElements: options.maxElements ?? 2000, experimentalHints: options.includeHints }),
                 returnByValue: true
               });
               if (result.exceptionDetails) throw new Error(`STATE_CAPTURE_SCRIPT: ${result.exceptionDetails.exception?.description ?? result.exceptionDetails.text}`);
@@ -114,10 +116,11 @@ export async function capture(context: CDPContext, options: { page: string; name
       const state = store.save({ schema: 'cdp-cli.page-state/1', name: options.name, capturedAt: new Date().toISOString(),
         targetId: pageId, session: context.workspaceSessionName,
         captureProfile: createHash('sha256').update(JSON.stringify({ frame: options.frame === '0' ? undefined : options.frame,
-          ignore: [...new Set(options.ignore ?? [])].sort(), maxElements: options.maxElements ?? 2000 })).digest('hex').slice(0, 16),
+          ignore: [...new Set(options.ignore ?? [])].sort(), maxElements: options.maxElements ?? 2000, ...(options.includeHints ? { includeHints: true } : {}) })).digest('hex').slice(0, 16),
         ...normalize(raw, store),
         coverage: { ...raw.coverage, ...(dialogProbeUnavailable ? { dialogProbeUnavailable: true } : {}) },
         settle: { waitedMs: Date.now() - started, stable: !raw.coverage.unstable }, ...(dialog ? { dialog } : {}) });
+      options.onCaptured?.(state);
       if (!options.quiet) outputLine({ success: true, type: 'state-capture', value: {
         id: state.id, seq: state.seq, name: state.name, elements: state.elements.length, coverage: state.coverage,
         digest: state.digest, settle: state.settle, path: `${store.dir}/${state.id}.json`

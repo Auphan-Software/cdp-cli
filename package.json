@@ -1,6 +1,6 @@
 {
   "name": "@auphansoftware/cdp-cli",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "CLI for Chrome DevTools Protocol - optimized for LLM agents with NDJSON output",
   "type": "module",
   "bin": {
@@ -40,7 +40,9 @@
   "license": "MIT",
   "files": [
     "build/**/*",
-    "README.md"
+    "README.md",
+    "skills/**/*",
+    "docs/browser-workflow.md"
   ],
   "dependencies": {
     "pngjs": "^7.0.0",

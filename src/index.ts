@@ -20,6 +20,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 import * as pages from './commands/pages.js';
 import * as debug from './commands/debug.js';
 import * as state from './commands/state.js';
+import { workflow } from './workflow.js';
+import { serveWorkflowMcp } from './workflow-mcp.js';
 import * as network from './commands/network.js';
 import {
   LIST_CONSOLE_DESCRIPTION,
@@ -33,7 +35,7 @@ import * as doctor from './commands/doctor.js';
 import * as diagnose from './commands/diagnose.js';
 import * as targets from './commands/targets.js';
 import { waitForPageConditions } from './commands/wait.js';
-import { outputError, outputLines, outputSuccess } from './output.js';
+import { outputError, outputLines, outputSuccess, outputLine, outputCommandError } from './output.js';
 import { homedir } from 'os';
 import { describeCliPath } from './path.js';
 import {
@@ -661,6 +663,36 @@ cli.command(
 );
 
 // Structured, persisted page state. The existing snapshot discovery output stays stable.
+cli.command('workflow-mcp', 'Serve deterministic browser workflow tools over stdio (inherits CDP_SESSION/CDP_PAGE)',
+  yargs => yargs, async () => { await serveWorkflowMcp(); });
+
+cli.command('workflow <operation> <page>', 'Observe, act with fresh state, expand or capture image evidence',
+  yargs => yargs.positional('operation', { type: 'string', choices: ['observe', 'act', 'expand', 'screenshot'] })
+    .positional('page', { type: 'string', demandOption: true })
+    .option('task', { type: 'string', demandOption: true })
+    .option('source', { type: 'string', description: 'Previous source ID; required for act/expand' })
+    .option('frame', { type: 'string' }).option('max-elements', { type: 'number', default: 2000 })
+    .option('stability-ms', { type: 'number', default: 200 })
+    .option('full', { type: 'boolean', default: false }).option('screenshot', { type: 'boolean', default: false })
+    .option('action', { type: 'string', choices: ['click', 'fill', 'select', 'press-key', 'navigate', 'back', 'forward', 'reload'] })
+    .option('selector', { type: 'string' }).option('value', { type: 'string' })
+    .option('url', { type: 'string' }).option('key', { type: 'string' })
+    .option('wait-for', { type: 'string' }).option('wait-for-text', { type: 'string' }),
+  async argv => {
+    const context = new CDPContext(argv['cdp-url'] as string);
+    try {
+      const result = await workflow(context, argv.operation as string, { page: argv.page as string, task: argv.task as string,
+        source: argv.source as string | undefined, frame: argv.frame as string | undefined,
+        maxElements: argv['max-elements'] as number, stabilityMs: argv['stability-ms'] as number,
+        full: argv.full as boolean, screenshot: argv.screenshot as boolean, action: argv.action as string | undefined,
+        selector: argv.selector as string | undefined, value: argv.value as string | undefined, url: argv.url as string | undefined,
+        key: argv.key as string | undefined, waitFor: argv['wait-for'] as string | undefined, waitForText: argv['wait-for-text'] as string | undefined });
+      outputLine(result);
+      if ((result as { success?: boolean }).success === false) process.exitCode = 1;
+    } catch (error) { outputCommandError(error, 'WORKFLOW_FAILED'); process.exitCode = 1; }
+    finally { await context.releaseSessionLeases(); }
+  });
+
 cli.command(
   'record <operation> <file> [page]',
   'Replay an opt-in successful action journal (set CDP_RECORD_FILE while exploring)',

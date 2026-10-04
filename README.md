@@ -6,6 +6,16 @@ Command-line interface for Chrome DevTools Protocol (CDP), optimized for LLM age
 
 `cdp-cli` provides CLI access to all Chrome DevTools Protocol features, making it easy to automate browser interactions, debug web applications, and inspect network traffic - all from the command line with grep/tail-friendly output.
 
+### Browser evidence workflow
+
+`workflow observe PAGE --task 'goal'` returns deterministic compact state with
+canonical expansion references. `workflow act PAGE --task 'goal' --source SOURCE_ID
+--action click --selector '#save' --wait-for '#result'` returns action delivery,
+fresh state, the latest diff and available diagnostic errors in one response.
+No model server is required. `workflow-mcp` exposes observe/act/expand/screenshot
+tools for inherited owned browser sessions and returns screenshots as image
+blocks, avoiding a separate file Read. See [workflow deployment and usage](docs/browser-workflow.md).
+
 ### Page state captures and diffs (experimental)
 
 Use a bounded page-state diff when the question is whether an action changed visible text or control state. The last NDJSON line from `state click`, `state diff`, and `state expect` is the result envelope.
