@@ -1,0 +1,380 @@
+{
+  "warning": "Raw constrained-choice accuracy; uncalibrated scores cannot authorize execution. Synthetic screenshots, no browser-agent completion.",
+  "rows": [
+    {
+      "target": "B",
+      "arm": "semantic-only",
+      "choice": "escalate",
+      "failure": false,
+      "rawCorrect": false,
+      "ms": 0.026199999999789725,
+      "screenshotMs": 79.44540000000006,
+      "metrics": {
+        "calls": 0,
+        "latencyMs": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "missingUsageCalls": 0,
+        "rawChoice": null
+      },
+      "lunaUsage": null,
+      "executionQualified": false
+    },
+    {
+      "target": "B",
+      "arm": "jev-text",
+      "choice": "escalate",
+      "failure": false,
+      "rawCorrect": false,
+      "ms": 208.4049,
+      "screenshotMs": 79.44540000000006,
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 207.91980000000012,
+        "inputTokens": 968,
+        "outputTokens": 49,
+        "missingUsageCalls": 0
+      },
+      "lunaUsage": null,
+      "executionQualified": false
+    },
+    {
+      "target": "B",
+      "arm": "local-text",
+      "choice": "B",
+      "failure": false,
+      "rawCorrect": true,
+      "ms": 3586.6145999999994,
+      "screenshotMs": 79.44540000000006,
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 3586.3249,
+        "inputTokens": 468,
+        "outputTokens": 7,
+        "missingUsageCalls": 0,
+        "rawChoice": "B"
+      },
+      "lunaUsage": null,
+      "executionQualified": false
+    },
+    {
+      "target": "B",
+      "arm": "local-screenshot",
+      "choice": "B",
+      "failure": false,
+      "rawCorrect": true,
+      "ms": 15634.243000000002,
+      "screenshotMs": 79.44540000000006,
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 15634.2193,
+        "inputTokens": 668,
+        "outputTokens": 8,
+        "missingUsageCalls": 0,
+        "rawChoice": "B"
+      },
+      "lunaUsage": null,
+      "executionQualified": false
+    },
+    {
+      "target": "B",
+      "arm": "luna-text",
+      "choice": "escalate",
+      "failure": false,
+      "rawCorrect": false,
+      "ms": 3954.0951999999997,
+      "screenshotMs": 79.44540000000006,
+      "metrics": {
+        "calls": 0,
+        "latencyMs": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "missingUsageCalls": 0,
+        "rawChoice": null
+      },
+      "lunaUsage": {
+        "input_tokens": 17720,
+        "cached_input_tokens": 11008,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 12,
+        "reasoning_output_tokens": 0
+      },
+      "executionQualified": false
+    },
+    {
+      "target": "B",
+      "arm": "luna-screenshot",
+      "choice": "B",
+      "failure": false,
+      "rawCorrect": true,
+      "ms": 3573.660899999999,
+      "screenshotMs": 79.44540000000006,
+      "metrics": {
+        "calls": 0,
+        "latencyMs": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "missingUsageCalls": 0,
+        "rawChoice": null
+      },
+      "lunaUsage": {
+        "input_tokens": 17020,
+        "cached_input_tokens": 15104,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 10,
+        "reasoning_output_tokens": 0
+      },
+      "executionQualified": false
+    },
+    {
+      "target": "A",
+      "arm": "semantic-only",
+      "choice": "escalate",
+      "failure": false,
+      "rawCorrect": false,
+      "ms": 0.018800000001647277,
+      "screenshotMs": 96.01560000000245,
+      "metrics": {
+        "calls": 0,
+        "latencyMs": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "missingUsageCalls": 0,
+        "rawChoice": null
+      },
+      "lunaUsage": null,
+      "executionQualified": false
+    },
+    {
+      "target": "A",
+      "arm": "jev-text",
+      "choice": "escalate",
+      "failure": false,
+      "rawCorrect": false,
+      "ms": 116.88349999999991,
+      "screenshotMs": 96.01560000000245,
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 116.82819999999992,
+        "inputTokens": 974,
+        "outputTokens": 49,
+        "missingUsageCalls": 0
+      },
+      "lunaUsage": null,
+      "executionQualified": false
+    },
+    {
+      "target": "A",
+      "arm": "local-text",
+      "choice": "B",
+      "failure": false,
+      "rawCorrect": false,
+      "ms": 3529.7500999999975,
+      "screenshotMs": 96.01560000000245,
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 3529.730300000003,
+        "inputTokens": 474,
+        "outputTokens": 7,
+        "missingUsageCalls": 0,
+        "rawChoice": "B"
+      },
+      "lunaUsage": null,
+      "executionQualified": false
+    },
+    {
+      "target": "A",
+      "arm": "local-screenshot",
+      "choice": "A",
+      "failure": false,
+      "rawCorrect": true,
+      "ms": 15322.600399999996,
+      "screenshotMs": 96.01560000000245,
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 15322.576000000001,
+        "inputTokens": 674,
+        "outputTokens": 7,
+        "missingUsageCalls": 0,
+        "rawChoice": "A"
+      },
+      "lunaUsage": null,
+      "executionQualified": false
+    },
+    {
+      "target": "A",
+      "arm": "luna-text",
+      "choice": "escalate",
+      "failure": false,
+      "rawCorrect": false,
+      "ms": 3583.5276999999987,
+      "screenshotMs": 96.01560000000245,
+      "metrics": {
+        "calls": 0,
+        "latencyMs": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "missingUsageCalls": 0,
+        "rawChoice": null
+      },
+      "lunaUsage": {
+        "input_tokens": 16732,
+        "cached_input_tokens": 15104,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 12,
+        "reasoning_output_tokens": 0
+      },
+      "executionQualified": false
+    },
+    {
+      "target": "A",
+      "arm": "luna-screenshot",
+      "choice": "A",
+      "failure": false,
+      "rawCorrect": true,
+      "ms": 3635.617099999996,
+      "screenshotMs": 96.01560000000245,
+      "metrics": {
+        "calls": 0,
+        "latencyMs": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "missingUsageCalls": 0,
+        "rawChoice": null
+      },
+      "lunaUsage": {
+        "input_tokens": 17032,
+        "cached_input_tokens": 15104,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 10,
+        "reasoning_output_tokens": 0
+      },
+      "executionQualified": false
+    },
+    {
+      "target": "C",
+      "arm": "semantic-only",
+      "choice": "escalate",
+      "failure": false,
+      "rawCorrect": false,
+      "ms": 0.01630000000295695,
+      "screenshotMs": 61.65350000000035,
+      "metrics": {
+        "calls": 0,
+        "latencyMs": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "missingUsageCalls": 0,
+        "rawChoice": null
+      },
+      "lunaUsage": null,
+      "executionQualified": false
+    },
+    {
+      "target": "C",
+      "arm": "jev-text",
+      "choice": "escalate",
+      "failure": false,
+      "rawCorrect": false,
+      "ms": 129.63349999999627,
+      "screenshotMs": 61.65350000000035,
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 129.5428000000029,
+        "inputTokens": 964,
+        "outputTokens": 49,
+        "missingUsageCalls": 0
+      },
+      "lunaUsage": null,
+      "executionQualified": false
+    },
+    {
+      "target": "C",
+      "arm": "local-text",
+      "choice": "B",
+      "failure": false,
+      "rawCorrect": false,
+      "ms": 3445.3899999999994,
+      "screenshotMs": 61.65350000000035,
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 3445.3729999999996,
+        "inputTokens": 464,
+        "outputTokens": 7,
+        "missingUsageCalls": 0,
+        "rawChoice": "B"
+      },
+      "lunaUsage": null,
+      "executionQualified": false
+    },
+    {
+      "target": "C",
+      "arm": "local-screenshot",
+      "choice": "C",
+      "failure": false,
+      "rawCorrect": true,
+      "ms": 15381.442899999995,
+      "screenshotMs": 61.65350000000035,
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 15381.424599999991,
+        "inputTokens": 664,
+        "outputTokens": 8,
+        "missingUsageCalls": 0,
+        "rawChoice": "C"
+      },
+      "lunaUsage": null,
+      "executionQualified": false
+    },
+    {
+      "target": "C",
+      "arm": "luna-text",
+      "choice": "escalate",
+      "failure": false,
+      "rawCorrect": false,
+      "ms": 3962.1447999999946,
+      "screenshotMs": 61.65350000000035,
+      "metrics": {
+        "calls": 0,
+        "latencyMs": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "missingUsageCalls": 0,
+        "rawChoice": null
+      },
+      "lunaUsage": {
+        "input_tokens": 16740,
+        "cached_input_tokens": 15104,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 12,
+        "reasoning_output_tokens": 0
+      },
+      "executionQualified": false
+    },
+    {
+      "target": "C",
+      "arm": "luna-screenshot",
+      "choice": "C",
+      "failure": false,
+      "rawCorrect": true,
+      "ms": 3524.8804999999993,
+      "screenshotMs": 61.65350000000035,
+      "metrics": {
+        "calls": 0,
+        "latencyMs": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "missingUsageCalls": 0,
+        "rawChoice": null
+      },
+      "lunaUsage": {
+        "input_tokens": 17040,
+        "cached_input_tokens": 15104,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 10,
+        "reasoning_output_tokens": 0
+      },
+      "executionQualified": false
+    }
+  ]
+}

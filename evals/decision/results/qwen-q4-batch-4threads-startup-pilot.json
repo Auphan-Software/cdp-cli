@@ -1,0 +1,167 @@
+{
+  "label": "classifier-Q4_K_M-4threads",
+  "warning": "Batch endpoint latency, short fixed inputs. This is not full-state task latency.",
+  "rows": [
+    {
+      "units": 1,
+      "repeat": 0,
+      "status": "failed",
+      "ms": 170.97480000000002,
+      "tokens": null,
+      "scores": null
+    },
+    {
+      "units": 6,
+      "repeat": 0,
+      "status": "failed",
+      "ms": 197.27990000000003,
+      "tokens": null,
+      "scores": null
+    },
+    {
+      "units": 12,
+      "repeat": 0,
+      "status": "failed",
+      "ms": 169.77459999999996,
+      "tokens": null,
+      "scores": null
+    },
+    {
+      "units": 32,
+      "repeat": 0,
+      "status": "ok",
+      "ms": 20028.4884,
+      "tokens": 2992,
+      "scores": [
+        {
+          "index": 10,
+          "relevance_score": 0.5882339477539062
+        },
+        {
+          "index": 20,
+          "relevance_score": 0.5882339477539062
+        },
+        {
+          "index": 22,
+          "relevance_score": 0.5882339477539062
+        },
+        {
+          "index": 18,
+          "relevance_score": 0.5882339477539062
+        },
+        {
+          "index": 16,
+          "relevance_score": 0.5882339477539062
+        },
+        {
+          "index": 24,
+          "relevance_score": 0.5882339477539062
+        },
+        {
+          "index": 14,
+          "relevance_score": 0.5882339477539062
+        },
+        {
+          "index": 12,
+          "relevance_score": 0.5882339477539062
+        },
+        {
+          "index": 26,
+          "relevance_score": 0.5882339477539062
+        },
+        {
+          "index": 8,
+          "relevance_score": 0.5882339477539062
+        },
+        {
+          "index": 28,
+          "relevance_score": 0.5882339477539062
+        },
+        {
+          "index": 6,
+          "relevance_score": 0.5882339477539062
+        },
+        {
+          "index": 4,
+          "relevance_score": 0.5882339477539062
+        },
+        {
+          "index": 30,
+          "relevance_score": 0.5882339477539062
+        },
+        {
+          "index": 2,
+          "relevance_score": 0.5882339477539062
+        },
+        {
+          "index": 0,
+          "relevance_score": 0.5882339477539062
+        },
+        {
+          "index": 27,
+          "relevance_score": 0.015337231568992138
+        },
+        {
+          "index": 31,
+          "relevance_score": 0.015337231568992138
+        },
+        {
+          "index": 25,
+          "relevance_score": 0.015337231568992138
+        },
+        {
+          "index": 29,
+          "relevance_score": 0.015337231568992138
+        },
+        {
+          "index": 23,
+          "relevance_score": 0.015337231568992138
+        },
+        {
+          "index": 21,
+          "relevance_score": 0.015337231568992138
+        },
+        {
+          "index": 19,
+          "relevance_score": 0.015337231568992138
+        },
+        {
+          "index": 17,
+          "relevance_score": 0.015337231568992138
+        },
+        {
+          "index": 15,
+          "relevance_score": 0.015337231568992138
+        },
+        {
+          "index": 13,
+          "relevance_score": 0.015337231568992138
+        },
+        {
+          "index": 11,
+          "relevance_score": 0.015337231568992138
+        },
+        {
+          "index": 9,
+          "relevance_score": 0.015337231568992138
+        },
+        {
+          "index": 7,
+          "relevance_score": 0.015337231568992138
+        },
+        {
+          "index": 5,
+          "relevance_score": 0.015337231568992138
+        },
+        {
+          "index": 3,
+          "relevance_score": 0.015337231568992138
+        },
+        {
+          "index": 1,
+          "relevance_score": 0.015337231568992138
+        }
+      ]
+    }
+  ]
+}

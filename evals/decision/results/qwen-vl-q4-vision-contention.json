@@ -1,0 +1,158 @@
+{
+  "warning": "Raw constrained-choice accuracy; uncalibrated scores cannot authorize execution. Synthetic screenshots, no browser-agent completion.",
+  "rows": [
+    {
+      "target": "B",
+      "arm": "semantic-only",
+      "choice": "escalate",
+      "failure": false,
+      "rawCorrect": false,
+      "ms": 0.011300000000119326,
+      "screenshotMs": 65.91040000000021,
+      "metrics": {
+        "calls": 0,
+        "latencyMs": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "rawChoice": null
+      },
+      "executionQualified": false
+    },
+    {
+      "target": "B",
+      "arm": "local-text",
+      "choice": "A",
+      "failure": false,
+      "rawCorrect": false,
+      "ms": 8863.9189,
+      "screenshotMs": 65.91040000000021,
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 8863.800299999999,
+        "inputTokens": 466,
+        "outputTokens": 7,
+        "rawChoice": "A"
+      },
+      "executionQualified": false
+    },
+    {
+      "target": "B",
+      "arm": "local-screenshot",
+      "choice": "B",
+      "failure": false,
+      "rawCorrect": true,
+      "ms": 13075.426099999999,
+      "screenshotMs": 65.91040000000021,
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 13075.408499999998,
+        "inputTokens": 668,
+        "outputTokens": 15,
+        "rawChoice": "B"
+      },
+      "executionQualified": false
+    },
+    {
+      "target": "A",
+      "arm": "semantic-only",
+      "choice": "escalate",
+      "failure": false,
+      "rawCorrect": false,
+      "ms": 0.004999999997380655,
+      "screenshotMs": 60.541800000002695,
+      "metrics": {
+        "calls": 0,
+        "latencyMs": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "rawChoice": null
+      },
+      "executionQualified": false
+    },
+    {
+      "target": "A",
+      "arm": "local-text",
+      "choice": "A",
+      "failure": false,
+      "rawCorrect": true,
+      "ms": 8631.085200000001,
+      "screenshotMs": 60.541800000002695,
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 8631.078299999997,
+        "inputTokens": 470,
+        "outputTokens": 7,
+        "rawChoice": "A"
+      },
+      "executionQualified": false
+    },
+    {
+      "target": "A",
+      "arm": "local-screenshot",
+      "choice": "A",
+      "failure": false,
+      "rawCorrect": true,
+      "ms": 12304.235799999995,
+      "screenshotMs": 60.541800000002695,
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 12304.223999999995,
+        "inputTokens": 672,
+        "outputTokens": 15,
+        "rawChoice": "A"
+      },
+      "executionQualified": false
+    },
+    {
+      "target": "C",
+      "arm": "semantic-only",
+      "choice": "escalate",
+      "failure": false,
+      "rawCorrect": false,
+      "ms": 0.007700000001932494,
+      "screenshotMs": 58.902799999996205,
+      "metrics": {
+        "calls": 0,
+        "latencyMs": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "rawChoice": null
+      },
+      "executionQualified": false
+    },
+    {
+      "target": "C",
+      "arm": "local-text",
+      "choice": "A",
+      "failure": false,
+      "rawCorrect": false,
+      "ms": 8409.760000000002,
+      "screenshotMs": 58.902799999996205,
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 8409.7506,
+        "inputTokens": 468,
+        "outputTokens": 7,
+        "rawChoice": "A"
+      },
+      "executionQualified": false
+    },
+    {
+      "target": "C",
+      "arm": "local-screenshot",
+      "choice": "C",
+      "failure": false,
+      "rawCorrect": true,
+      "ms": 12295.017400000004,
+      "screenshotMs": 58.902799999996205,
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 12295.007300000005,
+        "inputTokens": 670,
+        "outputTokens": 15,
+        "rawChoice": "C"
+      },
+      "executionQualified": false
+    }
+  ]
+}

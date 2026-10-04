@@ -1,0 +1,176 @@
+{
+  "warning": "Raw constrained-choice accuracy; uncalibrated scores cannot authorize execution. Synthetic screenshots, no browser-agent completion.",
+  "rows": [
+    {
+      "target": "B",
+      "arm": "semantic-only",
+      "choice": "escalate",
+      "failure": false,
+      "rawCorrect": false,
+      "ms": 0.015099999999620195,
+      "screenshotMs": 78.4991,
+      "metrics": {
+        "calls": 0,
+        "latencyMs": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "missingUsageCalls": 0,
+        "rawChoice": null
+      },
+      "lunaUsage": null,
+      "executionQualified": false
+    },
+    {
+      "target": "B",
+      "arm": "local-text",
+      "choice": "A",
+      "failure": false,
+      "rawCorrect": false,
+      "ms": 6805.3719,
+      "screenshotMs": 78.4991,
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 6805.225200000001,
+        "inputTokens": 469,
+        "outputTokens": 7,
+        "missingUsageCalls": 0,
+        "rawChoice": "A"
+      },
+      "lunaUsage": null,
+      "executionQualified": false
+    },
+    {
+      "target": "B",
+      "arm": "local-screenshot",
+      "choice": "B",
+      "failure": false,
+      "rawCorrect": true,
+      "ms": 8698.126800000002,
+      "screenshotMs": 78.4991,
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 8698.1044,
+        "inputTokens": 671,
+        "outputTokens": 15,
+        "missingUsageCalls": 0,
+        "rawChoice": "B"
+      },
+      "lunaUsage": null,
+      "executionQualified": false
+    },
+    {
+      "target": "A",
+      "arm": "semantic-only",
+      "choice": "escalate",
+      "failure": false,
+      "rawCorrect": false,
+      "ms": 0.013500000000931323,
+      "screenshotMs": 78.46729999999661,
+      "metrics": {
+        "calls": 0,
+        "latencyMs": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "missingUsageCalls": 0,
+        "rawChoice": null
+      },
+      "lunaUsage": null,
+      "executionQualified": false
+    },
+    {
+      "target": "A",
+      "arm": "local-text",
+      "choice": "A",
+      "failure": false,
+      "rawCorrect": true,
+      "ms": 6141.774799999999,
+      "screenshotMs": 78.46729999999661,
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 6141.7579000000005,
+        "inputTokens": 469,
+        "outputTokens": 7,
+        "missingUsageCalls": 0,
+        "rawChoice": "A"
+      },
+      "lunaUsage": null,
+      "executionQualified": false
+    },
+    {
+      "target": "A",
+      "arm": "local-screenshot",
+      "choice": "A",
+      "failure": false,
+      "rawCorrect": true,
+      "ms": 8447.6823,
+      "screenshotMs": 78.46729999999661,
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 8447.6643,
+        "inputTokens": 671,
+        "outputTokens": 15,
+        "missingUsageCalls": 0,
+        "rawChoice": "A"
+      },
+      "lunaUsage": null,
+      "executionQualified": false
+    },
+    {
+      "target": "C",
+      "arm": "semantic-only",
+      "choice": "escalate",
+      "failure": false,
+      "rawCorrect": false,
+      "ms": 0.008399999998800922,
+      "screenshotMs": 184.18249999999898,
+      "metrics": {
+        "calls": 0,
+        "latencyMs": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "missingUsageCalls": 0,
+        "rawChoice": null
+      },
+      "lunaUsage": null,
+      "executionQualified": false
+    },
+    {
+      "target": "C",
+      "arm": "local-text",
+      "choice": "A",
+      "failure": false,
+      "rawCorrect": false,
+      "ms": 6492.393900000003,
+      "screenshotMs": 184.18249999999898,
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 6492.380400000002,
+        "inputTokens": 473,
+        "outputTokens": 11,
+        "missingUsageCalls": 0,
+        "rawChoice": "A"
+      },
+      "lunaUsage": null,
+      "executionQualified": false
+    },
+    {
+      "target": "C",
+      "arm": "local-screenshot",
+      "choice": "C",
+      "failure": false,
+      "rawCorrect": true,
+      "ms": 8420.7687,
+      "screenshotMs": 184.18249999999898,
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 8420.754200000003,
+        "inputTokens": 675,
+        "outputTokens": 15,
+        "missingUsageCalls": 0,
+        "rawChoice": "C"
+      },
+      "lunaUsage": null,
+      "executionQualified": false
+    }
+  ]
+}

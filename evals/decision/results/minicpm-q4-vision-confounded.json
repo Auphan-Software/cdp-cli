@@ -1,0 +1,209 @@
+{
+  "warning": "EXCLUDED: ground-truth target leaked via snapshot metadata. Accuracy invalid; pilot latency only. Replaced by opaque metadata rerun.",
+  "rows": [
+    {
+      "target": "B",
+      "arm": "semantic-only",
+      "choice": "escalate",
+      "failure": false,
+      "rawCorrect": false,
+      "ms": 0.02179999999998472,
+      "screenshotMs": 75.92880000000014,
+      "metrics": {
+        "calls": 0,
+        "latencyMs": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "rawChoice": null
+      },
+      "executionQualified": false
+    },
+    {
+      "target": "B",
+      "arm": "jev-text",
+      "choice": "escalate",
+      "failure": false,
+      "rawCorrect": false,
+      "ms": 169.51969999999983,
+      "screenshotMs": 75.92880000000014,
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 169.01980000000003,
+        "inputTokens": 802,
+        "outputTokens": 49,
+        "missingUsageCalls": 0
+      },
+      "executionQualified": false
+    },
+    {
+      "target": "B",
+      "arm": "local-text",
+      "choice": "escalate",
+      "failure": false,
+      "rawCorrect": false,
+      "ms": 2430.8088999999995,
+      "screenshotMs": 75.92880000000014,
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 2430.6763,
+        "inputTokens": 301,
+        "outputTokens": 8,
+        "rawChoice": "escalate"
+      },
+      "executionQualified": false
+    },
+    {
+      "target": "B",
+      "arm": "local-screenshot",
+      "choice": "B",
+      "failure": false,
+      "rawCorrect": true,
+      "ms": 22498.1933,
+      "screenshotMs": 75.92880000000014,
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 22498.1804,
+        "inputTokens": 501,
+        "outputTokens": 7,
+        "rawChoice": "B"
+      },
+      "executionQualified": false
+    },
+    {
+      "target": "A",
+      "arm": "semantic-only",
+      "choice": "escalate",
+      "failure": false,
+      "rawCorrect": false,
+      "ms": 0.005800000002636807,
+      "screenshotMs": 45.55839999999807,
+      "metrics": {
+        "calls": 0,
+        "latencyMs": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "rawChoice": null
+      },
+      "executionQualified": false
+    },
+    {
+      "target": "A",
+      "arm": "jev-text",
+      "choice": "escalate",
+      "failure": false,
+      "rawCorrect": false,
+      "ms": 125.80189999999857,
+      "screenshotMs": 45.55839999999807,
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 125.7541999999994,
+        "inputTokens": 802,
+        "outputTokens": 49,
+        "missingUsageCalls": 0
+      },
+      "executionQualified": false
+    },
+    {
+      "target": "A",
+      "arm": "local-text",
+      "choice": "escalate",
+      "failure": false,
+      "rawCorrect": false,
+      "ms": 2590.6697999999997,
+      "screenshotMs": 45.55839999999807,
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 2590.66,
+        "inputTokens": 301,
+        "outputTokens": 8,
+        "rawChoice": "escalate"
+      },
+      "executionQualified": false
+    },
+    {
+      "target": "A",
+      "arm": "local-screenshot",
+      "choice": "A",
+      "failure": false,
+      "rawCorrect": true,
+      "ms": 14797.295199999997,
+      "screenshotMs": 45.55839999999807,
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 14797.281299999999,
+        "inputTokens": 501,
+        "outputTokens": 8,
+        "rawChoice": "A"
+      },
+      "executionQualified": false
+    },
+    {
+      "target": "C",
+      "arm": "semantic-only",
+      "choice": "escalate",
+      "failure": false,
+      "rawCorrect": false,
+      "ms": 0.007299999997485429,
+      "screenshotMs": 60.43029999999999,
+      "metrics": {
+        "calls": 0,
+        "latencyMs": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "rawChoice": null
+      },
+      "executionQualified": false
+    },
+    {
+      "target": "C",
+      "arm": "jev-text",
+      "choice": "escalate",
+      "failure": false,
+      "rawCorrect": false,
+      "ms": 147.3321999999971,
+      "screenshotMs": 60.43029999999999,
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 147.2341000000015,
+        "inputTokens": 802,
+        "outputTokens": 49,
+        "missingUsageCalls": 0
+      },
+      "executionQualified": false
+    },
+    {
+      "target": "C",
+      "arm": "local-text",
+      "choice": "C",
+      "failure": false,
+      "rawCorrect": true,
+      "ms": 2492.9045999999944,
+      "screenshotMs": 60.43029999999999,
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 2492.884300000005,
+        "inputTokens": 301,
+        "outputTokens": 8,
+        "rawChoice": "C"
+      },
+      "executionQualified": false
+    },
+    {
+      "target": "C",
+      "arm": "local-screenshot",
+      "choice": "C",
+      "failure": false,
+      "rawCorrect": true,
+      "ms": 14426.722999999998,
+      "screenshotMs": 60.43029999999999,
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 14426.71,
+        "inputTokens": 501,
+        "outputTokens": 8,
+        "rawChoice": "C"
+      },
+      "executionQualified": false
+    }
+  ]
+}

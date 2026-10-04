@@ -1,0 +1,18 @@
+{
+  "date": "2026-10-03 America/Vancouver",
+  "host": "arcturus / Office Proxmox / 192.168.3.40",
+  "container": { "id": 107, "name": "cdp-model-eval", "ip": "192.168.3.107", "os": "Debian 13", "unprivileged": true, "cores": 8, "memoryGiB": 16, "swapGiB": 0, "diskGiB": 64, "storage": "ceph-lxc", "onboot": false },
+  "cpu": { "model": "2 x Intel Xeon E5-2623 v4 @ 2.60GHz", "physicalCores": 8, "logicalThreads": 16, "avx2": true, "avx512": false, "numaNodes": 2, "observedCtAffinity": "0,2,5,7,10,12-14", "exclusive": false },
+  "parentCgroup": { "memoryMaxBytes": 17179869184, "swapMaxBytes": 0, "cpuMax": "800000 100000", "observedMemoryPeakBytes": 17047805952, "oomKills": 0, "note": "Peak includes file cache, conversion and multiple runtime residents. Not a single-model RSS peak." },
+  "runtime": { "llamaCppCommit": "11fe02151f79c41d0d4af7da708755d73b9c0da6", "compiler": "GNU 14.2.0", "cuda": false, "vulkan": false, "visionOffload": false, "context": 4096, "slots": 1, "transformers": "5.18.0", "torch": "2.14.1+cpu", "python": "3.13" },
+  "observedRssKiB": { "rerankerQ8Classifier": 1764840, "rerankerQ4Classifier": 1241040, "minicpmQ4WithF16Projector": 2381648, "qwenVlQ4WithQ8Projector": 3040820, "fp32ReferencePeakShortQueries": 3956516 },
+  "sha256": {
+    "rerankerTaskQ8": "18f099b292864fde542713d7c41aa4464860e11bc07b045b51543e9e59e6e7e7",
+    "rerankerTaskQ4": "ad041f8abba09646a72e9f62adf9708c4388b434d91bab3881a15a51b816b7b7",
+    "originalRerankerQ8FullHead": "22c9979ce4fbcdc5acdc310c6641c32797eff1aa980b8f7a2db8a8ea23429a48",
+    "minicpmQ4": "6b0c74962c44bc6bf4b655b9b02c13eda9d5a0491543ae976d1ac18e4b7892e2",
+    "minicpmF16Projector": "ca931d861d0801d9003e50697cd764721a334107c0e0415a51168ee1938462de",
+    "qwenVlQ4": "089d75c52f4b7ffc56ba998ffc50aae89fcafc755f9e7208aacca281dca6c2ae",
+    "qwenVlQ8Projector": "f9a68fabba69c3b81e153367b2c7521030b0fa8bb0de400c9599c8e6725f9c82"
+  }
+}

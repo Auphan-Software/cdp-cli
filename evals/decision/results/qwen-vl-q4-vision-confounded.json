@@ -1,0 +1,158 @@
+{
+  "warning": "EXCLUDED: ground-truth target leaked via snapshot metadata. Accuracy invalid; pilot latency only. Replaced by opaque metadata rerun.",
+  "rows": [
+    {
+      "target": "B",
+      "arm": "semantic-only",
+      "choice": "escalate",
+      "failure": false,
+      "rawCorrect": false,
+      "ms": 0.010099999999965803,
+      "screenshotMs": 74.15409999999974,
+      "metrics": {
+        "calls": 0,
+        "latencyMs": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "rawChoice": null
+      },
+      "executionQualified": false
+    },
+    {
+      "target": "B",
+      "arm": "local-text",
+      "choice": "A",
+      "failure": false,
+      "rawCorrect": false,
+      "ms": 4995.166499999999,
+      "screenshotMs": 74.15409999999974,
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 4995.051100000001,
+        "inputTokens": 297,
+        "outputTokens": 11,
+        "rawChoice": "A"
+      },
+      "executionQualified": false
+    },
+    {
+      "target": "B",
+      "arm": "local-screenshot",
+      "choice": "B",
+      "failure": false,
+      "rawCorrect": true,
+      "ms": 8391.8674,
+      "screenshotMs": 74.15409999999974,
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 8391.8517,
+        "inputTokens": 499,
+        "outputTokens": 15,
+        "rawChoice": "B"
+      },
+      "executionQualified": false
+    },
+    {
+      "target": "A",
+      "arm": "semantic-only",
+      "choice": "escalate",
+      "failure": false,
+      "rawCorrect": false,
+      "ms": 0.005600000000413274,
+      "screenshotMs": 54.260299999999916,
+      "metrics": {
+        "calls": 0,
+        "latencyMs": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "rawChoice": null
+      },
+      "executionQualified": false
+    },
+    {
+      "target": "A",
+      "arm": "local-text",
+      "choice": "A",
+      "failure": false,
+      "rawCorrect": true,
+      "ms": 4270.081400000001,
+      "screenshotMs": 54.260299999999916,
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 4270.074499999999,
+        "inputTokens": 297,
+        "outputTokens": 11,
+        "rawChoice": "A"
+      },
+      "executionQualified": false
+    },
+    {
+      "target": "A",
+      "arm": "local-screenshot",
+      "choice": "A",
+      "failure": false,
+      "rawCorrect": true,
+      "ms": 9101.673299999999,
+      "screenshotMs": 54.260299999999916,
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 9101.661800000002,
+        "inputTokens": 499,
+        "outputTokens": 15,
+        "rawChoice": "A"
+      },
+      "executionQualified": false
+    },
+    {
+      "target": "C",
+      "arm": "semantic-only",
+      "choice": "escalate",
+      "failure": false,
+      "rawCorrect": false,
+      "ms": 0.005600000000413274,
+      "screenshotMs": 49.66060000000289,
+      "metrics": {
+        "calls": 0,
+        "latencyMs": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "rawChoice": null
+      },
+      "executionQualified": false
+    },
+    {
+      "target": "C",
+      "arm": "local-text",
+      "choice": "A",
+      "failure": false,
+      "rawCorrect": false,
+      "ms": 4635.402300000002,
+      "screenshotMs": 49.66060000000289,
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 4635.392600000003,
+        "inputTokens": 297,
+        "outputTokens": 11,
+        "rawChoice": "A"
+      },
+      "executionQualified": false
+    },
+    {
+      "target": "C",
+      "arm": "local-screenshot",
+      "choice": "C",
+      "failure": false,
+      "rawCorrect": true,
+      "ms": 8276.124299999996,
+      "screenshotMs": 49.66060000000289,
+      "metrics": {
+        "calls": 1,
+        "latencyMs": 8276.113899999997,
+        "inputTokens": 499,
+        "outputTokens": 15,
+        "rawChoice": "C"
+      },
+      "executionQualified": false
+    }
+  ]
+}

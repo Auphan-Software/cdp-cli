@@ -9,6 +9,8 @@ import { diffStates } from '../../src/state/diff.js';
 import type { PageState } from '../../src/state/types.js';
 import { projectState, decideNext, expandState, type AgentView, type DecisionProvider, type Evidence, type Granularity, type RelevanceUnit, type AllowedAction } from '../../src/experimental/decision.js';
 import { JevProvider } from '../../src/experimental/jev.js';
+import { QwenRerankerProvider } from '../../src/experimental/qwen-reranker.js';
+import { lunaSelect } from './luna-selector.js';
 import { describeTarget, relocateTarget, verifyReplayEffect } from '../../src/experimental/replay.js';
 
 const tasks = [
@@ -25,8 +27,14 @@ const tasks = [
   { name: 'unmatched-clue', task: 'Remove the order', target: 'remove', mode: 'normal', clue: 'top|id:clue' },
   { name: 'reports', task: 'Open Reports', target: 'reports', mode: 'normal' }
 ];
-const arms = ['baseline', 'deterministic', 'filter', 'action', 'filter-action'] as const;
+const repeats = Number(process.env.CDP_DECISION_REPEATS ?? 3);
+if (!Number.isSafeInteger(repeats) || repeats < 1 || repeats > 10) throw new Error('INVALID_EVAL_REPEATS');
+if (process.env.CDP_DECISION_GRANULARITY && !['node','chunk','region','hybrid'].includes(process.env.CDP_DECISION_GRANULARITY)) throw new Error('INVALID_EVAL_GRANULARITY');
+const arms = (process.env.CDP_DECISION_ARMS ? process.env.CDP_DECISION_ARMS.split(',') : process.env.CDP_DECISION_LOCAL_URL ? ['baseline', 'deterministic', 'filter'] :
+  ['baseline', 'deterministic', 'filter', 'action', 'filter-action']) as Array<'baseline' | 'deterministic' | 'filter' | 'action' | 'filter-action'>;
+if (!arms.length || arms.some(a => !['baseline','deterministic','filter','action','filter-action'].includes(a))) throw new Error('INVALID_EVAL_ARMS');
 const rows: any[] = [];
+const dataset: any[] = [];
 let chrome: LiveChrome;
 let fixture: LiveFixture;
 let session: CdpSession;
@@ -77,6 +85,7 @@ beforeAll(async () => {
 }, 30_000);
 afterAll(async () => {
   session?.close(); await chrome?.close(); await fixture?.close();
+  if (process.env.CDP_DECISION_DATASET) await writeFile(process.env.CDP_DECISION_DATASET, JSON.stringify(dataset, null, 2));
   const path = process.env.CDP_DECISION_EVAL_METRICS;
   if (path) {
     await mkdir(dirname(path), { recursive: true });
@@ -93,13 +102,20 @@ afterAll(async () => {
         falseNegativeTasks: subset.filter(r => r.falseNegative).length,
         missingSafeguards: subset.reduce((s,r) => s+r.missingSafeguards,0),
         mockCalls: subset.reduce((s, r) => s + r.mockCalls, 0), jevCalls: subset.reduce((s, r) => s + r.jevCalls, 0),
-        meanProviderCalls: mean('mockCalls') + mean('jevCalls'), projectionP50Ms: percentile(.5), projectionP95Ms: percentile(.95),
+        localCalls: subset.reduce((s,r) => s+(r.localMetrics?.calls ?? 0),0),
+        applied: subset.filter(r => r.providerStatus === 'applied').length, fallbacks: subset.filter(r => r.providerStatus === 'fallback').length,
+        meanProviderCalls: mean('mockCalls') + mean('jevCalls') + subset.reduce((s,r) => s+(r.localMetrics?.calls ?? 0),0)/subset.length,
+        projectionP50Ms: percentile(.5), projectionP95Ms: percentile(.95),
         meanPairedByteReductionPct: +(subset.reduce((s,r) => s + (1-r.bytes/rows.find(b => b.task===r.task && b.arm==='baseline').bytes)*100,0)/subset.length).toFixed(2),
-        downstreamLLMCalls: null, providerModelTokens: process.env.CDP_DECISION_REAL_JEV === '1' && subset.every(r=>r.modelTokens!==null) ?
-          subset.reduce((s, r) => s + r.modelTokens, 0) : null }];
+        downstreamLLMCalls: process.env.CDP_DECISION_LUNA==='1' ? subset.filter(r=>r.lunaUsage).length : null,
+        downstreamInputTokens: process.env.CDP_DECISION_LUNA==='1' ? subset.reduce((s,r)=>s+(r.lunaUsage?.input_tokens ?? 0),0) : null,
+        downstreamOutputTokens: process.env.CDP_DECISION_LUNA==='1' ? subset.reduce((s,r)=>s+(r.lunaUsage?.output_tokens ?? 0),0) : null,
+        providerModelTokens: process.env.CDP_DECISION_LOCAL_URL ? subset.reduce((s,r) => s+(r.localMetrics?.inputTokens ?? 0),0) :
+          process.env.CDP_DECISION_REAL_JEV === '1' && subset.every(r=>r.modelTokens!==null) ? subset.reduce((s, r) => s + r.modelTokens, 0) : null }];
     }));
-    const header = JSON.stringify({ schema: 1, provider: process.env.CDP_DECISION_REAL_JEV === '1' ? 'jev-1.13.0' : 'mock-lexical',
-      warning: 'Controlled synthetic substrate eval. Scripted downstream selector; not browser-agent task completion or cost evidence.',
+    const header = JSON.stringify({ schema: 1, provider: process.env.CDP_DECISION_LOCAL_URL ? 'qwen3-reranker-0.6b' : process.env.CDP_DECISION_REAL_JEV === '1' ? 'jev-1.13.0' : 'mock-lexical',
+      downstream: process.env.CDP_DECISION_LUNA==='1' ? 'gpt-6-luna/Codex CLI bounded selector' : 'scripted',
+      warning: 'Controlled synthetic substrate eval. Single-step fixture outcomes; not multi-step browser-agent task completion or cost evidence.',
       byArm }, null, 2);
     await writeFile(path, `${header.slice(0, -2)},\n  "rows": [\n${rows.map(r => `    ${JSON.stringify(r)}`).join(',\n')}\n  ]\n}\n`);
   }
@@ -107,7 +123,7 @@ afterAll(async () => {
 
 describe('decision projection controlled browser eval', () => {
   for (const task of tasks) it(task.name, async () => {
-    for (let repeat = 0; repeat < 3; repeat++) {
+    for (let repeat = 0; repeat < repeats; repeat++) {
     await evaluate(`window.resetFixture(${JSON.stringify(task.mode)})`);
     const initial = await capture(1);
     // A changed non-task clue plus a removed node is protected independently of lexical relevance.
@@ -116,16 +132,20 @@ describe('decision projection controlled browser eval', () => {
         { k: 'top|id:gone', kq: 'strong', role: 'text', text: 'Pending authorization' }] };
     const evidence: Evidence = { hints: initial.hints,
       ...(task.name === 'error' ? { diff: diffStates(previous, initial.state), errors: [{ source: 'console', message: 'Fixture error' }] } : {}) };
+    if (repeat===0) dataset.push({ task, state: initial.state, evidence });
     const actions: AllowedAction[] = initial.state.elements.filter(e => e.role === 'button' && e.state?.vis !== false)
       .map(e => ({ id: e.k, kind: 'click', target: e.k, description: e.name ?? e.k }));
     actions.push({ id: 'escalate', kind: 'escalate', description: 'Ambiguous or insufficient evidence' });
     const orderedArms = [...arms].sort((a,b) => createHash('sha256').update(`${task.name}/${repeat}/${a}`).digest('hex')
       .localeCompare(createHash('sha256').update(`${task.name}/${repeat}/${b}`).digest('hex')));
-    for (const arm of orderedArms) for (const granularity of (arm.includes('filter') ? ['node', 'chunk', 'region', 'hybrid'] : ['node']) as Granularity[]) {
+    for (const arm of orderedArms) for (const granularity of (arm.includes('filter') ?
+      (process.env.CDP_DECISION_GRANULARITY ? [process.env.CDP_DECISION_GRANULARITY] : ['node', 'chunk', 'region', 'hybrid']) : ['node']) as Granularity[]) {
       await evaluate(`window.resetFixture(${JSON.stringify(task.mode)})`);
       const mock = new MockProvider();
       const real = process.env.CDP_DECISION_REAL_JEV === '1' ? new JevProvider() : undefined;
-      const provider = real ?? mock;
+      const local = process.env.CDP_DECISION_LOCAL_URL ? new QwenRerankerProvider({ url: process.env.CDP_DECISION_LOCAL_URL,
+        timeoutMs: Number(process.env.CDP_DECISION_LOCAL_TIMEOUT ?? 5000), classifier: process.env.CDP_DECISION_CLASSIFIER === '1' }) : undefined;
+      const provider = local ?? real ?? mock;
       const start = performance.now();
       const canonicalCopy = JSON.stringify(initial.state);
       const view = await projectState(task.task, initial.state, { ...evidence, prune: arm !== 'baseline' && arm !== 'action',
@@ -136,12 +156,23 @@ describe('decision projection controlled browser eval', () => {
       const protectedGold = ['top|id:reference','top|id:approved','top|id:method','top|id:result','top|id:warning','top|id:modal'];
       const missingSafeguards = protectedGold.filter(k => !view.elements.some(e => e.k===k)).length;
       let decision;
+      let luna;
+      const actionStart = performance.now();
       if (arm.includes('action')) decision = await decideNext(task.task, view, actions, provider);
-      else { const id = pick(task.task, view, actions); decision = { action: actions.find(a => a.id === id), escalate: id === 'escalate' }; }
+      else {
+        luna = process.env.CDP_DECISION_LUNA==='1' ? await lunaSelect(task.task, view, actions) : undefined;
+        const id = luna?.id ?? pick(task.task, view, actions);
+        const candidate = actions.find(a => a.id===id);
+        const node = candidate?.target ? view.elements.find(e => e.k===candidate.target) : undefined;
+        const unavailable = candidate?.target && (!node || node.kq!=='strong' || node.state?.vis===false || node.state?.en===false);
+        decision = { action: unavailable ? undefined : candidate, escalate: Boolean(unavailable) || id === 'escalate' };
+      }
+      const actionMs = performance.now() - actionStart;
       const actualId = decision.action?.target?.split('id:').at(-1)?.split('>').at(0) ?? null;
       const correct = actualId === task.target;
       const expectedTargetKey = initial.state.elements.find(e => e.k.endsWith(`id:${task.target}`))?.k;
       const falseNegative = hiddenClue || Boolean(expectedTargetKey && !view.elements.some(e => e.k===expectedTargetKey));
+      const relevantGold = [...new Set([...protectedGold, ...(expectedTargetKey ? [expectedTargetKey] : []), ...(task.clue ? [task.clue] : [])])];
       // Execute only an exact, unique DOM id in the controlled fixture. Production input remains untouched.
       if (actualId) await evaluate(`(() => { const nodes=document.querySelectorAll('#'+CSS.escape(${JSON.stringify(actualId)}));
         if(nodes.length!==1)throw Error('AMBIGUOUS');nodes[0].click(); })()`);
@@ -154,25 +185,29 @@ describe('decision projection controlled browser eval', () => {
         effect === (task.mode === 'noop' || task.mode === 'preexisting' ? 'FAILED' : 'PASSED'));
       const bytes = Buffer.byteLength(JSON.stringify(view));
       rows.push({ task: task.name, repeat, arm, granularity, bytes, estimatedTextTokens: Math.ceil(bytes / 4),
+        stateLines: view.elements.length, canonicalLines: initial.state.elements.length,
+        relevantNodes: relevantGold.length, relevantNodesRetained: relevantGold.filter(k => view.elements.some(e => e.k===k)).length,
         canonicalBytes: Buffer.byteLength(canonicalCopy), correct, verdictCorrect, wrongTarget, escalate: decision.escalate, effect, oracle,
         hiddenClue, falseNegative, missingSafeguards, omitted: view.omitted.count,
-        projectionMs: +projectionMs.toFixed(3), mockCalls: mock.calls, jevCalls: real?.metrics.calls ?? 0,
+        projectionMs: +projectionMs.toFixed(3), actionMs: +actionMs.toFixed(3), decisionPathMs: +(projectionMs + actionMs).toFixed(3),
+        lunaUsage: luna?.usage ?? null,
+        mockCalls: real || local ? 0 : mock.calls, jevCalls: real?.metrics.calls ?? 0, localMetrics: local?.metrics,
         modelTokens: real && !real.metrics.missingUsageCalls ? real.metrics.inputTokens + real.metrics.outputTokens : null,
         providerStatus: view.providerStatus, oracleExpansionRequests: hiddenClue ? 1 : 0 });
       expect(JSON.stringify(initial.state)).toBe(canonicalCopy);
-      expect(wrongTarget).toBe(false);
+      if (!luna) expect(wrongTarget).toBe(false);
       expect(missingSafeguards).toBe(0);
-      if (!real && !filtered) expect(correct).toBe(true);
+      if (!real && !filtered && !luna) expect(correct).toBe(true);
       if (task.mode === 'noop' || task.mode === 'preexisting') expect(effect).not.toBe('PASSED');
       if (task.name === 'error') {
         expect(view.elements.some(e => e.k === 'top|id:clue')).toBe(true);
         expect(view.diff!.changes.some(c => c.key === 'top|id:gone')).toBe(true);
         expect(view.errors).toHaveLength(1);
       }
-      if (filtered && !real && task.clue) expect(expandState(view, initial.state, [task.clue])).toHaveLength(1);
+      if (filtered && !real && !local && task.clue) expect(expandState(view, initial.state, [task.clue])).toHaveLength(1);
     }
     }
-  }, 60_000);
+  }, Number(process.env.CDP_DECISION_TASK_TIMEOUT ?? 60_000));
   it('stale same-session recovery and ambiguous relocation', async () => {
     await evaluate('window.resetFixture("normal")');
     const { state, hints } = await capture(1);

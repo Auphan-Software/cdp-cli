@@ -115,6 +115,39 @@ totals from four filtering granularities against one baseline arm.
 
 See [REPORT.md](REPORT.md) and [raw paired metrics](results/synthetic.json).
 
+## Actual office CPU comparison
+
+See [LOCAL-CPU.md](LOCAL-CPU.md) and [paired summary](results/local-summary.json).
+Fresh office Proxmox CT107 contains pinned weights and CPU runtimes under `/opt/cdp-eval`.
+The core remains model independent; these adapters and routing are opt-in experiments.
+
+For the classifier-head llama.cpp server with the task template from
+`build-classifier.py`, set `CDP_DECISION_LOCAL_URL`, `CDP_DECISION_CLASSIFIER=1`,
+`CDP_DECISION_GRANULARITY=region`, and optionally `CDP_DECISION_LUNA=1` for the
+authenticated Codex Luna bounded selector. `CDP_DECISION_LOCAL_TIMEOUT` defaults
+to 5,000 ms; full projections required an explicit 30,000 ms evaluation allowance.
+`CDP_DECISION_REPEATS=1` limits exploratory work. `CDP_DECISION_EVAL_METRICS` selects
+the JSON output. Run the decision live test with the live Vitest configuration.
+
+Set `JEV_API_KEY` only in the process environment and `CDP_DECISION_REAL_JEV=1`
+for real Jev trials. `CDP_DECISION_ARMS=baseline,deterministic,filter` limits paired
+projection comparisons. `CDP_DECISION_DATASET` exports masked fixture captures.
+The test never persists keys; the Luna subprocess receives empty key variables.
+
+For visual smoke tests, `CDP_VISION_URL` selects a CPU llama.cpp vision server,
+`CDP_VISION_RESULTS` selects the result file, and `CDP_DECISION_LUNA=1` adds actual
+text/screenshot Luna arms. Run `tests/live/local-vision.live.test.ts` with the live
+configuration. Candidate labels are finite and snapshot IDs are opaque.
+Generated choices carry `executionQualified=false`; zero thresholds cannot
+authorize them. Screenshot source mismatches escalate before inference.
+
+Run `node evals/decision/cpu-batch.mjs URL OUTPUT LABEL` with other CPU workers
+idle. It waits for runtime readiness. `cpu-reference.py` verifies FP32 yes/no
+scoring; `cpu-torch-batch.py` compares batching, including padding overhead.
+`node evals/decision/summarize-local.mjs` regenerates the paired summary. Files
+marked `confounded`, `contention`, or `pilot` are diagnostic records excluded from
+final accuracy or clean latency claims. Fixture verdicts are not multi-step completion.
+
 ## Record/diff and TesterArmy concepts
 
 The current actions/1 journal stores argv, stable frame selectors and placeholders

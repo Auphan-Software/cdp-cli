@@ -1,0 +1,338 @@
+{
+  "label": "classifier-Q8_0-4threads",
+  "warning": "Batch endpoint latency, short fixed inputs. This is not full-state task latency.",
+  "rows": [
+    {
+      "units": 1,
+      "repeat": 0,
+      "status": "ok",
+      "ms": 852.3676999999999,
+      "tokens": 89,
+      "scores": [
+        {
+          "index": 0,
+          "relevance_score": 0.7871652841567993
+        }
+      ]
+    },
+    {
+      "units": 1,
+      "repeat": 1,
+      "status": "ok",
+      "ms": 791.566,
+      "tokens": 89,
+      "scores": [
+        {
+          "index": 0,
+          "relevance_score": 0.7871652841567993
+        }
+      ]
+    },
+    {
+      "units": 1,
+      "repeat": 2,
+      "status": "ok",
+      "ms": 826.8208000000002,
+      "tokens": 89,
+      "scores": [
+        {
+          "index": 0,
+          "relevance_score": 0.7871652841567993
+        }
+      ]
+    },
+    {
+      "units": 6,
+      "repeat": 0,
+      "status": "ok",
+      "ms": 4779.6375,
+      "tokens": 561,
+      "scores": [
+        {
+          "index": 0,
+          "relevance_score": 0.7871652841567993
+        },
+        {
+          "index": 2,
+          "relevance_score": 0.7871652841567993
+        },
+        {
+          "index": 4,
+          "relevance_score": 0.7871652841567993
+        },
+        {
+          "index": 1,
+          "relevance_score": 0.0024436982348561287
+        },
+        {
+          "index": 3,
+          "relevance_score": 0.0024436982348561287
+        },
+        {
+          "index": 5,
+          "relevance_score": 0.0024436982348561287
+        }
+      ]
+    },
+    {
+      "units": 6,
+      "repeat": 1,
+      "status": "ok",
+      "ms": 4876.093400000001,
+      "tokens": 561,
+      "scores": [
+        {
+          "index": 0,
+          "relevance_score": 0.7871652841567993
+        },
+        {
+          "index": 2,
+          "relevance_score": 0.7871652841567993
+        },
+        {
+          "index": 4,
+          "relevance_score": 0.7871652841567993
+        },
+        {
+          "index": 1,
+          "relevance_score": 0.0024436982348561287
+        },
+        {
+          "index": 3,
+          "relevance_score": 0.0024436982348561287
+        },
+        {
+          "index": 5,
+          "relevance_score": 0.0024436982348561287
+        }
+      ]
+    },
+    {
+      "units": 6,
+      "repeat": 2,
+      "status": "ok",
+      "ms": 4806.9671,
+      "tokens": 561,
+      "scores": [
+        {
+          "index": 0,
+          "relevance_score": 0.7871652841567993
+        },
+        {
+          "index": 2,
+          "relevance_score": 0.7871652841567993
+        },
+        {
+          "index": 4,
+          "relevance_score": 0.7871652841567993
+        },
+        {
+          "index": 1,
+          "relevance_score": 0.0024436982348561287
+        },
+        {
+          "index": 3,
+          "relevance_score": 0.0024436982348561287
+        },
+        {
+          "index": 5,
+          "relevance_score": 0.0024436982348561287
+        }
+      ]
+    },
+    {
+      "units": 12,
+      "repeat": 0,
+      "status": "ok",
+      "ms": 9696.4296,
+      "tokens": 1122,
+      "scores": [
+        {
+          "index": 0,
+          "relevance_score": 0.7871652841567993
+        },
+        {
+          "index": 2,
+          "relevance_score": 0.7871652841567993
+        },
+        {
+          "index": 4,
+          "relevance_score": 0.7871652841567993
+        },
+        {
+          "index": 6,
+          "relevance_score": 0.7871652841567993
+        },
+        {
+          "index": 8,
+          "relevance_score": 0.7871652841567993
+        },
+        {
+          "index": 10,
+          "relevance_score": 0.7871652841567993
+        },
+        {
+          "index": 1,
+          "relevance_score": 0.0024436982348561287
+        },
+        {
+          "index": 3,
+          "relevance_score": 0.0024436982348561287
+        },
+        {
+          "index": 5,
+          "relevance_score": 0.0024436982348561287
+        },
+        {
+          "index": 7,
+          "relevance_score": 0.0024436982348561287
+        },
+        {
+          "index": 9,
+          "relevance_score": 0.0024436982348561287
+        },
+        {
+          "index": 11,
+          "relevance_score": 0.0024436982348561287
+        }
+      ]
+    },
+    {
+      "units": 32,
+      "repeat": 0,
+      "status": "ok",
+      "ms": 25609.0739,
+      "tokens": 2992,
+      "scores": [
+        {
+          "index": 10,
+          "relevance_score": 0.7871652841567993
+        },
+        {
+          "index": 20,
+          "relevance_score": 0.7871652841567993
+        },
+        {
+          "index": 22,
+          "relevance_score": 0.7871652841567993
+        },
+        {
+          "index": 18,
+          "relevance_score": 0.7871652841567993
+        },
+        {
+          "index": 16,
+          "relevance_score": 0.7871652841567993
+        },
+        {
+          "index": 24,
+          "relevance_score": 0.7871652841567993
+        },
+        {
+          "index": 14,
+          "relevance_score": 0.7871652841567993
+        },
+        {
+          "index": 12,
+          "relevance_score": 0.7871652841567993
+        },
+        {
+          "index": 26,
+          "relevance_score": 0.7871652841567993
+        },
+        {
+          "index": 8,
+          "relevance_score": 0.7871652841567993
+        },
+        {
+          "index": 28,
+          "relevance_score": 0.7871652841567993
+        },
+        {
+          "index": 6,
+          "relevance_score": 0.7871652841567993
+        },
+        {
+          "index": 4,
+          "relevance_score": 0.7871652841567993
+        },
+        {
+          "index": 30,
+          "relevance_score": 0.7871652841567993
+        },
+        {
+          "index": 2,
+          "relevance_score": 0.7871652841567993
+        },
+        {
+          "index": 0,
+          "relevance_score": 0.7871652841567993
+        },
+        {
+          "index": 27,
+          "relevance_score": 0.0024436982348561287
+        },
+        {
+          "index": 31,
+          "relevance_score": 0.0024436982348561287
+        },
+        {
+          "index": 25,
+          "relevance_score": 0.0024436982348561287
+        },
+        {
+          "index": 29,
+          "relevance_score": 0.0024436982348561287
+        },
+        {
+          "index": 23,
+          "relevance_score": 0.0024436982348561287
+        },
+        {
+          "index": 21,
+          "relevance_score": 0.0024436982348561287
+        },
+        {
+          "index": 19,
+          "relevance_score": 0.0024436982348561287
+        },
+        {
+          "index": 17,
+          "relevance_score": 0.0024436982348561287
+        },
+        {
+          "index": 15,
+          "relevance_score": 0.0024436982348561287
+        },
+        {
+          "index": 13,
+          "relevance_score": 0.0024436982348561287
+        },
+        {
+          "index": 11,
+          "relevance_score": 0.0024436982348561287
+        },
+        {
+          "index": 9,
+          "relevance_score": 0.0024436982348561287
+        },
+        {
+          "index": 7,
+          "relevance_score": 0.0024436982348561287
+        },
+        {
+          "index": 5,
+          "relevance_score": 0.0024436982348561287
+        },
+        {
+          "index": 3,
+          "relevance_score": 0.0024436982348561287
+        },
+        {
+          "index": 1,
+          "relevance_score": 0.0024436982348561287
+        }
+      ]
+    }
+  ]
+}

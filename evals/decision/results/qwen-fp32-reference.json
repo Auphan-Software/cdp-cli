@@ -1,0 +1,1 @@
+{"loadMs": 1190.1305299252272, "torch": "2.14.1+cpu", "maxRssKiB": 3956516, "rows": [{"document": "button | Save", "score": 0.7512291669845581, "tokens": 89, "ms": 881.5850103273988}, {"document": "paragraph | Catalog reference 14 Standard item available in warehouse", "score": 0.0032123608980327845, "tokens": 98, "ms": 1096.376782283187}]}

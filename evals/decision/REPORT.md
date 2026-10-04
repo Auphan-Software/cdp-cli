@@ -1,9 +1,13 @@
 # Decision-provider evaluation — 2026-10-03
 
+**Credential-backed and office CPU follow-up:** [LOCAL-CPU.md](LOCAL-CPU.md)
+contains actual Jev, CPU Qwen/MiniCPM and authenticated Luna measurements. The
+initial mock-only findings below remain as substrate evidence, not model results.
+
 Adopt deterministic compact views and explicit semantic effect verification first.
 Keep Jev optional. These experiments show that the proposed boundaries can work,
 but do **not** show that Jev filtering or action selection earns its latency/cost.
-No key was available through the project/environment secret mechanism, so the
+In the initial round, no key was available through the project/environment secret mechanism, so the
 endpoint was contract-tested with mock HTTP; no credential-backed requests ran.
 
 ## Measured results

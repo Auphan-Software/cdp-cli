@@ -19,11 +19,14 @@ export interface AgentView {
 }
 export interface RelevanceUnit { id: string; keys: string[]; nodes: AgentNode[] }
 export interface AllowedAction { id: string; kind: 'click' | 'type' | 'select' | 'scroll' | 'back' | 'continue' | 'retry' | 'escalate'; target?: string; description: string }
-export interface Decision { actionId: string; confidence: number; margin: number }
+export interface Decision { actionId: string; confidence: number; margin: number; executionQualified?: boolean }
+export interface DecisionScreenshot {
+  source: AgentView['source']; width: number; height: number; mimeType: 'image/png'; data: string;
+}
 /** Providers propose; deterministic code validates. Neither method executes browser actions. */
 export interface DecisionProvider {
   projectState(task: string, state: AgentView, units: RelevanceUnit[]): Promise<string[]>;
-  decideNext(task: string, state: AgentView, allowedActions: AllowedAction[]): Promise<Decision>;
+  decideNext(task: string, state: AgentView, allowedActions: AllowedAction[], screenshot?: DecisionScreenshot): Promise<Decision>;
 }
 
 const words = (s: string): string[] => s.toLowerCase().match(/[\p{L}\p{N}]{3,}/gu) ?? [];
@@ -128,7 +131,11 @@ export function expandState(view: AgentView, canonical: PageState, keys?: string
 }
 
 export async function decideNext(task: string, state: AgentView, allowedActions: AllowedAction[], provider: DecisionProvider,
-  thresholds = { confidence: 0.9, margin: 0.2 }): Promise<{ action?: AllowedAction; escalate: boolean; reason: string }> {
+  thresholds = { confidence: 0.9, margin: 0.2 }, screenshot?: DecisionScreenshot): Promise<{ action?: AllowedAction; escalate: boolean; reason: string }> {
+  if (screenshot && (screenshot.source.id !== state.source.id || screenshot.source.digest !== state.source.digest ||
+    screenshot.source.targetId !== state.source.targetId || screenshot.source.session !== state.source.session ||
+    screenshot.mimeType !== 'image/png' || !Number.isSafeInteger(screenshot.width) || !Number.isSafeInteger(screenshot.height) ||
+    screenshot.width < 1 || screenshot.height < 1 || !screenshot.data)) return { escalate: true, reason: 'stale-or-invalid-screenshot' };
   const ids = new Set(allowedActions.map(a => a.id));
   if (!Number.isFinite(thresholds.confidence) || !Number.isFinite(thresholds.margin) ||
     thresholds.confidence < 0 || thresholds.confidence > 1 || thresholds.margin < 0 || thresholds.margin > 1) {
@@ -143,9 +150,9 @@ export async function decideNext(task: string, state: AgentView, allowedActions:
     return { escalate: true, reason: 'incomplete-coverage' };
   }
   try {
-    const result = await provider.decideNext(task, structuredClone(state), structuredClone(allowedActions));
+    const result = await provider.decideNext(task, structuredClone(state), structuredClone(allowedActions), screenshot ? structuredClone(screenshot) : undefined);
     const action = allowedActions.find(a => a.id === result.actionId);
-    if (!action || !Number.isFinite(result.confidence) || !Number.isFinite(result.margin) ||
+    if (!action || result.executionQualified === false || !Number.isFinite(result.confidence) || !Number.isFinite(result.margin) ||
       result.confidence > 1 || result.margin > 1 || result.confidence < thresholds.confidence || result.margin < thresholds.margin) {
       return { escalate: true, reason: 'uncertain-or-invalid-decision' };
     }
