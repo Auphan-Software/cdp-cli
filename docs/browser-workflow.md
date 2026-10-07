@@ -181,3 +181,34 @@ verified successes. The production implementation adds source checks and real
 legacy command execution; these pilot percentages are not a measured rollout
 guarantee. Paired real Mako2/WhiteTip2 investigations remain the effectiveness
 follow-up in cdp-cli-ozz.
+# Workflow 2.2.3 transport and freshness
+
+Ordinary observe/act/screenshot text is bounded to 24,000 UTF-8 bytes, independently
+of the canonical DOM cap (2000 by default). Source/delivery/coverage stay visible.
+Oversized evidence is explicitly partial: `value.output` gives omission counts and
+`fullPath` for the full workflow envelope. If writing it fails, delivery status is
+still returned and `fullArtifactAvailable:false` identifies the evidence gap.
+Overflow artifacts expire with their associated canonical captures.
+
+`expand` paginates immutable historical elements with `offset` and `limit`;
+`pagination.nextOffset` continues the same source. Hints remain in `canonicalPath`.
+An indivisible oversized record returns `artifactRequired:true`, never a looping
+cursor or sliced JSON. Screenshots retain their independent image blocks.
+
+Acts inherit frame/canonical cap from new source captures. Explicit mismatches
+reject before delivery; older sources use the ordinary strict guard. A stale
+guard returns `success:false`, `action.actionDelivered:false` and fresh state/source
+without dispatching/retrying the action. Reassess that state before another action.
+MCP fields are specific to each tool; empty waits and ignored action fields reject.
+
+Clock tolerance is opt-in through `CDP_WORKFLOW_CLOCK_SELECTORS` (a JSON array), or
+`CDP_WORKFLOW_CONFIG` / machine `ProgramData/cdp-cli/workflow.json` on Windows and
+`/etc/cdp-cli/workflow.json` on Linux, containing `{"clockSelectors":[".nav-clock"]}`.
+Use only an owner-verified wall-clock display. Selectors must uniquely match a
+top-document noninteractive text leaf with the supported anchored English date/time
+format. Business text, countdowns, live/alert/dialog regions, ambiguous selectors,
+and action targets/containers are not exempted. Raw text/body hashes remain in
+canonical evidence; separate comparison hashes omit only valid configured clock
+text. Nonmatching content (for example Offline or a total) invalidates the source.
+Screenshot alignment continues comparing raw clock evidence. Framed clocks are
+not exempted. No tolerance is configured by default.

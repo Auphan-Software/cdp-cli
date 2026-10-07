@@ -7,6 +7,7 @@ export interface StateElement {
   value?: { len: number; h: string };
   state?: Record<string, boolean | string>;
   box?: [number, number, number, number];
+  cosmeticClock?: boolean;
 }
 
 export interface PageState {
@@ -18,12 +19,14 @@ export interface PageState {
   targetId: string;
   session?: string;
   captureProfile: string;
+  captureOptions?: { frame?: string; maxElements: number; clockSelectors: string[] };
   url: string;
   title: string;
   readyState: string;
   focus?: string;
   hints?: Record<string, { parents?: string[]; context?: string[]; region?: string; live?: boolean; editable?: boolean }>;
   bodyTextHash: string;
+  actionTextHash?: string;
   nodeCount: number;
   elements: StateElement[];
   coverage: { truncated: boolean; unreachableFrames: string[]; blockedByDialog: boolean;

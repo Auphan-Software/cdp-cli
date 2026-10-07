@@ -672,7 +672,8 @@ cli.command('workflow <operation> <page>', 'Observe, act with fresh state, expan
     .positional('page', { type: 'string', demandOption: true })
     .option('task', { type: 'string', demandOption: true })
     .option('source', { type: 'string', description: 'Previous source ID; required for act/expand' })
-    .option('frame', { type: 'string' }).option('max-elements', { type: 'number', default: 2000 })
+    .option('frame', { type: 'string' }).option('max-elements', { type: 'number', description: 'Canonical capture cap; acts inherit omitted settings from their source' })
+    .option('offset', { type: 'number' }).option('limit', { type: 'number' })
     .option('stability-ms', { type: 'number', default: 200 })
     .option('full', { type: 'boolean', default: false }).option('screenshot', { type: 'boolean', default: false })
     .option('action', { type: 'string', choices: ['click', 'fill', 'select', 'press-key', 'navigate', 'back', 'forward', 'reload'] })
@@ -684,6 +685,7 @@ cli.command('workflow <operation> <page>', 'Observe, act with fresh state, expan
     try {
       const result = await workflow(context, argv.operation as string, { page: argv.page as string, task: argv.task as string,
         source: argv.source as string | undefined, frame: argv.frame as string | undefined,
+        offset: argv.offset as number | undefined, limit: argv.limit as number | undefined,
         maxElements: argv['max-elements'] as number, stabilityMs: argv['stability-ms'] as number,
         full: argv.full as boolean, screenshot: argv.screenshot as boolean, action: argv.action as string | undefined,
         selector: argv.selector as string | undefined, value: argv.value as string | undefined, url: argv.url as string | undefined,

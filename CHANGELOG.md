@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 2.2.3
+
+- Bound workflow text to 24KB independently of canonical capture; preserve full
+  overflow evidence with explicit omissions and paginated historical expansion.
+- Return fresh state and explicit no-delivery status after a stale rejection.
+  Inherit source capture settings and reject incompatible profiles before acting.
+- Support owner-configured wall-clock tolerance with strict business-state and
+  screenshot checks; validate per-tool MCP fields and empty waits.
+
 ## 2.1.0
 
 ### Opt-in page state captures, diffs, and expectations

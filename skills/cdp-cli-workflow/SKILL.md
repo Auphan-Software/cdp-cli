@@ -34,8 +34,10 @@ requires a fresh observation after the mutation, and counts as an extra command.
 
 Observe again when no usable fresh state exists, the source is stale, an external
 change occurred, a historical expansion was used, or a required effect is still
-uncertain. On STALE_SOURCE with confirmed no delivery, observe and reassess before
-retrying. On possibly delivered actions, verify persisted effects before retrying.
+uncertain. A stale rejection in 2.2.3 returns `actionDelivered:false` and a fresh
+`value.view.source.id`: inspect that view and reassess without a redundant observe.
+Observe if recovery state is absent or unusable. On possibly delivered actions,
+verify persisted effects before retrying.
 A reranker fallback alone does not require another observe or service retry.
 
 Example: observe the cart; act click `#checkout` with that source and wait for
@@ -45,6 +47,12 @@ when the returned state establishes the next target and prerequisite.
 
 Keep the normal capture profile. `maxElements` limits canonical capture and
 currently defaults to 2000; lowering it merely to shrink output can lose evidence.
+Acts inherit the source's frame and canonical cap. The MCP act schema excludes
+`maxElements`; explicit incompatible CLI settings reject before delivery.
+Normal text results are bounded to 24,000 UTF-8 bytes independently of capture.
+`value.output` reports omissions and a full evidence artifact when available.
+Partial transport is not complete evidence. `expand` is historical and paginated:
+use `offset`/`limit` and `pagination.nextOffset`, or the canonical artifact path.
 If a result is too large to consume, record its size and the specific limitation.
 CLI workflow fallback may save full results locally and return a focused decision
 summary, retaining source/URL, coverage/omissions, diagnostics/error-limit flags,
@@ -71,7 +79,7 @@ The optional office reranker is transparent to this workflow. `providerStatus:fa
 means the deterministic view was retained; continue without retrying the service.
 Use canonical expansion when omitted evidence matters to the task.
 
-On stale state, observe again. If action delivery succeeded or is uncertain but
+On stale state, inspect the returned recovery view or observe if unavailable. If action delivery succeeded or is uncertain but
 observation/wait failed, recover evidence without blindly repeating the action.
 Use the existing browser-agent/CLI path for cross-origin fields, frame keyboard
 input, touch/drag, pixel ambiguity, unsupported waits or incomplete state.
