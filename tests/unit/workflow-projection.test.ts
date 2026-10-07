@@ -14,7 +14,7 @@ const state = { id: 'source', digest: 'digest', targetId: 'owned', url: 'https:/
   ], coverage: { truncated: false } } as unknown as PageState;
 describe('optional shared workflow projection', () => {
   it('is absent by default, can be explicitly disabled, and bypasses bad configuration safely', async () => {
-    expect(workflowProjectionProvider({ LOCALAPPDATA: '/missing-config-root' })).toBeUndefined();
+    expect(workflowProjectionProvider({ LOCALAPPDATA: '/missing-config-root', ProgramData: '/missing-machine-config-root' })).toBeUndefined();
     expect(workflowProjectionProvider({ CDP_RERANK_URL: 'off', CDP_RERANK_CONFIG: '/missing' })).toBeUndefined();
     const provider = workflowProjectionProvider({ CDP_RERANK_URL: 'file:///bad' });
     const view = await projectState('inspect', state, { provider });

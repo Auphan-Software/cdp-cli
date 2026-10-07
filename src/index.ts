@@ -32,6 +32,7 @@ import * as daemon from './commands/daemon.js';
 import * as logs from './commands/logs.js';
 import * as lifecycle from './commands/lifecycle.js';
 import * as doctor from './commands/doctor.js';
+import { rerankerStatus } from './commands/reranker-status.js';
 import * as diagnose from './commands/diagnose.js';
 import * as targets from './commands/targets.js';
 import { waitForPageConditions } from './commands/wait.js';
@@ -1739,6 +1740,13 @@ cli.command(
 );
 
 // Doctor command
+cli.command('reranker-status', 'Verify configuration, HTTP health and a real pinned ranking request from this caller',
+  () => {}, async () => {
+    const result = await rerankerStatus();
+    outputLine({ type: 'reranker-status', ...result });
+    if (!result.success) process.exitCode = 1;
+  });
+
 cli.command(
   'doctor',
   'Verify every caller (cmd.exe, sh, PHP exec) resolves the same cdp-cli build',

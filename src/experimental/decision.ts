@@ -98,6 +98,7 @@ export async function projectState(task: string, state: PageState, options: Evid
     try {
       const granularity = options.granularity ?? 'region';
       const units = relevanceUnits(nodes.filter(n => !keep.has(n.k)), options.hints, granularity);
+      if (!units.length) return view();
       const selected = await options.provider.projectState(task, structuredClone(view()), structuredClone(units));
       const validate = (ids: string[], valid: RelevanceUnit[]) => {
         if (!Array.isArray(ids) || ids.some(id => typeof id !== 'string' || !valid.some(u => u.id === id))) throw new Error('PROVIDER_INVALID_SELECTION');

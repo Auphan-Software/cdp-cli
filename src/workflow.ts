@@ -11,7 +11,7 @@ import { diffStates } from './state/diff.js';
 import type { PageState } from './state/types.js';
 import { projectState } from './experimental/decision.js';
 import { DaemonClient } from './daemon/client.js';
-import { workflowProjectionProvider } from './workflow-projection.js';
+import { workflowProjectionProvider, workflowProjectionConfiguration, projectionReason } from './workflow-projection.js';
 
 const execFileAsync = promisify(execFile);
 const exeMode = typeof CDP_CLI_EXE_MODE !== 'undefined' && CDP_CLI_EXE_MODE === true;
@@ -153,12 +153,17 @@ export async function workflow(context: CDPContext, operation: string, options: 
       diagnostics.network = 'available'; diagnostics.networkAtLimit = logs.length >= 100;
     } catch { /* Never interpret unavailable logs as a clean page. */ }
   }
-  const view = await projectState(options.task, current, { prune: !options.full, hints: current.hints, diff, errors,
-    provider: options.full || historyUnavailable || (observedBefore && observedBefore.captureProfile !== current.captureProfile) ||
+  const projectionBlocked = options.full ? 'full-view' : historyUnavailable ? 'history-unavailable' :
+    (observedBefore && observedBefore.captureProfile !== current.captureProfile) ? 'profile-mismatch' :
       current.coverage.unstable || current.coverage.truncated || current.coverage.unreachableFrames.length ||
       current.coverage.dialogProbeUnavailable || current.coverage.blockedByDialog || diff?.coverage.unstable || diff?.coverage.truncated ||
       diff?.coverage.unreachableFrames.length || diff?.coverage.dialogProbeUnavailable ||
-      diff?.changes.some(change => change.kind === 'text-unmodelled') ? undefined : workflowProjectionProvider() });
+      diff?.changes.some(change => change.kind === 'text-unmodelled') ? 'unsafe-coverage' : undefined;
+  const projection = workflowProjectionConfiguration();
+  const provider = projectionBlocked ? undefined : workflowProjectionProvider();
+  const view = await projectState(options.task, current, { prune: !options.full, hints: current.hints, diff, errors, provider });
+  Object.assign(view, { providerReason: projectionReason(projectionBlocked, projection.reason, view.providerStatus) });
+  diagnostics.projectionConfig = { reason: projection.reason, path: projection.path };
   let screenshot: unknown;
   if (operation === 'screenshot' || options.screenshot) {
     try {

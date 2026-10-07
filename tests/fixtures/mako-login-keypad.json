@@ -1,0 +1,149 @@
+{
+  "targetId": "owned-fixture",
+  "coverage": {
+    "truncated": false,
+    "blockedByDialog": false,
+    "unreachableFrames": []
+  },
+  "schema": "cdp-cli.page-state/1",
+  "title": "POS Login",
+  "elements": [
+    {
+      "name": "1",
+      "state": {
+        "vis": true,
+        "en": true
+      },
+      "k": "top|path:id:page-login>div:3>div:2>div:2>div:2>button:1",
+      "role": "button",
+      "kq": "weak"
+    },
+    {
+      "name": "2",
+      "state": {
+        "vis": true,
+        "en": true
+      },
+      "k": "top|path:id:page-login>div:3>div:2>div:2>div:2>button:2",
+      "role": "button",
+      "kq": "weak"
+    },
+    {
+      "name": "3",
+      "state": {
+        "vis": true,
+        "en": true
+      },
+      "k": "top|path:id:page-login>div:3>div:2>div:2>div:2>button:3",
+      "role": "button",
+      "kq": "weak"
+    },
+    {
+      "name": "4",
+      "state": {
+        "vis": true,
+        "en": true
+      },
+      "k": "top|path:id:page-login>div:3>div:2>div:2>div:3>button:1",
+      "role": "button",
+      "kq": "weak"
+    },
+    {
+      "name": "5",
+      "state": {
+        "vis": true,
+        "en": true
+      },
+      "k": "top|path:id:page-login>div:3>div:2>div:2>div:3>button:2",
+      "role": "button",
+      "kq": "weak"
+    },
+    {
+      "name": "6",
+      "state": {
+        "vis": true,
+        "en": true
+      },
+      "k": "top|path:id:page-login>div:3>div:2>div:2>div:3>button:3",
+      "role": "button",
+      "kq": "weak"
+    },
+    {
+      "name": "7",
+      "state": {
+        "vis": true,
+        "en": true
+      },
+      "k": "top|path:id:page-login>div:3>div:2>div:2>div:4>button:1",
+      "role": "button",
+      "kq": "weak"
+    },
+    {
+      "name": "8",
+      "state": {
+        "vis": true,
+        "en": true
+      },
+      "k": "top|path:id:page-login>div:3>div:2>div:2>div:4>button:2",
+      "role": "button",
+      "kq": "weak"
+    },
+    {
+      "name": "9",
+      "state": {
+        "vis": true,
+        "en": true
+      },
+      "k": "top|path:id:page-login>div:3>div:2>div:2>div:4>button:3",
+      "role": "button",
+      "kq": "weak"
+    },
+    {
+      "name": "Clear",
+      "state": {
+        "vis": true,
+        "en": true
+      },
+      "k": "top|path:id:page-login>div:3>div:2>div:2>div:5>button:1",
+      "role": "button",
+      "kq": "weak"
+    },
+    {
+      "name": "0",
+      "state": {
+        "vis": true,
+        "en": true
+      },
+      "k": "top|path:id:page-login>div:3>div:2>div:2>div:5>button:2",
+      "role": "button",
+      "kq": "weak"
+    },
+    {
+      "name": "Login",
+      "state": {
+        "vis": true,
+        "en": true
+      },
+      "k": "top|path:id:page-login>div:3>div:2>div:2>div:5>button:3",
+      "role": "button",
+      "kq": "weak"
+    },
+    {
+      "kq": "weak",
+      "k": "top|path:div:3>div:2>div:2>div:1>div:1>input:1",
+      "state": {
+        "vis": true,
+        "en": true,
+        "checked": false,
+        "indeterminate": false,
+        "readonly": false,
+        "required": false
+      },
+      "role": "textbox"
+    }
+  ],
+  "id": "mako-login-keypad-canary",
+  "digest": "sanitized",
+  "seq": 1,
+  "url": "https://example.test/login"
+}
