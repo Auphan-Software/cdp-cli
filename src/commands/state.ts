@@ -18,6 +18,7 @@ interface RawCapture {
   title: string;
   readyState: string;
   bodyTextHash: string;
+  actionTextHash?: string;
   nodeCount: number;
   elements: RawElement[];
   coverage: PageState['coverage'];
@@ -57,10 +58,10 @@ function normalize(raw: RawCapture, store: StateStore): Omit<PageState, 'id' | '
     ...(rawValue !== undefined ? { value: store.mask(rawValue) } : {})
   }));
   return { ...(raw.hints ? { hints: raw.hints } : {}), ...(raw.focus ? { focus: raw.focus } : {}), url: raw.url, title: raw.title, readyState: raw.readyState, bodyTextHash: raw.bodyTextHash,
-    nodeCount: raw.nodeCount, elements, coverage: raw.coverage };
+    ...(raw.actionTextHash ? { actionTextHash: raw.actionTextHash } : {}), nodeCount: raw.nodeCount, elements, coverage: raw.coverage };
 }
 
-export async function capture(context: CDPContext, options: { page: string; name?: string; frame?: string; ignore?: string[]; maxElements?: number; stabilityMs?: number; quiet?: boolean; includeHints?: boolean; onCaptured?: (state: PageState) => void }): Promise<boolean> {
+export async function capture(context: CDPContext, options: { page: string; name?: string; frame?: string; ignore?: string[]; maxElements?: number; stabilityMs?: number; quiet?: boolean; includeHints?: boolean; clockSelectors?: string[]; actionSelector?: string; onCaptured?: (state: PageState) => void }): Promise<boolean> {
   try {
     if (options.maxElements !== undefined && (!Number.isSafeInteger(options.maxElements) || options.maxElements < 1 || options.maxElements > 10_000)) {
       throw new Error('STATE_INVALID_MAX_ELEMENTS');
@@ -88,7 +89,7 @@ export async function capture(context: CDPContext, options: { page: string; name
             await exec.exec('Runtime.enable');
             const read = async (): Promise<RawCapture> => {
               const result = await exec.exec('Runtime.evaluate', {
-                expression: captureExpression({ frame: options.frame, ignore: options.ignore ?? [], maxElements: options.maxElements ?? 2000, experimentalHints: options.includeHints }),
+                expression: captureExpression({ frame: options.frame, ignore: options.ignore ?? [], maxElements: options.maxElements ?? 2000, experimentalHints: options.includeHints, clockSelectors: options.clockSelectors, actionSelector: options.actionSelector }),
                 returnByValue: true
               });
               if (result.exceptionDetails) throw new Error(`STATE_CAPTURE_SCRIPT: ${result.exceptionDetails.exception?.description ?? result.exceptionDetails.text}`);
@@ -97,7 +98,8 @@ export async function capture(context: CDPContext, options: { page: string; name
             };
             const stabilityMs = options.stabilityMs ?? 1200;
             const signature = (value: RawCapture): string => JSON.stringify({ ...value,
-              elements: value.elements.map(({ box: _box, ...element }) => element) });
+              bodyTextHash: value.actionTextHash ?? value.bodyTextHash,
+              elements: value.elements.map(({ box: _box, ...element }) => element.cosmeticClock ? { ...element, text: undefined, name: undefined } : element) });
             let previous = await read();
             if (stabilityMs <= 0) return previous;
             await new Promise((resolve) => setTimeout(resolve, stabilityMs));
@@ -116,7 +118,8 @@ export async function capture(context: CDPContext, options: { page: string; name
       const state = store.save({ schema: 'cdp-cli.page-state/1', name: options.name, capturedAt: new Date().toISOString(),
         targetId: pageId, session: context.workspaceSessionName,
         captureProfile: createHash('sha256').update(JSON.stringify({ frame: options.frame === '0' ? undefined : options.frame,
-          ignore: [...new Set(options.ignore ?? [])].sort(), maxElements: options.maxElements ?? 2000, ...(options.includeHints ? { includeHints: true } : {}) })).digest('hex').slice(0, 16),
+          ignore: [...new Set(options.ignore ?? [])].sort(), maxElements: options.maxElements ?? 2000, ...(options.includeHints ? { includeHints: true } : {}), ...(options.clockSelectors?.length ? { clockSelectors: options.clockSelectors } : {}) })).digest('hex').slice(0, 16),
+        ...(options.includeHints ? { captureOptions: { frame: options.frame, maxElements: options.maxElements ?? 2000, clockSelectors: options.clockSelectors ?? [] } } : {}),
         ...normalize(raw, store),
         coverage: { ...raw.coverage, ...(dialogProbeUnavailable ? { dialogProbeUnavailable: true } : {}) },
         settle: { waitedMs: Date.now() - started, stable: !raw.coverage.unstable }, ...(dialog ? { dialog } : {}) });
@@ -128,7 +131,7 @@ export async function capture(context: CDPContext, options: { page: string; name
     });
     return true;
   } catch (error) {
-    outputCommandError(error, 'STATE_CAPTURE_FAILED');
+    if (!options.quiet) outputCommandError(error, 'STATE_CAPTURE_FAILED');
     process.exitCode = 1;
     return false;
   }

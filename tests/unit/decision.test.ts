@@ -17,6 +17,10 @@ const provider = (keep: string[] = []): DecisionProvider => ({
 });
 
 describe('experimental projection safety', () => {
+  it('does not turn structural invoice/menu key paths into task evidence', () => {
+    const s = state([element('top|path:id:invoice-menu>button:1', 'button', { name: 'Unrelated' }), element('actual', 'button', { name: 'Pay invoice' })]);
+    expect([...mustKeep('Pay invoice', s)]).toEqual(['actual']);
+  });
   it('protects changed/removed evidence, alerts, live, dialog, focus, editable, values, selection, targets, task terms and ancestors', async () => {
     const nodes = [element('changed'), element('alert', 'alert'), element('status', 'status'), element('dialog', 'dialog'),
       element('focus'), element('edit', 'textbox'), element('value', 'text', { value: { len: 4, h: 'masked' } }),

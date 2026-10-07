@@ -40,11 +40,12 @@ export function mustKeep(task: string, state: PageState, evidence: Evidence = {}
   for (const e of state.elements) {
     const s = e.state ?? {};
     const hint = evidence.hints?.[e.k];
-    const text = [e.k, e.name, e.text, ...(hint?.context ?? [])].join(' ').toLowerCase();
+    const text = [e.name, e.text, ...(hint?.context ?? [])].join(' ').toLowerCase();
     if (/^(alert|status|log|dialog|alertdialog|textbox|combobox|searchbox|spinbutton)$/.test(e.role) ||
       /\b(error|failed|failure|invalid|denied|unavailable)\b/i.test(text) || hint?.live || hint?.editable ||
       e.value !== undefined || s.focused === true || s.invalid === true || s.checked !== undefined || s.selected !== undefined ||
       s.ariaChecked !== undefined || s.pressed !== undefined || s.current !== undefined ||
+      (/\b(pin|keypad)\b/i.test(task) && e.role === 'button' && /^(\d|clear|backspace)$/i.test(e.name ?? '')) ||
       terms.some(term => words(text).includes(term))) keep.add(e.k);
   }
   // Parent closure protects disambiguating context even if the provider rejects it.

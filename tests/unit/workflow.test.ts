@@ -32,4 +32,10 @@ describe('deterministic workflow contracts', () => {
       await expect(callWorkflowTool('act', { task: 'read', action: 'click' })).rejects.toThrow('Missing task/source');
     } finally { vi.unstubAllEnvs(); }
   });
+  it('keeps screenshot alignment strict even for tolerated configured clock ticks', () => {
+    const before = { targetId: 'page', bodyTextHash: '9:22', actionTextHash: 'same business text', elements: [{ k: 'clock', role: 'text', cosmeticClock: true, text: '9:22' }], coverage: {} } as unknown as PageState;
+    const after = { ...before, bodyTextHash: '9:23', elements: [{ ...before.elements[0], text: '9:23' }] };
+    expect(semanticSignature(before)).toBe(semanticSignature(after));
+    expect(semanticSignature(before, false)).not.toBe(semanticSignature(after, false));
+  });
 });

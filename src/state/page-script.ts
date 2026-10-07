@@ -1,12 +1,24 @@
 // @ts-nocheck
 /** A self-contained browser expression. The host replaces only the serialized options. */
-export function captureExpression(options: { frame?: string; ignore: string[]; maxElements: number; experimentalHints?: boolean }): string {
+export function captureExpression(options: { frame?: string; ignore: string[]; maxElements: number; experimentalHints?: boolean; clockSelectors?: string[]; actionSelector?: string }): string {
   return `(${capturePage.toString()})(${JSON.stringify(options)})`;
 }
 
 // Runs in Chrome, not Node. Keep this plain JS and use local declarations so the
 // serialized function has no references to module scope.
 function capturePage(options: any): any {
+  // Configured clocks are top-document wall-clock leaves, not countdowns or
+  // arbitrary time-shaped business text. Ambiguous selectors fail closed.
+  const clocks = options.frame && options.frame !== '0' ? [] : (options.clockSelectors || []).flatMap((selector: string) => {
+    const matched = Array.from(document.querySelectorAll(selector));
+    return matched.length === 1 ? matched : [];
+  });
+  const actionTarget = options.actionSelector && (!options.frame || options.frame === '0') ? document.querySelector(options.actionSelector) : null;
+  const clockFormat = /^(?:(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),?\s+)?(?:[A-Za-z]{3}\s+\d{1,2},\s+\d{2,4}\s+)?(?:[01]?\d|2[0-3]):[0-5]\d(?::[0-5]\d)?(?:\s*[ap]m)?$/i;
+  const cosmeticClock = (el: any) => clocks.includes(el) && el.children.length === 0 &&
+    clockFormat.test(String(el.textContent || '').trim()) &&
+    !el.closest('button,a,input,select,textarea,[onclick],[tabindex],[contenteditable],[role],[aria-live]') &&
+    !(actionTarget && (actionTarget.contains(el) || el.contains(actionTarget)));
   for (const selector of options.ignore) {
     try { document.querySelector(selector); }
     catch { throw new Error(`STATE_INVALID_IGNORE_SELECTOR: ${selector}`); }
@@ -150,7 +162,7 @@ function capturePage(options: any): any {
       const rawValue = editable ? String(el.innerText || '') : interactive &&
         !/^(checkbox|radio|submit|button|reset|file|hidden)$/i.test(el.type || '') && 'value' in el ? String(el.value) : undefined;
       candidates.push({ fp, candidate, role, name, text, rawValue,
-        state, box, path: path(el), ...(options.experimentalHints ? { el } : {}) });
+        state, box, path: path(el), ...(cosmeticClock(el) ? { cosmeticClock: true } : {}), ...(options.experimentalHints ? { el } : {}) });
     }
   };
   let root = document;
@@ -168,6 +180,7 @@ function capturePage(options: any): any {
     result.push({ k: `${item.fp}|${item.candidate}${duplicate ? `>${item.path}` : ''}`,
       kq: duplicate ? 'ambiguous' : item.candidate.includes('path:') ? 'weak' : 'strong',
       role: item.role, ...(item.name ? { name: item.name } : {}), ...(item.text ? { text: item.text } : {}),
+      ...(item.cosmeticClock ? { cosmeticClock: true } : {}),
       ...(item.rawValue !== undefined ? { rawValue: item.rawValue } : {}), state: item.state, box: item.box });
   }
   // Opt-in experiment metadata; ordinary captures retain their existing shape.
@@ -196,6 +209,7 @@ function capturePage(options: any): any {
     }
   }
   const visibleText: string[] = [];
+  const actionText: string[] = [];
   const collectVisibleText = (container: any) => {
     const walker = container.ownerDocument.createTreeWalker(container, 4);
     let textNode;
@@ -203,6 +217,7 @@ function capturePage(options: any): any {
       const parent = textNode.parentElement;
       if (parent && !/^(SCRIPT|STYLE|NOSCRIPT)$/.test(parent.tagName) && !ignored(parent) && visible(parent)) {
         visibleText.push(textNode.nodeValue || '');
+        actionText.push(cosmeticClock(parent) ? '[configured-wall-clock]' : textNode.nodeValue || '');
       }
     }
     for (const el of container.querySelectorAll('*')) {
@@ -216,6 +231,7 @@ function capturePage(options: any): any {
   if (root?.body) collectVisibleText(root.body);
   const bodyText = clean(visibleText.join(' '));
   return { url: root?.defaultView?.location?.href ?? location.href, title: document.title, readyState: document.readyState,
-    bodyTextHash: hash(bodyText), nodeCount, elements: result, ...(options.experimentalHints ? { hints, focus } : {}), coverage: { truncated, unreachableFrames, blockedByDialog: false,
+    bodyTextHash: hash(bodyText), ...(clocks.length ? { actionTextHash: hash(clean(actionText.join(' '))) } : {}),
+    nodeCount, elements: result, ...(options.experimentalHints ? { hints, focus } : {}), coverage: { truncated, unreachableFrames, blockedByDialog: false,
       ambiguousKeys: result.filter((item: any) => item.kq === 'ambiguous').map((item: any) => item.k) } };
 }

@@ -1,5 +1,5 @@
 import { createHash, createHmac, randomBytes, randomUUID } from 'node:crypto';
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { PageState } from './types.js';
@@ -84,6 +84,12 @@ export class StateStore {
       for (const expiredId of expired) {
         try { unlinkSync(join(this.dir, `${expiredId}.json`)); }
         catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+        for (const file of readdirSync(this.dir)) {
+          if (file === `${expiredId}-workflow.json` || new RegExp(`^${expiredId}-workflow-[a-f0-9-]{36}\\.json$`).test(file)) {
+            try { unlinkSync(join(this.dir, file)); }
+            catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+          }
+        }
       }
       return saved;
     });

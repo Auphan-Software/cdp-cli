@@ -6,23 +6,31 @@ import { version } from './version.js';
 
 const properties = {
   task: { type: 'string', description: 'Current reproduction or evidence goal, not the full coding conversation.' },
-  source: { type: 'string', description: 'view.source.id from the last observation; required for act/expand.' },
+  source: { type: 'string', description: 'view.source.id from the latest observation or action result, including fresh state after a no-delivery stale rejection; required for act/expand.' },
   frame: { type: 'string', description: 'Stable same-origin iframe selector; cross-origin targets use the existing target tools.' },
   full: { type: 'boolean', description: 'Expand the observation without deterministic pruning.' },
   screenshot: { type: 'boolean', description: 'Also return screenshot pixels; use only when visual evidence is needed.' },
-  maxElements: { type: 'integer', minimum: 1, maximum: 10000 },
+  maxElements: { type: 'integer', minimum: 1, maximum: 10000, description: 'Canonical capture cap, not an output budget. Acts inherit their source cap.' },
   stabilityMs: { type: 'integer', minimum: 0, maximum: 5000 },
+  offset: { type: 'integer', minimum: 0, maximum: 10000, description: 'Historical expand element offset; source-bound pagination.' },
+  limit: { type: 'integer', minimum: 1, maximum: 1000, description: 'Historical expand maximum records; byte budget may return fewer.' },
   action: { type: 'string', enum: ['click', 'fill', 'select', 'press-key', 'navigate', 'back', 'forward', 'reload'] },
   selector: { type: 'string' }, value: { type: 'string' }, url: { type: 'string' }, key: { type: 'string' },
   waitFor: { type: 'string', description: 'CSS selector wait armed with the action.' },
   waitForText: { type: 'string', description: 'Text wait; prefer selectors for asynchronously replaced pages.' }
 };
-const tools = ['observe', 'act', 'expand', 'screenshot'].map(name => ({ name,
+const optionsByTool: Record<string, string[]> = {
+  observe: ['task', 'source', 'frame', 'full', 'screenshot', 'maxElements', 'stabilityMs'],
+  act: ['task', 'source', 'frame', 'full', 'screenshot', 'stabilityMs', 'action', 'selector', 'value', 'url', 'key', 'waitFor', 'waitForText'],
+  expand: ['task', 'source', 'offset', 'limit'],
+  screenshot: ['task', 'source', 'frame', 'full', 'maxElements', 'stabilityMs']
+};
+const tools = Object.keys(optionsByTool).map(name => ({ name,
   description: name === 'act' ? 'Perform one bounded browser action and return fresh compact state, diff and diagnostic errors in the same call. Requires the last source ID. Never retry a possibly delivered action blindly.' :
     name === 'expand' ? 'Read the full canonical historical capture for a source ID; it is not a fresh observation.' :
     name === 'screenshot' ? 'Capture owned-page screenshot pixels and compact state together. Use for visual evidence, not every step.' :
     'Observe the inherited owned CDP page with protected evidence and optional configured relevance projection. Busy or unavailable providers retain the deterministic view.',
-  inputSchema: { type: 'object', properties, required: name === 'act' ? ['task', 'source', 'action'] : name === 'expand' ? ['task', 'source'] : ['task'], additionalProperties: false }
+  inputSchema: { type: 'object', properties: Object.fromEntries(optionsByTool[name].map(key => [key, properties[key as keyof typeof properties]])), required: name === 'act' ? ['task', 'source', 'action'] : name === 'expand' ? ['task', 'source'] : ['task'], additionalProperties: false }
 }));
 
 export async function callWorkflowTool(name: string, args: Record<string, unknown>): Promise<unknown> {
@@ -32,10 +40,11 @@ export async function callWorkflowTool(name: string, args: Record<string, unknow
   if (!args || typeof args !== 'object' || Array.isArray(args)) throw new Error('Invalid arguments');
   const command = ['workflow', name, page];
   for (const [key, value] of Object.entries(args)) {
-    if (!(key in properties)) throw new Error(`Unknown option: ${key}`);
+    if (!optionsByTool[name].includes(key)) throw new Error(`Unknown option for ${name}: ${key}. Acts inherit the canonical capture settings from their source.`);
     const property = properties[key as keyof typeof properties];
     if ((property.type === 'integer' && (!Number.isSafeInteger(value) || (value as number) < (property as any).minimum || (value as number) > (property as any).maximum)) ||
       (property.type !== 'integer' && typeof value !== property.type) || (typeof value === 'string' && (value.length > 8000 || value.includes('\0')))) throw new Error(`Invalid option: ${key}`);
+    if (['waitFor', 'waitForText'].includes(key) && !(value as string).trim()) throw new Error(`Invalid empty wait: ${key}`);
     const flag = '--' + key.replace(/[A-Z]/g, c => '-' + c.toLowerCase());
     if (typeof value === 'boolean') command.push(value ? flag : '--no-' + flag.slice(2));
     else command.push(flag, String(value));
