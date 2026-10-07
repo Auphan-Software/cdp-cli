@@ -45,6 +45,19 @@ describe('bounded workflow transport', () => {
       expect(JSON.stringify(result)).toBe(original);
     } finally { rmSync(root, { recursive: true, force: true }); }
   });
+  it('does not let a large historical diff starve the current next-action controls', () => {
+    const root = mkdtempSync(join(tmpdir(), 'workflow-next-control-'));
+    try {
+      const output = boundWorkflowResult({ success: true, value: {
+        view: { source: { id: 'fresh' }, coverage: {}, errors: [], omitted: { count: 0 },
+          elements: [{ k: 'next', role: 'button', name: 'Drinks' }],
+          diff: { changed: true, changes: Array.from({ length: 500 }, (_, i) => ({ kind: 'removed', key: `old${i}`, from: { text: 'x'.repeat(120) } })) } }
+      } }, join(root, 'full.json'), new Set(['next']));
+      expect(output.value.view.elements).toEqual([{ k: 'next', role: 'button', name: 'Drinks' }]);
+      expect(output.value.output.omittedChanges).toBeGreaterThan(0);
+      expect(Buffer.byteLength(JSON.stringify(output))).toBeLessThanOrEqual(WORKFLOW_TEXT_BYTES);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
   it('bounds huge metadata and preserves screenshot availability and recovery path', () => {
     const root = mkdtempSync(join(tmpdir(), 'workflow-output-'));
     try {

@@ -36,21 +36,27 @@ export function boundWorkflowResult(result: any, artifactPath: string, protected
     value.diagnostics = { detailOmitted: true };
     value.output.omittedMetadata = true;
   }
-  const fits = () => Buffer.byteLength(JSON.stringify(bounded)) <= WORKFLOW_TEXT_BYTES - 128;
-  // Diagnostics and diffs precede background content. Records are indivisible.
-  const pack = (items: any[], destination: any[], field: string) => {
+  const fits = (budget: number) => Buffer.byteLength(JSON.stringify(bounded)) <= budget;
+  // Reserve current actionable state before historical diff detail. Records are indivisible.
+  const pack = (items: any[], destination: any[], field: string, budget = WORKFLOW_TEXT_BYTES - 128) => {
     for (const item of items) {
       destination.push(item);
-      if (!fits()) destination.pop(); else value.output[field]--;
+      if (!fits(budget)) destination.pop(); else value.output[field]--;
     }
   };
   if (value.view) {
-    pack(errors, value.view.errors, 'omittedErrors');
-    if (value.view.diff) pack(changes, value.view.diff.changes, 'omittedChanges');
+    pack(errors, value.view.errors, 'omittedErrors', 6000);
     const changed = new Set(changes.map(c => c.key));
     const priority = (n: any) => protectedKeys.has(n.k) || changed.has(n.k) || n.k === view?.focus || n.value ||
       /^(alert|status|dialog|alertdialog|textbox|combobox)$/.test(n.role);
-    pack([...elements.filter(priority), ...elements.filter(n => !priority(n))], value.view.elements, 'omittedElements');
+    const score = (n: any) => n.state?.vis === false ? 0 :
+      /^(button|link|tab|menuitem|textbox|combobox|checkbox|radio|alert|status|dialog|alertdialog)$/.test(n.role) ? 2 : 1;
+    const protectedNodes = elements.filter(priority).sort((a, b) => score(b) - score(a));
+    pack(protectedNodes, value.view.elements, 'omittedElements', 16000);
+    if (value.view.diff) pack(changes, value.view.diff.changes, 'omittedChanges');
+    // Complete leftover nodes without duplicating those already packed.
+    const packed = new Set(value.view.elements.map((n: any) => n.k));
+    pack([...protectedNodes, ...elements.filter(n => !priority(n))].filter(n => !packed.has(n.k)), value.view.elements, 'omittedElements');
     if (value.view.omitted) value.view.omitted.count += value.output.omittedElements;
   }
   return bounded;
