@@ -123,8 +123,9 @@ describe('compact live execution', () => {
         try { await socket.command('Runtime.evaluate', { expression: mutation }); } finally { socket.close(); }
         const capture = await call('observe', page.id);
         expect(capture.success, JSON.stringify(capture)).toBe(true);
+        const recovered = await call('expand', page.id, ['--source', capture.value.view.source.id, '--section', 'elements']);
         const { readFile } = await import('node:fs/promises');
-        const canonical = JSON.parse(await readFile(capture.value.canonicalPath, 'utf8'));
+        const canonical = JSON.parse(await readFile(recovered.value.canonicalPath, 'utf8'));
         expect(canonical.elements.some((n: any) => n.cosmeticClock), mutation).toBe(false);
       }
     } finally { /* The harness owns this page and its cleanup. */ }

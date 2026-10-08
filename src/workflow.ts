@@ -297,6 +297,7 @@ export async function workflow(context: CDPContext, operation: string, options: 
   const protectedKeys = mustKeep(options.task, current, { hints: current.hints, diff, errors, targets, protectVisibleActions: true });
   if (transport.profile === 'haiku-compact') return compactWorkflowResult(result, store, current.captureProfile, operation, protectedKeys, transport,
     { full: options.full, task: options.task, hints: current.hints, targets, query: options.query,
+      nodes: current.elements, beforeNodes: diffBase?.elements, beforeHints: diffBase?.hints,
       boxes: options.query ? Object.fromEntries(current.elements.filter(node => node.box).map(node => [node.k, node.box!])) : undefined });
   return boundWorkflowResult(result, join(store.dir, `${current.id}-workflow.json`), protectedKeys, transport);
 }

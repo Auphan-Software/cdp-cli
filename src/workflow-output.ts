@@ -59,7 +59,7 @@ export function boundWorkflowResult(result: any, artifactPath: string, protected
     value.action.evidenceOmitted = (value.action.evidenceOmitted ?? 0) + (value.action.evidence ?? []).length;
     value.action.evidence = [];
   }
-  if (value.screenshot) { value.screenshot.evidenceOmitted = (value.screenshot.evidence ?? []).length; value.screenshot.evidence = []; }
+  if (value.screenshot) { value.screenshot.evidenceOmitted = (value.screenshot.evidenceOmitted ?? 0) + (value.screenshot.evidence ?? []).length; value.screenshot.evidence = []; }
   value.output = { bounded: true, profile: profile.profile, maxBytes, ...(artifactAvailable ? { fullPath: artifactPath } : {}), fullArtifactAvailable: artifactAvailable,
     omittedElements: elements.length, omittedChanges: changes.length, omittedErrors: errors.length,
     protectedEvidenceOmitted: true,

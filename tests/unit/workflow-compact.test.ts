@@ -18,6 +18,61 @@ const result = (s: any) => ({ success: true, value: { view: { source: { id: s.id
   diagnostics: { network: 'available', networkAtLimit: true } } });
 
 describe('compact transport contracts', () => {
+  it('summarizes ordinary queried text history using canonical identities while retaining safety transitions and exact recovery', () => {
+    const dir = root();
+    try {
+      const store = new StateStore('http://cdp', 'owned', 'page', dir);
+      const nodes = ['ordinary', 'transition', 'live', 'unknown'].map(k => ({ k, role: 'text', text: 'Total new' }));
+      const s = state(store, nodes), raw: any = result(s);
+      raw.value.view.diff = { changes: nodes.map(n => ({ kind: 'field', key: n.k, field: 'text', from: 'Total old', to: 'Total new' })) };
+      raw.value.view.diff.changes.push({ kind: 'field', key: 'ordinary', field: 'state.checked', from: false, to: true });
+      const out = compactWorkflowResult(raw, store, s.captureProfile, 'act', new Set(),
+        workflowViewProfile({ CDP_WORKFLOW_VIEW_PROFILE: 'haiku-compact' }), { query: 'Total', nodes: s.elements,
+          beforeNodes: [{ k: 'ordinary', role: 'text', text: 'Total old' }, { k: 'transition', role: 'alert', text: 'Total old' },
+            { k: 'live', role: 'text', text: 'Total old' }] as any, beforeHints: { live: { live: true } } });
+      const changes = out.value.view.diff.changes;
+      expect(changes[0]).toMatchObject({ field: 'text', detailOmitted: true });
+      expect(changes[0]).not.toHaveProperty('from');
+      expect(changes.slice(1).map((c: any) => c.from)).toEqual(['Total old', 'Total old', 'Total old', false]);
+      expect(out.value.recovery.excluded.changeDetails).toBe(1);
+      expect(expandWorkflowEvidence(store, s.id, 'changes', 0, 10, 8000).value.records).toEqual(raw.value.view.diff.changes);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+  it.each([false, true])('preserves image availability, alignment and failure summaries with overflow=%s', overflow => {
+    const dir = root();
+    try {
+      const store = new StateStore('http://cdp', 'owned', 'page', dir), s = state(store, []), raw: any = result(s);
+      raw.value.canonicalPath = 'canonical.json';
+      raw.value.screenshot = { available: false, path: 'scaled.png', originalPath: 'original.png', pixelWidth: 617, pixelHeight: 338,
+        originalPixelWidth: 2468, originalPixelHeight: 1352, coordinateFrame: { cssWidth: 1234, cssHeight: 676 },
+        semanticStable: false, evidence: [{ data: { image: 'metadata' } }, { error: true, code: 'IMAGE_SCALE_FAILED', message: 'scale failed' }] };
+      if (overflow) raw.value.diagnostics.large = 'x'.repeat(12000);
+      const out = compactWorkflowResult(raw, store, s.captureProfile, 'observe', new Set(), workflowViewProfile({ CDP_WORKFLOW_VIEW_PROFILE: 'haiku-compact' }));
+      expect(out.value.screenshot).toMatchObject({ available: false, path: 'scaled.png', originalPath: 'original.png', pixelWidth: 617, pixelHeight: 338,
+        originalPixelWidth: 2468, originalPixelHeight: 1352, coordinateFrame: { cssWidth: 1234, cssHeight: 676 },
+        semanticStable: false, failures: [{ code: 'IMAGE_SCALE_FAILED', message: 'scale failed' }], evidenceOmitted: 2 });
+      expect(out.value).not.toHaveProperty('canonicalPath');
+      if (overflow) {
+        const pieces: string[] = []; let offset: number | null = 0;
+        while (offset !== null) {
+          const fragment = expandWorkflowEvidence(store, s.id, 'artifact', offset, 1000, 8000);
+          pieces.push(fragment.value.text); offset = fragment.value.pagination.nextOffset;
+        }
+        expect(JSON.parse(pieces.join('')).value.screenshot).toEqual(raw.value.screenshot);
+      } else expect(expandWorkflowEvidence(store, s.id, 'receipt', 0, 1, 8000).value.records[0].screenshot).toEqual(raw.value.screenshot);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+  it('does not elide evidence when the canonical source has expired', () => {
+    const dir = root();
+    try {
+      const store = new StateStore('http://cdp', 'owned', 'page', dir), s = state(store, []), raw: any = result(s);
+      raw.value.screenshot = { available: false, evidence: [{ error: true, code: 'IMAGE_FAILED' }] };
+      store.remove(s.id);
+      const out = compactWorkflowResult(raw, store, s.captureProfile, 'observe', new Set(), workflowViewProfile({ CDP_WORKFLOW_VIEW_PROFILE: 'haiku-compact' }));
+      expect(out.value.screenshot.evidence).toEqual(raw.value.screenshot.evidence);
+      expect(out.value.recovery.sourceAvailable).toBe(false);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
   it('retains a dispatched-but-unwitnessed click error through overflow without claiming safe retry', () => {
     const dir = root();
     try {
