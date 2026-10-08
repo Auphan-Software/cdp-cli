@@ -14,7 +14,8 @@ for browser tool contracts, effort, steering, compaction and cache behavior.
 See [the clean packing comparison](clean-packing-results.md) for both cost scopes, matching
 inputs, independent completion checks and the measured default decision.
 See [the native Anthropic browser comparison](native-browser-comparison.md) for the same-API
-benchmark contract and read-only capability/token-count preflight. Native performance is unmeasured.
+benchmark contract and read-only capability/token-count preflight. Native API performance is unmeasured.
+See [the extension/CDP hill-climb results](hill-climb-results.md) for the saved native CLI extension cash baseline and six fresh compact Haiku attempts. The best compact run cuts original CDP cost85.7% but remains26.5% above native; output contracts differ, so further matched qualification is required. Experimental settings remain opt-in.
 See [the remaining controlled comparison plan](comparison-plan.md) for packing, managed
 startup and compaction gates, including the reporting-epoch and renewal-policy confounds.
 

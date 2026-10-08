@@ -184,13 +184,14 @@ describe('compact transport contracts', () => {
     const dir = root();
     try {
       const profile = workflowViewProfile({ CDP_WORKFLOW_VIEW_PROFILE: 'haiku-compact' });
-      const base = { success: true, value: { view: { elements: [{ k: 'keep', role: 'button', name: 'Buy' }],
+      const base = { success: true, value: { screenshot: { evidenceOmitted: 2, evidence: [{ data: 'another omitted row' }] }, view: { elements: [{ k: 'keep', role: 'button', name: 'Buy' }],
         errors: [], omitted: { count: 0 }, diff: { changes: [{ key: 'old', from: '界'.repeat(4000) }] } } } };
       const out = boundWorkflowResult(base, join(dir, 'original.json'), new Set(['keep']), profile);
       expect(Buffer.byteLength(JSON.stringify(out))).toBeLessThanOrEqual(8000);
       expect(out.value.view.elements[0].k).toBe('keep');
       expect(out.value.output.omittedChanges).toBe(1);
       expect(out.value.output.protectedEvidenceOmitted).toBe(true);
+      expect(out.value.screenshot.evidenceOmitted).toBe(3);
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 });
