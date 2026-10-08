@@ -242,8 +242,8 @@ sales, payments and pending rows. Controller DOM, pixels, boot and exact restora
 `mako-hard-evidence.mjs` covers zero netting, long modifier truncation, the no-printable-item SOB
 fallback and invalid tax identity. It selects the current invoice transaction, requires actual
 controller bill/boot review and restored fixture identity, and offers scoped CAS recipes. These
-are verifier implementations with unit and read-only SQL checks. Long modifier additionally
-passed a real managed Haiku E2E qualification (below); the other five remaining cases are unproven.
+are verifier implementations with unit and read-only SQL checks. Long modifier and expired
+deletion additionally passed real managed Haiku qualifications (below); the other four cases are unproven.
 
 ## Long modifier qualification
 
@@ -286,9 +286,18 @@ refused. Explicit force, child-frame clicks and drag retain their center behavio
 not override the post-dispatch delivery witness. Four new browser controls cover mouse/touch,
 full occlusion/force, ordinary/clipped/shadow targets and drag remeasurement. Existing source-key
 and contract browser regressions pass. Full unit validation:495passed/9skipped; line coverage
-60.55%, below the repository's80%target. Actual Haiku verification of this new build is pending.
+60.55%, below the repository's80%target.
+
+Fresh Haiku2050 on clean sourcee97788e then reached the expired deletion guard in four delivered
+clicks on the retained unpaid invoice150380. Independent DOM/pixel/SQL/bill-sink evidence passed
+all six checks; the controller restored the exact expiry. One native epoch recorded2,723,726tokens,
+30tools,8workflow calls,USD0.211910 assistant estimate /0.222048 complete native report,zero native
+compactions/source mismatches/unavailable receipts. Both setup and retry total11,268,841recorded
+tokens andUSD0.823432assistant estimate for this verified journey. The retry did not recreate the
+invoice and changed both the tool and prompt, so it is not a matched savings experiment.
 
 Raw attempt/proof/accounting: `Q:/apps/jarvis/logs/investigations/haiku-websrm-gym/expired-delete-current-01/`.
+Retry and failure-inclusive run: `Q:/apps/jarvis/logs/investigations/haiku-websrm-gym/expired-delete-current-02/`.
 
 Sources: [Haiku launch and rates](https://www.anthropic.com/claude-haiku-5-5),
 [Haiku prompting](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-haiku-5-5),
