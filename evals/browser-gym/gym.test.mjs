@@ -98,7 +98,7 @@ test('CLI example readiness fails with exit 2 before any model can be launched',
 test('stale recovery source is usable and missing sources are counted as mismatches', () => {
   const tool = (id, name, input) => ({ type: 'tool_use', id, name: `mcp__cdp-workflow__${name}`, input });
   const result = (id, source, action) => JSON.stringify({ type: 'user', message: { content: [{
-    type: 'tool_result', tool_use_id: id, content: JSON.stringify({ value: { view: { source: { id: source } }, action } }),
+    type: 'tool_result', tool_use_id: id, content: JSON.stringify({ type: action ? 'workflow-stale' : 'workflow-observation', value: { view: { source: { id: source } }, action } }),
   }] } });
   const rows = [
     record('one', usage(0, 0, 0, 0), 'claude-haiku-5-5', [tool('o', 'observe', {})]), result('o', 'old'),
@@ -136,4 +136,68 @@ test('unattributed cache usage in iteration exports cannot silently reduce estim
     { type: 'compaction', input_tokens: 100, output_tokens: 10 },
   ] }));
   assert.equal(a.estimatedApiUsd, null);
+});
+
+test('only explicitly zero synthetic usage is excluded from pricing and model identity', () => {
+  const normal = record('one', usage(1, 0, 0, 1));
+  const zero = record('synthetic', { ...usage(0, 0, 0, 0), iterations: null }, '<synthetic>');
+  const a = auditNative([normal, zero, zero].join('\n'));
+  assert.deepEqual(a.models, { 'claude-haiku-5-5': 1 });
+  assert.equal(a.zeroUsageSyntheticMessages, 1);
+  assert.equal(a.estimatedApiUsd, auditNative(normal).estimatedApiUsd);
+  for (const value of [usage(1, 0, 0, 0), {}, { ...usage(0, 0, 0, 0), iterations: [{ type: 'compaction', output_tokens: 1 }] },
+    { ...usage(0, 0, 0, 0), cache_creation: { ephemeral_1h_input_tokens: 1 } },
+    { ...usage(0, 0, 0, 0), iterations: [{ type: 'message', cache_creation: { ephemeral_5m_input_tokens: 1 } }] }]) {
+    const unknown = auditNative(record('synthetic', value, '<synthetic>'));
+    assert.equal(unknown.estimatedApiUsd, null);
+    assert.deepEqual(unknown.models, { '<synthetic>': 1 });
+  }
+  assert.equal(auditNative(record('unknown', usage(0, 0, 0, 0), 'unknown')).estimatedApiUsd, null);
+  assert.throws(() => auditNative(record('synthetic', { ...usage(0, 0, 0, 0), cache_creation: { ephemeral_5m_input_tokens: -1 } }, '<synthetic>')));
+  const run = { model: 'claude-haiku-5-5', profile: 'compact', caseId: contract.id, candidate: proof.candidate,
+    fixtureFingerprint: proof.fixtureFingerprint, proof, transcripts: [{ path: 'worker', role: 'worker', model: 'claude-haiku-5-5' }] };
+  assert.equal(scoreRun(run, { cases: [contract] }, () => [normal, zero].join('\n'), () => true).identityMatches, true);
+});
+
+test('budget metadata in either position preserves typed receipts and source chaining', () => {
+  const tools = ['observe', 'act'].map((name, i) => record(`m${i}`, usage(0, 0, 0, 0), 'claude-haiku-5-5',
+    [{ type: 'tool_use', id: `${i}`, name: `mcp__cdp-workflow__${name}`, input: i ? { source: 'old' } : {} }]));
+  const budget = { type: 'text', text: JSON.stringify({ type: 'workflow-execution-budget', value: { actionsUsed: 1 } }) };
+  const result = (id, receipt, before) => JSON.stringify({ type: 'user', message: { content: [{ type: 'tool_result',
+    tool_use_id: id, content: before ? [budget, receipt] : [receipt, budget] }] } });
+  const receipt = (type, source, action) => ({ type: 'text', text: JSON.stringify({ type,
+    value: { view: { source: { id: source } }, action, output: { omitted: 12 } } }) });
+  for (const before of [false, true]) {
+    const a = auditNative([tools[0], result('0', receipt('workflow-observation', 'old'), before), tools[1],
+      result('1', receipt('workflow-stale', 'fresh', { actionDelivered: false, deliveryUnknown: false, code: 'WORKFLOW_STALE_SOURCE' }), before)].join('\n'));
+    assert.equal(a.chainMismatches, 0);
+    assert.equal(a.workflow[1].returnedSource, 'fresh');
+    assert.equal(a.workflow[1].actionDelivered, false);
+    assert.deepEqual(a.workflow[1].omissions, { omitted: 12 });
+    assert.deepEqual(a.workflow[1].executionBudgets, [{ actionsUsed: 1 }]);
+  }
+});
+
+test('missing compaction generation makes cost incomplete; validated native cost-state stays supplemental', () => {
+  const boundary = JSON.stringify({ type: 'system', subtype: 'compact_boundary', uuid: 'c', sessionId: 'session' });
+  const state = { type: 'cost-state', sessionId: 'session', totalCostUSD: 0.1, hasUnknownModelCost: false,
+    modelUsage: { 'claude-haiku-5-5': { inputTokens: 100, outputTokens: 100, cacheReadInputTokens: 0,
+      cacheCreationInputTokens: 0, costUSD: 0.1 } } };
+  const text = [boundary, record('one', usage(1, 0, 0, 1)), JSON.stringify(state)].join('\n');
+  const a = auditNative(text, { path: 'raw.jsonl' });
+  assert.equal(a.compactionCostComplete, false);
+  assert.equal(a.estimatedApiUsd, null);
+  assert.ok(a.assistantEstimatedApiUsd > 0);
+  assert.equal(a.nativeCostState.reportedUsd, 0.1);
+  assert.equal(a.rawTranscriptPath, 'raw.jsonl');
+  assert.match(a.usageScope, /missing/);
+  for (const invalid of [{ ...state, sessionId: 'other' }, { ...state, totalCostUSD: -1 },
+    { ...state, hasUnknownModelCost: true }, { ...state, totalCostUSD: 0.2 },
+    { ...state, modelUsage: { other: Object.values(state.modelUsage)[0] } }]) {
+    const bad = auditNative([boundary, record('one', usage(1, 0, 0, 1)), JSON.stringify(invalid)].join('\n'));
+    assert.equal(bad.nativeCostState, null);
+    assert.equal(bad.estimatedApiUsd, null);
+  }
+  const billed = record('compaction', { ...usage(0, 0, 0, 0), iterations: [{ type: 'compaction', input_tokens: 5, output_tokens: 1 }] });
+  assert.equal(auditNative([boundary, billed].join('\n')).compactionCostComplete, true);
 });

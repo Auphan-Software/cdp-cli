@@ -1,14 +1,47 @@
 # Mako2 browser gym: optimize verified completion cost
 
 Status: accounting, evidence contracts, readiness validation and seven-case catalog implemented;
-**local cash fixture and independent SQL/RQ/bill adapter are implemented; the live Haiku pilot,
-remaining six fixture adapters and richer-view ablation still need measured results**.
+**local cash fixture and independent SQL/RQ/bill adapter are implemented; one Haiku cash pilot
+passed all seven independent checks. Remaining six fixture adapters and controlled ablations
+still need measured results**.
 Tracked by `cdp-cli-8n1`. The accounting commands do not launch a model or mutate a Mako2 database.
 
 See [official Anthropic research and its implementation implications](anthropic-haiku-guidance.md)
 for browser tool contracts, effort, steering, compaction and cache behavior.
 
 ## What the existing measurements establish
+
+On 2026-10-08, exact Haiku 5.5 at medium effort completed the owned local cash-pepsi journey
+on product `e7197b53d508068efabf28a45156697b1f21d048` using tool build
+`0e70cc0c7014`, reranker off, current 24k output and a supported 250k compaction window.
+Invoice 150376 has one accepted RFER/ARG/FAC transaction, one $5 cash payment, $0.87 change,
+no pending request, and independently reviewed bill lines/taxes matching the payload.
+The original qualification invoice 150375 still has a retained failed pending request; it
+does not count as this passing pilot or disappear from setup evidence.
+
+| Attempt | Outcome | Browser calls | Recorded assistant tokens | Compactions | Cost evidence |
+|---|---|---:|---:|---:|---|
+| 80k launch | Claude Code rejected configuration before model startup | 0 | 0 | 0 | no model run |
+| 100k window | stopped by compaction-thrashing guard before journey | 0 | 336,066 | 3 | assistant subtotal $0.03066541; native session report $0.047647615 |
+| 250k window | independently verified cash pilot, 7/7 checks | 3 observe + 5 act | 2,778,059 | 0 | assistant estimate $0.23496009; native session report $0.24548669 |
+
+These are Claude Max runs; amounts are API-equivalent estimates/native reports, not actual bills.
+The successful run took 142 seconds across recorded assistant requests, peaked at 188,938
+request input tokens and crossed Haiku's 100k pricing tier on 13 of 21 requests. Source chaining
+had zero mismatches. The worker correctly avoided repeating a delivered item after a failed wait
+and a delivered payment during an unfinished transition. It made one extra setup preflight
+attempt before initializing the ledger, which remains counted.
+
+Native session usage exceeds recorded assistant usage in both attempts. Failed-run compaction
+generation is absent from assistant iterations, so a full independently priced failed-run total
+is unavailable. The sum of native reports for the two model attempts is $0.293134305 for one
+verified completion, excluding Codex supervision and fixture qualification. Do not use the
+successful assistant subtotal alone as whole-experiment cost. Native reports remain supplemental.
+This proves a bounded Haiku success and a compression failure; it does not establish savings
+against a matched model/tool baseline or reliability on the six hard cases.
+
+Raw native snapshots, controller proof, bill review and score remain in
+`Q:/apps/jarvis/logs/investigations/haiku-websrm-gym/`; they are not committed as training data.
 
 The 2.2.3 formatter replay reduced two saved Add/Done responses from 124,815 to 47,732 UTF-8
 bytes (61.76%), retaining current controls, source and delivery metadata. That proves transport
@@ -74,12 +107,15 @@ Run stages, rather than a giant Cartesian matrix:
   The wider profile is **not implemented**; mark profileImplemented=false until it exists. Preserve
   delivery uncertainty, coverage, capture cap and complete artifacts identically. Compare with
   reranker off first; test reranker separately after finding a useful view.
-- **Context ablation:** selected view, same model/effort; compare controlled ~80k context renewal
+- **Context ablation:** selected view, same model/effort; compare supported context renewal
   versus no renewal on a long Web-SRM journey. Native request peaks drive the budget, including
   shared tool/system instructions. Record compaction generation and cache rebuild cost. Check
   retained cashier, invoice/txn IDs, delivered-payment state, certificate alterations, pending
   obligations and cleanup after compaction. Never repeat payment because its history was summarized.
   The existing 250k Jarvis default can cross Haiku's expensive tier before compaction.
+  Installed Claude Code 2.1.294 rejects an 80k threshold and accepts a minimum of 100k. The
+  managed pilot therefore uses 100k. An 80k API/on-demand arm needs a separately implemented
+  controller; a Jarvis field accepting the value does not establish runtime support.
 - **Hard-case pilot:** all seven cases in cases.json, Haiku medium/high plus Sonnet control, initially
   three runs per promising arm in randomized order from equivalent snapshots. Expand trials for
   inconclusive reliability; do not claim statistical certainty from three runs. DEV RQ responses
@@ -147,8 +183,6 @@ Every required check in cases.json needs real artifact paths. The incomplete exa
 Negative cases are successful tests when the intended refusal/non-mutation is proven. Planned fault
 drills include stale UI, failed wait after delivered payment, wrong password and missing bill sink;
 the grader must distinguish product failures from fixture/harness failures without hiding either cost.
-
-## Short worker contract
 
 ## Cash fixture verification
 

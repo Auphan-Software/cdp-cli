@@ -13,35 +13,46 @@ const hash = path => createHash('sha256').update(readFileSync(path)).digest('hex
 const json = path => JSON.parse(readFileSync(path, 'utf8'));
 const count = (object, key) => { object[key] = (object[key] || 0) + 1; };
 
-export function auditNative(text) {
+export function auditNative(text, { path = null } = {}) {
   const messages = new Map(), tools = new Map(), results = new Map(), boundaries = new Set();
+  const sessionIds = new Set(), costStates = [];
   for (const line of text.split(/\r?\n/).filter(Boolean)) {
     const row = JSON.parse(line); // Truncated/corrupt records must not silently reduce cost.
+    if (row.sessionId && row.type !== 'cost-state') sessionIds.add(row.sessionId);
+    if (row.type === 'cost-state') costStates.push(row);
     if (row.subtype === 'compact_boundary') boundaries.add(row.uuid || row.timestamp || line);
     const message = row.message;
     if (!message || typeof message !== 'object') continue;
     if (row.type === 'assistant' && message.usage) {
       const id = message.id || row.uuid;
       if (!id) throw new Error('Assistant usage lacks a deduplication ID');
-      const prior = messages.get(id) || { model: message.model, usage: {}, cache: {}, time: row.timestamp, iterations: [] };
+      const prior = messages.get(id) || { model: message.model, usage: {}, cache: {}, time: row.timestamp, iterations: [], explicitZero: true };
+      prior.explicitZero &&= fields.every(field => message.usage[field] === 0);
       if (prior.model !== message.model) throw new Error('Model changed within one assistant message');
       for (const field of fields) {
-        const value = message.usage[field] || 0;
+        const value = message.usage[field] ?? 0;
         if (!Number.isSafeInteger(value) || value < 0) throw new Error(`Invalid usage: ${field}`);
         prior.usage[field] = Math.max(prior.usage[field] || 0, value);
       }
       for (const field of ['ephemeral_5m_input_tokens', 'ephemeral_1h_input_tokens']) {
-        prior.cache[field] = Math.max(prior.cache[field] || 0, message.usage.cache_creation?.[field] || 0);
+        const value = message.usage.cache_creation?.[field] ?? 0;
+        if (!Number.isSafeInteger(value) || value < 0) throw new Error(`Invalid cache usage: ${field}`);
+        prior.cache[field] = Math.max(prior.cache[field] || 0, value);
       }
       if (message.usage.iterations) {
         if (!Array.isArray(message.usage.iterations)) throw new Error('Invalid usage iterations');
         message.usage.iterations.forEach((iteration, index) => {
-          const saved = prior.iterations[index] || { type: iteration.type, usage: {} };
+          const saved = prior.iterations[index] || { type: iteration.type, usage: {}, cache: {} };
           if (saved.type !== iteration.type) throw new Error('Usage iteration type changed');
           for (const field of fields) {
-            const value = iteration[field] || 0;
+            const value = iteration[field] ?? 0;
             if (!Number.isSafeInteger(value) || value < 0) throw new Error(`Invalid iteration usage: ${field}`);
             saved.usage[field] = Math.max(saved.usage[field] || 0, value);
+          }
+          for (const field of ['ephemeral_5m_input_tokens', 'ephemeral_1h_input_tokens']) {
+            const value = iteration.cache_creation?.[field] ?? 0;
+            if (!Number.isSafeInteger(value) || value < 0) throw new Error(`Invalid iteration cache usage: ${field}`);
+            saved.cache[field] = Math.max(saved.cache[field] || 0, value);
           }
           prior.iterations[index] = saved;
         });
@@ -56,9 +67,15 @@ export function auditNative(text) {
   }
   const usage = Object.fromEntries(fields.map(field => [field, 0]));
   const models = {}, toolNames = {}, warnings = new Set();
-  let estimatedApiUsd = 0, peakInputTokens = 0, longContextRequests = 0, unknownPrice = false, compactionIterations = 0;
+  let estimatedApiUsd = 0, peakInputTokens = 0, longContextRequests = 0, unknownPrice = false, compactionIterations = 0, zeroUsageSyntheticMessages = 0;
   for (const message of messages.values()) {
     const iterations = message.iterations;
+    if (message.model === '<synthetic>' && message.explicitZero &&
+        Object.values(message.cache).every(value => value === 0) &&
+        iterations.every(i => [...Object.values(i.usage), ...Object.values(i.cache)].every(value => value === 0))) {
+      zeroUsageSyntheticMessages++;
+      continue;
+    }
     compactionIterations += iterations.filter(i => i.type === 'compaction').length;
     const u = iterations.length ? Object.fromEntries(fields.map(field =>
       [field, iterations.reduce((sum, i) => sum + i.usage[field], 0)])) : message.usage;
@@ -97,8 +114,18 @@ export function auditNative(text) {
     if (!tool.name?.includes('cdp-workflow')) continue;
     const result = results.get(id), content = result?.content;
     const texts = typeof content === 'string' ? [content] : (content || []).filter(x => x.type === 'text').map(x => x.text);
-    let returned;
-    for (const text of texts) { try { returned = JSON.parse(text); } catch { /* Non-JSON image metadata. */ } }
+    const receipts = [], budgets = [];
+    const receiptTypes = new Set(['workflow-observation', 'workflow-stale', 'workflow-action',
+      'workflow-expand', 'workflow-budget-rejection', 'workflow-command-failed']);
+    for (const text of texts) {
+      let parsed;
+      try { parsed = JSON.parse(text); } catch { continue; }
+      if (parsed?.type === 'workflow-execution-budget') budgets.push(parsed.value);
+      else if (receiptTypes.has(parsed?.type) && parsed.value && typeof parsed.value === 'object' &&
+        (parsed.value.view?.source?.id || parsed.value.action || parsed.type === 'workflow-expand')) receipts.push(parsed);
+    }
+    if (receipts.length > 1) throw new Error('Ambiguous workflow receipts in one tool result');
+    const returned = receipts[0];
     const kind = tool.name.split('__').at(-1), action = returned?.value?.action;
     if (kind === 'act' && (!tool.input?.source || !latestSource || tool.input.source !== latestSource)) chainMismatches++;
     if (Object.hasOwn(tool.input || {}, 'maxElements')) capOverrides++;
@@ -107,12 +134,38 @@ export function auditNative(text) {
       textBytes: texts.reduce((sum, text) => sum + Buffer.byteLength(text), 0),
       code: action?.code, commandSucceeded: action?.commandSucceeded, actionDelivered: action?.actionDelivered,
       deliveryUnknown: action?.deliveryUnknown, omissions: returned?.value?.output,
-      observationUnavailable: returned?.value?.observationUnavailable });
+      observationUnavailable: returned?.value?.observationUnavailable, executionBudgets: budgets });
     if (source) latestSource = source;
   }
   const times = [...messages.values()].map(m => Date.parse(m.time)).filter(Number.isFinite);
+  const compactionCostComplete = compactionIterations >= boundaries.size;
+  if (!compactionCostComplete) warnings.add('Compaction generation usage missing from assistant iterations; full-run cost is incomplete');
+  let nativeCostState = null;
+  if (costStates.length) {
+    const state = costStates.at(-1), entries = Object.entries(state.modelUsage || {});
+    const valid = sessionIds.size === 1 && sessionIds.has(state.sessionId) && entries.length > 0 &&
+      entries.length === Object.keys(models).length &&
+      state.hasUnknownModelCost === false && Number.isFinite(state.totalCostUSD) && state.totalCostUSD >= 0 &&
+      entries.every(([model, value]) => Object.hasOwn(models, model) && value && typeof value === 'object' &&
+        ['inputTokens', 'outputTokens', 'cacheReadInputTokens', 'cacheCreationInputTokens'].every(field =>
+          Number.isSafeInteger(value[field]) && value[field] >= 0) &&
+        Number.isFinite(value.costUSD) && value.costUSD >= 0) &&
+      Math.abs(entries.reduce((sum, [, value]) => sum + value.costUSD, 0) - state.totalCostUSD) < 1e-9 &&
+      [['inputTokens', 'input_tokens'], ['outputTokens', 'output_tokens'],
+        ['cacheReadInputTokens', 'cache_read_input_tokens'], ['cacheCreationInputTokens', 'cache_creation_input_tokens']]
+        .every(([native, field]) => entries.reduce((sum, [, value]) => sum + value[native], 0) >= usage[field]);
+    if (valid) nativeCostState = { sessionId: state.sessionId, reportedUsd: state.totalCostUSD,
+      modelUsage: Object.fromEntries(entries.map(([model, value]) => [model, Object.fromEntries(
+        ['inputTokens', 'outputTokens', 'cacheReadInputTokens', 'cacheCreationInputTokens', 'costUSD'].map(field => [field, value[field]]))])),
+      provenance: 'native cost-state; supplemental, not independently priced', path };
+    else warnings.add('Native cost-state could not be validated against transcript session, models and usage');
+  }
   return { usage, processedTokens: Object.values(usage).reduce((a, b) => a + b, 0), models,
-    estimatedApiUsd: unknownPrice ? null : estimatedApiUsd, pricingAsOf: '2026-10-07', warnings: [...warnings],
+    estimatedApiUsd: unknownPrice || !compactionCostComplete ? null : estimatedApiUsd,
+    assistantEstimatedApiUsd: unknownPrice ? null : estimatedApiUsd, compactionCostComplete,
+    usageScope: compactionCostComplete ? 'recorded assistant usage' : 'recorded assistant usage; compaction generation missing',
+    zeroUsageSyntheticMessages, nativeCostState, rawTranscriptPath: path,
+    pricingAsOf: '2026-10-07', warnings: [...warnings],
     peakInputTokens, longContextRequests, compactionBoundaries: boundaries.size, compactionIterations,
     elapsedSeconds: times.length ? (Math.max(...times) - Math.min(...times)) / 1000 : null,
     toolCalls: tools.size, toolNames, toolErrors: [...results.values()].filter(r => r.is_error).length,
@@ -176,7 +229,7 @@ export function scoreRun(run, catalog, read = readFileSync, artifactExists = exi
     throw new Error('Each transcript needs path, role and exact expected model');
   }
   if (new Set(run.transcripts.map(t => resolve(t.path))).size !== run.transcripts.length) throw new Error('Duplicate transcript paths');
-  const audits = run.transcripts.map(t => ({ ...auditNative(read(t.path, 'utf8')), role: t.role, path: t.path }));
+  const audits = run.transcripts.map(t => ({ ...auditNative(read(t.path, 'utf8'), { path: t.path }), role: t.role, path: t.path }));
   const identityMatches = run.transcripts.some(t => t.role === 'worker') && audits.every((a, index) => {
     const declared = run.transcripts[index];
     return (declared.role !== 'worker' || declared.model === run.model) && Object.keys(a.models).length > 0 &&
@@ -195,7 +248,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   try {
     const [command, ...paths] = process.argv.slice(2);
     let result;
-    if (command === 'audit' && paths.length === 1) result = auditNative(readFileSync(paths[0], 'utf8'));
+    if (command === 'audit' && paths.length === 1) result = auditNative(readFileSync(paths[0], 'utf8'), { path: paths[0] });
     else if (command === 'preflight' && paths.length === 1) {
       result = readiness(json(paths[0]));
       if (!result.ready) process.exitCode = 2;

@@ -16,6 +16,19 @@ const hash = () => 'a'.repeat(64);
 test('cash evidence requires matching persisted payment, RQ and controller-reviewed bill', () => {
   assert.ok(Object.values(cashChecks(sample(),review(),expected,hash)).every(Boolean));
 });
+
+test('bill item key order does not change semantic parity', () => {
+  const r=review(); r.items=[{tax:'FP',priceCents:359,description:'Pepsi',quantity:1}];
+  assert.equal(cashChecks(sample(),r,expected,hash)['bill-payload-parity'],true);
+});
+
+test('a bill and payload agreeing on a wrong quantity cannot pass the one-Pepsi contract', () => {
+  const s=sample(); s.txns[0].payload.items[0].qte='+00002.00';
+  const r=review(); r.items[0].quantity=2;
+  const checks=cashChecks(s,r,expected,hash);
+  assert.equal(checks['bill-payload-parity'],true);
+  assert.equal(checks['rq-accepted-arg'],false);
+});
 test('duplicates, pending requests and restored-fixture drift fail their independent checks', () => {
   const snapshot=sample(); snapshot.txns.push(snapshot.txns[0]); snapshot.pending=1; snapshot.config.end_point='PROD';
   const checks=cashChecks(snapshot,review(),expected,hash);

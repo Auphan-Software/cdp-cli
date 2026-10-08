@@ -17,8 +17,10 @@ export function cashChecks(snapshot, review, expected, hash = imageHash) {
   const parity = imageValid && review.transaction === txn.trans_no &&
     review.totalCents === expected.totalCents && review.subtotalCents === expected.subtotalCents &&
     review.tpsCents === expected.tpsCents && review.tvqCents === expected.tvqCents &&
-    JSON.stringify(review.items) === JSON.stringify(items.map(item => ({ quantity: Number(item.qte),
-      description: item.descr, priceCents: cents(item.prix), tax: item.tax }))) &&
+    Array.isArray(review.items) && review.items.length === items.length &&
+    items.every((item, index) => review.items[index]?.quantity === Number(item.qte) &&
+      review.items[index]?.description === item.descr && review.items[index]?.priceCents === cents(item.prix) &&
+      review.items[index]?.tax === item.tax) &&
     cents(payload.mont?.avantTax) === expected.subtotalCents && cents(payload.mont?.TPS) === expected.tpsCents &&
     cents(payload.mont?.TVQ) === expected.tvqCents && cents(payload.mont?.apresTax) === expected.totalCents;
   return {
@@ -30,7 +32,8 @@ export function cashChecks(snapshot, review, expected, hash = imageHash) {
       cents(payments[0].tendered) === expected.tenderCents && cents(payments[0].change_amount) === expected.changeCents,
     'rq-accepted-arg': txns.length === 1 && txn.sent === 1 && !!txn.trans_no && !txn.trans_error_id &&
       payload.modPai === 'ARG' && payload.typTrans === 'RFER' && payload.modImpr === 'FAC' &&
-      payload.noTrans === String(invoice.id) && items.length === 1 && items[0].descr === 'Pepsi',
+      payload.noTrans === String(invoice.id) && items.length === 1 && items[0].descr === 'Pepsi' &&
+      Number(items[0].qte) === 1 && cents(items[0].prix) === expected.subtotalCents && items[0].tax === 'FP',
     'pending-clear': snapshot.pending === 0,
     'bill-image': imageValid,
     'bill-payload-parity': !!parity,

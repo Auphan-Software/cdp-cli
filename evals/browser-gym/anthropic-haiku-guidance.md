@@ -56,6 +56,11 @@ and restoration obligations after renewal. Retain bill files outside the convers
 their pixels when needed. Existing smoke data contains no native compaction boundaries and cannot
 establish whether conversation compression helps.
 
+Runtime qualification on 2026-10-08 found that Claude Code 2.1.294 rejects `--autocompact 80k`
+and requires at least 100k. Our managed pilot uses the supported 100k setting; implementing an
+80k on-demand API controller remains a separate experiment. Threshold configuration alone
+still does not prove either compaction occurrence or lower total cost.
+
 ## Migration and measurement
 
 Pin `claude-haiku-5-5` rather than an alias. The new tokenizer can count roughly 30% more tokens
@@ -72,7 +77,7 @@ is valid from response bytes alone or from a run blocked before the sale and pri
 
 The gym auditor now counts compaction iterations, avoids adding top-level usage twice, and declines
 to estimate cost when multi-phase/cache attribution is insufficient. Three regression tests cover
-zero top-level counters, multiple phases and unattributed cache usage. Native API integration,
-native browser-toolset integration and compaction experiments remain tracked implementation work.
+zero top-level counters, multiple phases and unattributed cache usage. Native API and browser
+toolset integration and controlled compaction comparisons remain tracked implementation work.
 Source-bound target resolution, visible-action protection and execution budgets are implemented;
 the local cash fixture and independent payment/RQ/bill adapter are ready for a measured pilot.
