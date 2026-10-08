@@ -13,7 +13,7 @@ function fixture(pay = true) {
     config: { srm_system: '2', end_point: 'DEV', cert_offline: '0', certificate: 'AB12', expiry: '2000-01-01 00:00:00', expired: true },
     invoice: { invoice_id: 123, status: 1, employee_id: 1441700010, total: '4.13', total_paid: '0', change_amount: '0' },
     sales: [{ sales_id: 1, product_id: 3640, quantity: 1, status: 1 }], payments: [], pending: [], txns: [],
-    billSink: { directory: 'C:/autoprint', complete: true, files: [] } };
+    billSink: { directory: resolve('autoprint'), complete: true, files: [] } };
   const after = structuredClone(before); after.capturedAt = '2026-10-08T08:00:10Z';
   if (pay) {
     after.invoice = { ...before.invoice, status: 2, total_paid: '4.13', change_amount: '0.87' };
@@ -81,6 +81,30 @@ test('cleanup requires exact restored expiry/certificate and same candidate/fixt
     f => { f.cleanup.config.certificate = 'CD34'; }, f => { f.after.invoiceId = 999; },
     f => { f.after.candidate = 'other'; }, f => { f.after.fixtureFingerprint = 'other'; }]) {
     const f = fixture(); mutate(f); assert.equal(checks(f)['fixture-cleanup'], false);
+  }
+});
+
+test('equivalent absolute path spelling preserves sink and delivery identity without accepting another file', () => {
+  const f = fixture(false), path = resolve('autoprint/old.png');
+  const alias = value => value.replaceAll('\\', '/');
+  f.before.billSink.files = [{ path, sha256: sha }];
+  f.after.billSink.directory = alias(f.after.billSink.directory);
+  f.after.billSink.files = [{ path: alias(path), sha256: sha }];
+  assert.equal(checks(f)['no-bill-delivery'], true);
+  f.after.billSink.files[0].sha256 = 'b'.repeat(64);
+  f.review.deliveries = [{ path, sha256: 'b'.repeat(64), reviewer: 'controller-pixels', invoiceId: 999, kind: 'bill' }];
+  assert.equal(negativeChecks(f.before, f.after, f.cleanup, f.review, expected, () => 'b'.repeat(64), f.read)['no-bill-delivery'], true);
+  f.review.deliveries[0].path = resolve('autoprint/other.png');
+  assert.equal(checks(f)['no-bill-delivery'], false);
+  f.after.billSink.directory = resolve('other-sink');
+  assert.equal(checks(f)['no-bill-delivery'], false);
+});
+
+test('provisional sales cannot qualify an expired-certificate baseline', () => {
+  for (const pay of [true, false]) {
+    const f = fixture(pay); f.before.sales[0].status = 0; f.after.sales[0].status = 0;
+    assert.equal(checks(f)['expired-cert-dialog'], false);
+    assert.equal(checks(f)[pay ? 'pending-expected' : 'invoice-not-deleted'], false);
   }
 });
 test('read-only SQL scopes all invoice relations and fixture recipe changes only station expiry through compare-and-swap', () => {

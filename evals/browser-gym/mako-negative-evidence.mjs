@@ -7,6 +7,7 @@ import { imageHash } from './mako-evidence.mjs';
 
 const cases = new Set(['expired-certificate-pay', 'expired-certificate-delete']);
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+const samePath = (a, b) => typeof a === 'string' && typeof b === 'string' && isAbsolute(a) && isAbsolute(b) && resolve(a) === resolve(b);
 const cents = value => Math.round(Number(value) * 100);
 const integer = value => Number.isSafeInteger(value) && value > 0;
 function validate(config, invoiceId) {
@@ -97,15 +98,15 @@ export function negativeChecks(before, after, cleanup, review, expected, hash = 
     bootDom.invoiceId === id && bootDom.stationId === before.stationId && before.invoice.employee_id === Number(expected.cashierEmployeeId);
   const beforeFiles = before.billSink?.files, afterFiles = after.billSink?.files;
   const sinkValid = before.billSink?.complete === true && after.billSink?.complete === true &&
-    before.billSink.directory === after.billSink.directory && Array.isArray(beforeFiles) && Array.isArray(afterFiles);
-  const changed = sinkValid ? afterFiles.filter(file => !beforeFiles.some(old => old.path === file.path && old.sha256 === file.sha256)) : [];
+    samePath(before.billSink.directory, after.billSink.directory) && Array.isArray(beforeFiles) && Array.isArray(afterFiles);
+  const changed = sinkValid ? afterFiles.filter(file => !beforeFiles.some(old => samePath(old.path, file.path) && old.sha256 === file.sha256)) : [];
   const noBill = valid && sinkValid && review?.reviewer === 'controller-dom-pixels' &&
     changed.every(file => {
-      const rows = (review.deliveries ?? []).filter(r => r.path === file.path && r.sha256 === file.sha256);
+      const rows = (review.deliveries ?? []).filter(r => samePath(r.path, file.path) && r.sha256 === file.sha256);
       return rows.length === 1 && rows[0].reviewer === 'controller-pixels' && artifactValid(rows[0], hash) &&
         ['bill', 'kitchen', 'other'].includes(rows[0].kind) && integer(rows[0].invoiceId) &&
         !(rows[0].kind === 'bill' && rows[0].invoiceId === id);
-    }) && beforeFiles.every(file => afterFiles.some(next => next.path === file.path));
+    }) && beforeFiles.every(file => afterFiles.some(next => samePath(next.path, file.path)));
   const preserved = valid && after.invoice?.invoice_id === id && same(before.sales, after.sales);
   const pendingExpected = preserved && before.payments.length === 0 && before.pending.length === 0 && before.txns.length === 0 &&
     after.invoice.status === 2 && after.invoice.web_srm_txn_id === before.invoice.web_srm_txn_id &&
@@ -146,7 +147,7 @@ export function writeNegativeProof(config, artifactDir, paths) {
   validate(config, before.invoiceId);
   if (before.candidate !== config.candidate || before.fixtureFingerprint !== config.fixtureFingerprint || before.caseId !== config.caseId ||
       before.database !== config.database || before.stationId !== (config.stationId ?? 1) ||
-      before.billSink?.directory !== config.billSink) throw new Error('Snapshot differs from pinned fixture');
+      !samePath(before.billSink?.directory, config.billSink)) throw new Error('Snapshot differs from pinned fixture');
   const checks = negativeChecks(before, after, cleanup, review, config.expected);
   mkdirSync(artifactDir, { recursive: true });
   const evidencePath = join(artifactDir, 'negative-evidence.json');
