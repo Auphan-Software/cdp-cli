@@ -21,6 +21,11 @@ your own statement of PASS is not the final grade.
 At each verified milestone, persist a compact checkpoint: candidate/fixture, cashier ID, invoice/txn
 IDs, delivered actions, expected totals, pending checks, temporary mutations and cleanup. After
 renewal, read that checkpoint, confirm browser/fixture identity and reacquire current state.
+Keep candidate Git commits separate from browser source IDs. After an actual handoff completes,
+remove its request from Next actions: a successor must not execute it again. A controller-owned
+pause is a pending check, not a reason to renew context. Preserve the browser source and delivered
+actions, return at a blank prompt, and await the controller's next assigned step. Renew only when
+the runtime explicitly requires it or the controller requests it; record the reason.
 
 On wrong login, missing fixture or unavailable receipt sink: perform only the controller's one
 explicit recovery, then return BLOCKED with current state and affected evidence. Never search old

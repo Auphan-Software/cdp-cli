@@ -264,6 +264,32 @@ files. Initial5/7 and repaired7/7 outcomes are recorded separately; the strength
 contract also passes8/8. Original artifacts and accounting:
 `Q:/apps/jarvis/logs/investigations/haiku-websrm-gym/long-modifier-current-01/`.
 
+## Expired deletion attempt and exposed click recovery
+
+Managed Haiku2049 created one committed unpaid Pepsi invoice150380, but could not reach the
+Customer Failed To Pay guard. A development reload control covers the center of More while
+leaving its left/bottom exposed. The original click implementation rejected that center;
+three refused More attempts, reload and Escape did not complete deletion. Independent proof
+passes five checks but fails the required expiry dialog. This is a failed journey, not a pass.
+The controller restored the exact station expiry and retained the unpaid invoice.
+
+All seven native epochs are retained, including the final session missing from stale telemetry:
+8,545,115 recorded tokens,105tools,17workflow calls,zero native compactions,USD0.611522 recorded
+assistant estimate. Six supplemental native reports totalUSD0.625172; the seventh is absent,
+so that subtotal is not a complete native total. Codex/qualification cost is excluded.
+Checkpoint successors repeatedly replayed an obsolete handoff action. The operator contract
+now removes completed handoff requests and distinguishes browser source IDs from Git commits.
+
+Top-document clicks now test a bounded interior grid after a blocked center and dispatch only
+at a point that actually hits the requested target or its descendant. Full occlusion is still
+refused. Explicit force, child-frame clicks and drag retain their center behavior; force does
+not override the post-dispatch delivery witness. Four new browser controls cover mouse/touch,
+full occlusion/force, ordinary/clipped/shadow targets and drag remeasurement. Existing source-key
+and contract browser regressions pass. Full unit validation:495passed/9skipped; line coverage
+60.55%, below the repository's80%target. Actual Haiku verification of this new build is pending.
+
+Raw attempt/proof/accounting: `Q:/apps/jarvis/logs/investigations/haiku-websrm-gym/expired-delete-current-01/`.
+
 Sources: [Haiku launch and rates](https://www.anthropic.com/claude-haiku-5-5),
 [Haiku prompting](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-haiku-5-5),
 [Haiku changes](https://platform.claude.com/docs/en/models/haiku-5-5/whats-new-haiku-5-5).

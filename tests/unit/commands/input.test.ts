@@ -431,6 +431,22 @@ describe('Input Commands', () => {
         expect(pressed.y).toBe(361);
       });
 
+      it('dispatches the measured exposed point rather than recomputing the center', async () => {
+        const capture = captureConsoleOutput();
+        const context = new CDPContext();
+        const { mouseEvents } = stubClickPoint(context, {
+          rect: { x: 935, y: 30, width: 63, height: 60 },
+          x: 950.75, y: 60, inViewport: true, hitOk: true, hit: 'button.more-btn'
+        });
+        try {
+          await input.click(context, '#more', { page: 'page1' });
+          const result = JSON.parse(capture.getLogs()[0]);
+          expect(result.data.x).toBe(951);
+          expect(result.data.y).toBe(60);
+          expect(mouseEvents.find(event => event.type === 'mousePressed')).toMatchObject({ x: 950.75, y: 60 });
+        } finally { capture.restore(); }
+      });
+
       it('should fail with CLICK_OCCLUDED when another element covers the click point', async () => {
         const capture = captureConsoleOutput();
         const exitMock = mockProcessExit();

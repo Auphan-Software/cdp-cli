@@ -69,10 +69,12 @@ interface ElementMatch {
 }
 
 /**
- * Result of scrolling an element into view and hit-testing its center.
+ * Result of scrolling an element into view and choosing a hit-tested point.
  */
 interface ClickPoint {
   rect: ElementMetadata['rect'];
+  x: number;
+  y: number;
   scrolled: boolean;
   inViewport: boolean;
   hitOk: boolean;
@@ -301,7 +303,8 @@ async function getClickPoint(
   ws: any,
   objectId: string,
   priorRect: ElementMetadata['rect'],
-  scroll: boolean = true
+  scroll: boolean = true,
+  selectExposed: boolean = true
 ): Promise<ClickPoint> {
   // DOM.scrollIntoViewIfNeeded accounts for clipping scroll containers, which
   // a viewport-only visibility test cannot: an element scrolled out of an
@@ -318,38 +321,47 @@ async function getClickPoint(
   const callResult = await context.sendCommand(ws, 'Runtime.callFunctionOn', {
     objectId,
     functionDeclaration: `
-      function() {
+      function(selectExposed) {
         const el = this;
         if (!el.isConnected) {
           return { detached: true };
         }
 
         const rect = el.getBoundingClientRect();
-        const cx = rect.left + rect.width / 2;
-        const cy = rect.top + rect.height / 2;
-        const inViewport =
-          cx >= 0 && cy >= 0 && cx <= window.innerWidth && cy <= window.innerHeight;
-
-        let hit = inViewport ? document.elementFromPoint(cx, cy) : null;
-        while (hit && hit.shadowRoot) {
-          const deeper = hit.shadowRoot.elementFromPoint(cx, cy);
-          if (!deeper || deeper === hit) break;
-          hit = deeper;
-        }
-
-        // The click counts as landing on the target if the hit node is the
-        // element itself or anything nested inside it.
-        let node = hit;
-        let hitOk = false;
-        while (node) {
-          if (node === el) {
-            hitOk = true;
-            break;
+        const center = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+        const left = Math.max(0, rect.left), right = Math.min(window.innerWidth, rect.right);
+        const top = Math.max(0, rect.top), bottom = Math.min(window.innerHeight, rect.bottom);
+        const points = [center];
+        // Partial overlays should not block the exposed part of a control.
+        // Probe a bounded interior grid; never remove overlays or force delivery.
+        if (selectExposed && right > left && bottom > top) {
+          for (const [fx, fy] of [[.25,.5],[.75,.5],[.5,.25],[.5,.75],[.25,.25],[.75,.25],[.25,.75],[.75,.75]]) {
+            points.push({ x: left + (right - left) * fx, y: top + (bottom - top) * fy });
           }
-          const root = node.getRootNode();
-          node = node.parentElement ||
-            (root && root.host ? root.host : null);
         }
+        const probe = (p) => {
+          const inViewport = p.x >= 0 && p.y >= 0 && p.x < window.innerWidth && p.y < window.innerHeight;
+          let hit = inViewport ? document.elementFromPoint(p.x, p.y) : null;
+          while (hit && hit.shadowRoot) {
+            const deeper = hit.shadowRoot.elementFromPoint(p.x, p.y);
+            if (!deeper || deeper === hit) break;
+            hit = deeper;
+          }
+          let node = hit, hitOk = false;
+          while (node) {
+            if (node === el) { hitOk = true; break; }
+            const root = node.getRootNode();
+            node = node.parentElement || (root && root.host ? root.host : null);
+          }
+          return { ...p, inViewport, hit, hitOk };
+        };
+        let selected = probe(center);
+        for (const p of points.slice(1)) {
+          if (selected.hitOk) break;
+          const candidate = probe(p);
+          if (candidate.hitOk || (!selected.inViewport && candidate.inViewport)) selected = candidate;
+        }
+        const { x, y, inViewport, hit, hitOk } = selected;
 
         const describe = (n) => {
           if (!n) return null;
@@ -384,6 +396,7 @@ async function getClickPoint(
 
         return {
           rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+          x, y,
           inViewport,
           hitOk,
           hit: describe(hit),
@@ -392,6 +405,7 @@ async function getClickPoint(
         };
       }
     `,
+    arguments: [{ value: selectExposed }],
     returnByValue: true
   });
 
@@ -425,6 +439,8 @@ async function getClickPoint(
 
   return {
     rect,
+    x: Number.isFinite(value.x) ? value.x : rect.x + rect.width / 2,
+    y: Number.isFinite(value.y) ? value.y : rect.y + rect.height / 2,
     scrolled: rect.x !== priorRect.x || rect.y !== priorRect.y,
     inViewport: Boolean(value.inViewport),
     hitOk: Boolean(value.hitOk),
@@ -1479,7 +1495,9 @@ export async function click(
     let hitFrameObjectId: string | undefined;
 
     if (chosen.objectId) {
-      const point = await getClickPoint(context, ws, chosen.objectId, rect);
+      // Child-frame hit tests cannot see parent overlays. Keep their existing
+      // center/witness contract; exposed-point recovery is top-document only.
+      const point = await getClickPoint(context, ws, chosen.objectId, rect, true, !options.force && !options.frame);
       clickPoint = point;
       rect = point.rect;
       scrolled = point.scrolled;
@@ -1516,8 +1534,8 @@ export async function click(
       // test said it meant.
       if (point.hitIsFrame) {
         hitFrameObjectId = await getHitFrameHandle(context, ws, chosen.objectId, {
-          x: rect.x + rect.width / 2,
-          y: rect.y + rect.height / 2
+          x: point.x,
+          y: point.y
         });
 
         if (!hitFrameObjectId) {
@@ -1538,8 +1556,10 @@ export async function click(
     const height = rect.height;
 
     // Add frame offset for elements inside iframes
-    const x = frameOffsetX + rect.x + width / 2;
-    const y = frameOffsetY + rect.y + height / 2;
+    const localX = clickPoint?.x ?? rect.x + width / 2;
+    const localY = clickPoint?.y ?? rect.y + height / 2;
+    const x = frameOffsetX + localX;
+    const y = frameOffsetY + localY;
     const xRounded = Math.round(x);
     const yRounded = Math.round(y);
     const roundedRect = roundRect(rect);
@@ -1553,7 +1573,7 @@ export async function click(
     const documentWitnessObjectId = !clickPoint?.hitIsFrame ? chosen.objectId : undefined;
     if (documentWitnessObjectId) {
       const witnessPoint = options.frame
-        ? { x: rect.x + width / 2, y: rect.y + height / 2 }
+        ? { x: localX, y: localY }
         : { x, y };
       await armDocumentClickWitness(
         context,
@@ -2736,7 +2756,9 @@ async function resolveDragTarget(
   // Same viewport constraint as click: the endpoint has to be on screen or the
   // mouse events land somewhere else entirely.
   if (chosen.objectId) {
-    const point = await getClickPoint(context, ws, chosen.objectId, rect);
+    // Drag geometry remains center-based; exposed-point selection belongs to
+    // click, whose dispatch and delivery witnesses consume that exact point.
+    const point = await getClickPoint(context, ws, chosen.objectId, rect, true, false);
     rect = point.rect;
 
     if (!point.inViewport) {
@@ -2806,7 +2828,7 @@ export async function drag(
         continue;
       }
 
-      const refreshed = await getClickPoint(context, ws, pos.objectId, pos.metadata!.rect, false);
+      const refreshed = await getClickPoint(context, ws, pos.objectId, pos.metadata!.rect, false, false);
       if (!refreshed.inViewport) {
         throw new DragError(
           `${label} scrolled back out of view: the source and destination must be on screen at the same time`,
