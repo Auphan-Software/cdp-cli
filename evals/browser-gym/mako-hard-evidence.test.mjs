@@ -8,7 +8,7 @@ const originalFixture = { qst: '5678912340TQ0001', printNotes: '1', water: { pro
   waterPrices: [{ line_id: 1, size_id: 1, store_id: 14417, price: 2.39, status: 1 }, { line_id: 1, size_id: 2, store_id: 14417, price: 1.99, status: 1 }] };
 function fixture(caseId) {
   const expected = { certificate: 'AB12', originalExpiry: '2031-10-06 18:13:32', originalFixture,
-    invalidQst: '1234567890TQ0001', cashierEmployeeId: '1441700010', totalCents: 413 };
+    invalidQst: '1234567890TQ0001', cashierEmployeeId: '1441700010', totalCents: 413, tenderCents: 500, changeCents: 87 };
   const before = { caseId, invoiceId: 123, stationId: 1, candidate: 'candidate', fixtureFingerprint: 'fixture', database: 'mako2_haiku_websrm_gym',
     capturedAt: '2026-10-08T09:00:00Z', config: { srm_system: '2', end_point: 'DEV', cert_offline: '0', certificate: 'AB12', expiry: expected.originalExpiry, expired: false },
     fixture: structuredClone(originalFixture), invoice: { invoice_id: 123, status: 1, employee_id: 1441700010, total: 4.13, total_paid: 0 },
@@ -38,6 +38,8 @@ function fixture(caseId) {
     payload.items = [{ descr: 'SOB', qte: '+00001.00', prix: '+000000000.00', tax: 'SOB', acti: 'SOB' }];
   }
   if (caseId === 'long-modifier') {
+    after.invoice.total_paid = 4.13; after.invoice.change_amount = 0.87;
+    after.payments = [{ tendered: 5, change_amount: 0.87, change_to: 1, payment_type_id: 1, station_id: 1 }];
     after.salesNotes = [{ sales_id: 1, product_id: 3640, notes: modifierFixtureNote }];
     payload.items[0].preci = [{ descr: modifierFixtureNote.slice(0, 127), acti: 'SOB' }];
   }
@@ -91,6 +93,15 @@ test('modifier fixture is a real persisted item note crossing character128; tran
   assert.equal(check(missingPixels)['bill-payload-parity'], false);
   const reordered = fixture('long-modifier'); reordered.cleanup.fixture = Object.fromEntries(Object.entries(reordered.cleanup.fixture).reverse());
   assert.equal(check(reordered)['fixture-cleanup'], true);
+});
+
+test('accepted modifier RQ and matching note do not excuse absent, duplicate or incorrect cash payment', () => {
+  for (const mutate of [f => { f.after.payments = []; }, f => { f.after.payments.push({ ...f.after.payments[0] }); },
+    f => { f.after.payments[0].tendered = 10; }, f => { f.after.payments[0].change_amount = 0; },
+    f => { f.after.invoice.total_paid = 10; }, f => { f.after.payments[0].payment_type_id = 2; }]) {
+    const f = fixture('long-modifier'); mutate(f);
+    assert.equal(check(f)['invoice-payment-totals'], false);
+  }
 });
 test('tax mismatch requires specific RQ identity error, both printed marks and matching invalid QST', () => {
   const f = fixture('invalid-tax-identity'); f.after.txns[0].errors = [{ id: 'JW00B999034E' }]; assert.equal(check(f)['rq-identity-error'], false);

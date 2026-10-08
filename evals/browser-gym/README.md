@@ -249,7 +249,7 @@ passed a real managed Haiku E2E qualification (below); the other five remaining 
 
 Managed agent2048 on source build1b1530e completed invoice150379 with one Pepsi and the141-character
 item note. The controller captured an unpaid baseline before authorizing one cash payment,
-then verified all seven checks: persisted note, accepted ARG transaction16, exact127-character
+then verified all eight checks: persisted note, single matching cash payment, accepted ARG transaction16, exact127-character
 trimmed description and printed-bill parity. The bill's repeated a glyphs were counted from pixels
 (ten rows of twelve plus one), rather than assumed from SQL. Missing boundary-tail text is expected.
 
@@ -260,7 +260,8 @@ failed wait/input correction, renewals and completion reporting; Codex/qualifica
 
 The first verifier attempt rejected Windows backslash versus forward-slash spellings of the same
 image. Absolute path normalization fixed the verifier; regression tests reject unchanged/different
-files. Initial5/7 and final7/7 outcomes are recorded separately. Original artifacts and accounting:
+files. Initial5/7 and repaired7/7 outcomes are recorded separately; the strengthened eight-check
+contract also passes8/8. Original artifacts and accounting:
 `Q:/apps/jarvis/logs/investigations/haiku-websrm-gym/long-modifier-current-01/`.
 
 Sources: [Haiku launch and rates](https://www.anthropic.com/claude-haiku-5-5),

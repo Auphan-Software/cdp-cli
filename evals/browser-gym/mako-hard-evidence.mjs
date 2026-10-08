@@ -109,6 +109,10 @@ export function hardChecks(before, after, cleanup, review, expected, hash = imag
     checks['rq-description-no-trailing-space'] = !!(accepted && details.some(d => d.descr === description && Array.from(d.descr).length === 127 &&
       d.descr === d.descr.trim() && d.acti === 'SOB'));
     checks['rq-accepted-arg'] = !!(accepted && payload.modPai === 'ARG' && cents(payload.mont?.apresTax) === expected.totalCents);
+    checks['invoice-payment-totals'] = !!(current && cents(after.invoice.total) === expected.totalCents &&
+      cents(after.invoice.total_paid) === expected.totalCents && cents(after.invoice.change_amount) === expected.changeCents &&
+      after.payments.length === 1 && after.payments[0].payment_type_id === 1 && after.payments[0].station_id === before.stationId &&
+      cents(after.payments[0].tendered) === expected.tenderCents && cents(after.payments[0].change_amount) === expected.changeCents);
     checks['bill-payload-parity'] = !!parity;
   } else {
     const errors = Array.isArray(txn?.errors) ? txn.errors : [];
