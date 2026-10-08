@@ -1,9 +1,35 @@
 # Native Anthropic browser versus CDP workflow benchmark
 
 Status 2026-10-08: researched and preflight implemented; no native performance run yet.
-Tracked by `cdp-cli-8dl`. An API account is required; the previous Claude Max terminal
-benchmark does not establish native browser-tool access. No API credential was available
-in this task's environment. Do not substitute Claude Code OAuth for an API credential.
+Tracked by `cdp-cli-8dl`. Preferred next comparison is now Claude Code's official Chrome
+integration versus our workflow on the same managed CLI runtime. It supports a direct Pro/Max
+login and does not require an API key. The earlier API-only requirement was too narrow.
+The API toolset experiment below remains a separate option, not a prerequisite for the CLI pair.
+
+## Preferred Claude CLI comparison
+
+Local Claude Code2.1.294 exposes `--chrome`, and `claude auth status` confirms a logged-in
+`claude.ai` account. The native Chrome messaging host is registered. The official extension
+`fcoeoabgfenejglbffodgkkbkcdhcgfn` was absent from the inspected Chrome/Edge default profiles
+and both CDP profile directories. Install/sign in to the extension and verify `/chrome`
+reports an installed, connected browser before spending model tokens on a business journey.
+[Official CLI integration](https://code.claude.com/docs/en/chrome).
+
+Use a fresh managed session with exact Haiku5.5/medium/250k for each arm. For the Anthropic
+arm enable `--chrome`, exclude our workflow MCP configuration, disable slash skills and the
+Agent tool, and use a short browser-only contract without the CDP skill or QA-delegation prompt.
+Preserve Jarvis tracking/hooks; `--bare` would remove hooks and require API authentication,
+so it is unsuitable. Do not change global browser defaults or another agent's instructions.
+Confirm actual native arguments, advertised tools, loaded instruction text and browser calls
+from retained transcripts. Generic Jarvis launch currently injects subagent profiles and has
+no browser-isolation option; session-specific launch support must be verified before dispatch.
+
+The official extension owns a new session tab group. Limit the actor to its fresh gym tab;
+do not let it inspect unrelated user tabs. Match the product/fixture/journey, output budget,
+cache/compaction policy and independent evidence checks across arms. Include the official
+extension's tool/schema/startup overhead in CLI costs. Treat site-permission setup separately
+and record interventions. The old current24k cash run is context, not a substitute for a fresh
+matched control. Label this result Claude Code Chrome integration, not an API-toolset benchmark.
 
 ## What is being compared
 
