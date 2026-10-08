@@ -302,3 +302,28 @@ Retry and failure-inclusive run: `Q:/apps/jarvis/logs/investigations/haiku-websr
 Sources: [Haiku launch and rates](https://www.anthropic.com/claude-haiku-5-5),
 [Haiku prompting](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-haiku-5-5),
 [Haiku changes](https://platform.claude.com/docs/en/models/haiku-5-5/whats-new-haiku-5-5).
+
+## Expired payment and no-printable item on source e97788e
+
+Haiku2053 exercised Pay then Cash $5 on retained invoice150380 with an expired station
+certificate. Independent proof passed6/6: visible expiry refusal, no new RQ transaction or
+printed bill, preserved sale, expected committed payment/pending CLOSE and exact expiry restore.
+One epoch recorded1,506,785tokens,25tools,3workflow calls; assistant API estimate USD0.103973,
+complete native report USD0.111555. Shared invoice creation is accounted in2049, not this worker.
+
+Haiku2054 created invoice150381 with Water3651 priced zero and marked non-printing. Five browser
+actions closed it without inserting a payment. Independent proof passed6/6: accepted current
+RQ AUC transaction17, exactly one SOB fallback item, printed zero-dollar AUCUN PAIEMENT bill,
+correct role/boot and exact Water price/print-flag restoration. Actual bill is
+C:/autoprint/20261008024248.png, SHA2565b8bc96ba83ddceca1af24a4ca104427839a2b486c5bb292f10faf46e95743f2.
+The worker's own bill lookup searched filenames for the invoice ID and found none; timestamps
+name these files. Controller manifest comparison and pixel inspection supplied the missing proof.
+Its transportProfile field incorrectly described headless browser mode; native receipts independently
+confirm current-24k. Two epochs recorded3,586,887tokens,38tools,8workflow calls, USD0.274837assistant
+estimate /0.286980complete native report; no source mismatches or unavailable receipts.
+The additional new bill20261008024303.png belongs to invoice150380: its prior pending transaction
+retried automatically after certificate validity was restored. No manual resend was performed.
+Both workers had zero native compaction boundaries. These successes do not establish savings from
+conversation compression. Zero-total netting and invalid-tax identity remain unverified.
+Raw evidence/accounting: Q:/apps/jarvis/logs/investigations/haiku-websrm-gym/expired-pay-current-01/
+and Q:/apps/jarvis/logs/investigations/haiku-websrm-gym/no-print-current-01/.
