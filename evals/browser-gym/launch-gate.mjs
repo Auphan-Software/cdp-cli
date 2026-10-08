@@ -19,7 +19,9 @@ export function launchGate(config, launch, dependencies = {}) {
   const build = read(config.buildInfoPath), server = read(config.mcpPath).mcpServers?.['cdp-workflow'];
   if (build.dirty !== false || build.commit !== config.toolCommit) blockers.push('Build identity is not the pinned clean commit');
   if (!['current-24k', 'rich-64k'].includes(config.profile)) blockers.push('Unsupported transport profile');
-  if (!server || !['node', 'node.exe'].includes(server.command) || !Array.isArray(server.args) || server.args.length !== 2 ||
+  const nodeRuntime = server && (['node', 'node.exe'].includes(server.command) ||
+    (isAbsolute(server.command ?? '') && resolve(server.command) === resolve(process.execPath)));
+  if (!nodeRuntime || !Array.isArray(server.args) || server.args.length !== 2 ||
       resolve(server.args[0] ?? '') !== resolve(config.entry) || server.args[1] !== 'workflow-mcp')
     blockers.push('Project MCP does not launch the pinned workflow entry');
   if (server?.env?.CDP_WORKFLOW_VIEW_PROFILE !== config.profile) blockers.push('MCP transport profile differs from declared arm');

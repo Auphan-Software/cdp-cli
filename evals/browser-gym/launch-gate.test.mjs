@@ -15,6 +15,8 @@ const deps=(mcp=server(),build={commit:'tool',dirty:false})=>({exists:()=>true,h
   read:p=>p.endsWith('build.json') ? build : mcp});
 test('the pinned local arm is admitted with exact build, instructions, model and bounded MCP',()=>{
   assert.equal(launchGate(sample(),launch(),deps()).ready,true);
+  const mcp=server();mcp.mcpServers['cdp-workflow'].command=process.execPath;
+  assert.equal(launchGate(sample(),launch(),deps(mcp)).ready,true);
 });
 test('stale build, wrong profile, prompt drift and absent action cap refuse launch',()=>{
   assert.equal(launchGate(sample(),launch(),deps(server(),{commit:'old',dirty:false})).ready,false);
