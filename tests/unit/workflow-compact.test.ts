@@ -18,6 +18,23 @@ const result = (s: any) => ({ success: true, value: { view: { source: { id: s.id
   diagnostics: { network: 'available', networkAtLimit: true } } });
 
 describe('compact transport contracts', () => {
+  it('retains a dispatched-but-unwitnessed click error through overflow without claiming safe retry', () => {
+    const dir = root();
+    try {
+      const store = new StateStore('http://cdp', 'owned', 'page', dir), s = state(store, []), raw: any = result(s);
+      raw.value.action = { commandSucceeded: false, deliveryUnknown: false, instruction: 'Recover state; do not repeat blindly',
+        evidence: Array.from({length: 20}, () => ({ error: true, code: 'CLICK_NOT_DELIVERED', message: 'Chrome accepted mouse dispatch but no matching event was witnessed',
+          details: { witnessedEvent: null, secret: 'not transported' } })) };
+      raw.value.diagnostics.large = 'x'.repeat(12000);
+      const out = compactWorkflowResult(raw, store, s.captureProfile, 'act', new Set(), workflowViewProfile({ CDP_WORKFLOW_VIEW_PROFILE: 'haiku-compact' }));
+      expect(out.value.action.witness[0]).toMatchObject({ code: 'CLICK_NOT_DELIVERED', witnessedEvent: null });
+      expect(out.value.action).not.toHaveProperty('actionDelivered');
+      expect(out.value.action.witness[0]).not.toHaveProperty('secret');
+      expect(out.value.action.witness).toHaveLength(8);
+      expect(out.value.action.witnessOmitted).toBe(12);
+      expect(out.value.action.instruction).toContain('do not repeat');
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
   it('keeps separate label/amount text on the rendered row, with no guessed target identity', () => {
     const view: any = { elements: [{ k: 'total', role: 'text', text: 'Total' }, { k: 'amount', role: 'text', text: '$4.13' },
       { k: 'other', role: 'text', text: 'Different row' }], omitted: { count: 0 } };

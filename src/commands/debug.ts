@@ -579,11 +579,14 @@ export function imageDimensions(buffer: Buffer): { width: number; height: number
  */
 export async function screenshot(
   context: CDPContext,
-  options: { output?: string; format?: string; page: string; quality?: number; scale?: number; selector?: string }
+  options: { output?: string; format?: string; page: string; quality?: number; scale?: number; selector?: string; originalOutput?: string; coordinateFrame?: boolean }
 ): Promise<void> {
   let ws;
   const outputPath = options.output ? describeCliPath(options.output) : undefined;
+  const originalPath = options.originalOutput ? describeCliPath(options.originalOutput) : undefined;
   try {
+    if (originalPath && (!outputPath || originalPath.resolvedPath.toLowerCase() === outputPath.resolvedPath.toLowerCase()))
+      throw new Error('Original screenshot must have a separate output path');
     // Get page
     const page = await context.findPage(options.page);
     await context.assertNoDevTools(page.id);
@@ -692,9 +695,15 @@ export async function screenshot(
       captureParams.captureBeyondViewport = true;
     }
 
+    const metrics = options.coordinateFrame ? await context.sendCommand(ws, 'Page.getLayoutMetrics').catch(() => undefined) : undefined;
+    const viewport = metrics?.cssLayoutViewport;
+    const coordinateFrame = viewport ? { space: 'CSS viewport', width: viewport.clientWidth, height: viewport.clientHeight,
+      ...(options.selector ? { imageScope: 'cropped document', clip: captureParams.clip } : { imageScope: 'full viewport' }) } : null;
     const result = await context.sendCommand(ws, 'Page.captureScreenshot', captureParams);
 
     let buffer: Buffer = Buffer.from(result.data, 'base64');
+    const originalDimensions = originalPath ? imageDimensions(buffer) : null;
+    if (originalPath) writeFileSync(originalPath.normalizedPath, buffer);
 
     // Resize if scale !== 1 (avoids CDP viewport side effects)
     if (scale !== 1) {
@@ -713,7 +722,9 @@ export async function screenshot(
         format,
         size: buffer.length,
         width: dimensions?.width ?? null,
-        height: dimensions?.height ?? null
+        height: dimensions?.height ?? null,
+        ...(originalPath ? { originalFile: originalPath.resolvedPath, originalWidth: originalDimensions?.width ?? null, originalHeight: originalDimensions?.height ?? null } : {}),
+        ...(options.coordinateFrame ? { coordinateFrame } : {})
       });
     } else {
       outputLine({

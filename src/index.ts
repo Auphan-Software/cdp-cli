@@ -677,6 +677,7 @@ cli.command('workflow <operation> <page>', 'Observe, act with fresh state, expan
     .option('offset', { type: 'number' }).option('limit', { type: 'number' })
     .option('section', { type: 'string', choices: ['elements', 'receipt', 'errors', 'changes', 'coverage', 'artifact'] })
     .option('receipt-id', { type: 'string' })
+    .option('screenshot-scale', { type: 'number', description: 'Opt-in PNG pixel scale 0.1..1; does not change viewport or action coordinates' })
     .option('stability-ms', { type: 'number', default: 200 })
     .option('full', { type: 'boolean', default: false }).option('screenshot', { type: 'boolean', default: false })
     .option('action', { type: 'string', choices: ['click', 'fill', 'select', 'press-key', 'navigate', 'back', 'forward', 'reload'] })
@@ -690,7 +691,7 @@ cli.command('workflow <operation> <page>', 'Observe, act with fresh state, expan
         source: argv.source as string | undefined, frame: argv.frame as string | undefined, query: argv.query as string | undefined,
         offset: argv.offset as number | undefined, limit: argv.limit as number | undefined, section: argv.section as string | undefined, receiptId: argv['receipt-id'] as string | undefined,
         maxElements: argv['max-elements'] as number, stabilityMs: argv['stability-ms'] as number,
-        full: argv.full as boolean, screenshot: argv.screenshot as boolean, action: argv.action as string | undefined,
+        full: argv.full as boolean, screenshot: argv.screenshot as boolean, screenshotScale: argv['screenshot-scale'] as number | undefined, action: argv.action as string | undefined,
         selector: argv.selector as string | undefined, targetKey: argv['target-key'] as string | undefined, value: argv.value as string | undefined, url: argv.url as string | undefined,
         key: argv.key as string | undefined, waitFor: argv['wait-for'] as string | undefined, waitForText: argv['wait-for-text'] as string | undefined });
       outputLine(result);
@@ -870,7 +871,9 @@ cli.command(
       .option('selector', {
         type: 'string',
         description: 'CSS selector to capture a specific element instead of the full page'
-      });
+      })
+      .option('original-output', { type: 'string', description: 'Keep original bytes from the same capture before resizing; distinct path required' })
+      .option('coordinate-frame', { type: 'boolean', description: 'Include CSS viewport dimensions with screenshot metadata' });
   },
   async (argv) => {
     const context = new CDPContext(argv['cdp-url'] as string);
@@ -879,6 +882,8 @@ cli.command(
       format: argv.format as string,
       quality: argv.quality as number,
       scale: argv.scale as number | undefined,
+      originalOutput: argv['original-output'] as string | undefined,
+      coordinateFrame: argv['coordinate-frame'] as boolean | undefined,
       page: argv.page as string,
       selector: argv.selector as string | undefined
     });

@@ -3,7 +3,7 @@ import { writeFileSync, readFileSync, renameSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { StateStore } from './state/store.js';
-import { boundWorkflowResult, type WorkflowViewProfile } from './workflow-output.js';
+import { retainActionWitnesses, boundWorkflowResult, type WorkflowViewProfile } from './workflow-output.js';
 import type { PageState } from './state/types.js';
 
 export function saveWorkflowArtifact(path: string, result: unknown): boolean {
@@ -114,8 +114,7 @@ export function compactWorkflowResult(result: any, store: StateStore, capturePro
     }
   }
   if (value.action?.evidence?.length) {
-    value.action.witness = value.action.evidence.flatMap((row: any) => row.data && ('clickDelivered' in row.data || 'witnessedEvent' in row.data) ?
-      [{ clickDelivered: row.data.clickDelivered, witnessedEvent: row.data.witnessedEvent, frameReached: row.data.frameReached }] : []);
+    retainActionWitnesses(value.action);
     omitted.actionEvidence = value.action.evidence.length; value.action.evidence = [];
     value.action.evidenceOmitted = omitted.actionEvidence;
   }

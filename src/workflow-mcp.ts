@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { performance } from 'node:perf_hooks';
 import { runCli } from './workflow.js';
 import { workflowViewProfile } from './workflow-output.js';
+import { workflowQueryTerms } from './workflow-compact.js';
 import { version } from './version.js';
 
 export interface WorkflowExecutionBudget {
@@ -51,7 +52,8 @@ function budgetContent(budget: WorkflowExecutionBudget): Array<{ type: 'text'; t
 
 const properties = {
   task: { type: 'string', description: 'Current reproduction or evidence goal, not the full coding conversation.' },
-  query: { type: 'string', description: 'Compact-profile focused read of literal labels/text/context. Separate up to8 alternatives with |, e.g. Pepsi|Subtotal|TPS|TVQ|Total. Preserves global alerts/dialogs/invalid/selected state. On act this scopes the POST-action view; execution guards still use the full canonical source.' },
+  screenshotScale: { type: 'number', minimum: 0.1, maximum: 1, description: 'Raster pixel scale only (default1). Original same-capture pixels are retained. Reduced text may require scale1 evidence; viewport/action coordinates do not change.' },
+  query: { type: 'string', maxLength: 1000, pattern: '^[^|]{1,120}(?:[|][^|]{1,120}){0,7}$', description: 'Compact-profile focused read of literal labels/text/context. Separate up to8 alternatives with |, e.g. Pepsi|Subtotal|TPS|TVQ|Total. Preserves global alerts/dialogs/invalid/selected state. On act this scopes the POST-action view; execution guards still use the full canonical source.' },
   source: { type: 'string', description: 'view.source.id from the latest observation or action result, including fresh state after a no-delivery stale rejection; required for act/expand.' },
   frame: { type: 'string', description: 'Stable same-origin iframe selector; cross-origin targets use the existing target tools.' },
   full: { type: 'boolean', description: 'Expand the observation without deterministic pruning.' },
@@ -70,10 +72,10 @@ const properties = {
   waitForText: { type: 'string', description: 'Text wait; prefer selectors for asynchronously replaced pages.' }
 };
 const optionsByTool: Record<string, string[]> = {
-  observe: ['task', 'query', 'source', 'frame', 'full', 'screenshot', 'maxElements', 'stabilityMs'],
-  act: ['task', 'query', 'source', 'frame', 'full', 'screenshot', 'stabilityMs', 'action', 'selector', 'targetKey', 'value', 'url', 'key', 'waitFor', 'waitForText'],
+  observe: ['task', 'query', 'source', 'frame', 'full', 'screenshot', 'screenshotScale', 'maxElements', 'stabilityMs'],
+  act: ['task', 'query', 'source', 'frame', 'full', 'screenshot', 'screenshotScale', 'stabilityMs', 'action', 'selector', 'targetKey', 'value', 'url', 'key', 'waitFor', 'waitForText'],
   expand: ['task', 'source', 'offset', 'limit', 'section', 'receiptId'],
-  screenshot: ['task', 'query', 'source', 'frame', 'full', 'maxElements', 'stabilityMs']
+  screenshot: ['task', 'query', 'source', 'frame', 'full', 'screenshotScale', 'maxElements', 'stabilityMs']
 };
 const tools = Object.keys(optionsByTool).map(name => ({ name,
   description: name === 'act' ? 'Perform one bounded browser action and return fresh compact state, diff and diagnostic errors in the same call. Requires the last source ID. Never retry a possibly delivered action blindly.' :
@@ -89,6 +91,20 @@ export async function callWorkflowTool(name: string, args: Record<string, unknow
   const page = process.env.CDP_PAGE?.trim(), session = process.env.CDP_SESSION?.trim();
   if (!page || !session) throw new Error('CDP_PAGE and CDP_SESSION must be inherited from the browser owner. Use existing CLI setup/preflight; this server never adopts or creates a page.');
   if (!args || typeof args !== 'object' || Array.isArray(args)) throw new Error('Invalid arguments');
+  const budget = executionBudget ?? (directCallBudget ??= createWorkflowBudget());
+  let rejection: string | undefined;
+  if (args.query !== undefined) {
+    try { if (typeof args.query !== 'string') throw new Error(); workflowQueryTerms(args.query); }
+    catch { rejection = 'WORKFLOW_INVALID_QUERY'; }
+    if (!rejection && (args.full || profile.profile !== 'haiku-compact')) rejection = 'WORKFLOW_QUERY_REQUIRES_COMPACT_PROFILE_WITHOUT_FULL';
+  }
+  if (args.screenshotScale !== undefined && (typeof args.screenshotScale !== 'number' || !Number.isFinite(args.screenshotScale) || args.screenshotScale < 0.1 || args.screenshotScale > 1))
+    rejection = 'WORKFLOW_INVALID_SCREENSHOT_SCALE';
+  if (rejection) return { content: [{ type: 'text', text: JSON.stringify({ success: false, type: 'workflow-input-rejection', value: {
+    rejection: { code: rejection, stage: 'input-validation', commandDispatched: false },
+    output: { bounded: false, profile: profile.profile, maxBytes: profile.maxBytes },
+    instruction: 'No browser command dispatched; action budget unchanged. Query needs compact profile without full, 1..8 nonempty literal alternatives of at most120 characters, total at most1000. screenshotScale must be a finite number 0.1..1. Correct the input using the same source; do not repeat an earlier delivered action.'
+  } }) }, ...budgetContent(budget)] };
   const command = ['workflow', name, page];
   for (const [key, value] of Object.entries(args)) {
     if (!optionsByTool[name].includes(key)) throw new Error(`Unknown option for ${name}: ${key}. Acts inherit the canonical capture settings from their source.`);
@@ -101,7 +117,6 @@ export async function callWorkflowTool(name: string, args: Record<string, unknow
     if (typeof value === 'boolean') command.push(value ? flag : '--no-' + flag.slice(2));
     else command.push(flag, String(value));
   }
-  const budget = executionBudget ?? (directCallBudget ??= createWorkflowBudget());
   if (typeof args.task !== 'string' || !args.task.trim() || ((name === 'act' || name === 'expand') && (typeof args.source !== 'string' || !args.source.trim())) ||
     (name === 'act' && typeof args.action !== 'string')) return { content: [{ type: 'text', text: JSON.stringify({ success: false,
       type: 'workflow-input-rejection', value: {

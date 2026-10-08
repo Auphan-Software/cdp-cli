@@ -20,7 +20,7 @@ const exeMode = typeof CDP_CLI_EXE_MODE !== 'undefined' && CDP_CLI_EXE_MODE === 
 export interface WorkflowOptions {
   page: string; task: string; source?: string; frame?: string; maxElements?: number;
   stabilityMs?: number; full?: boolean; action?: string; selector?: string; targetKey?: string; value?: string;
-  url?: string; key?: string; waitFor?: string; waitForText?: string; screenshot?: boolean;
+  url?: string; key?: string; waitFor?: string; waitForText?: string; screenshot?: boolean; screenshotScale?: number;
   offset?: number; limit?: number; section?: string; receiptId?: string; query?: string;
 }
 
@@ -107,6 +107,8 @@ export function actionArgs(options: WorkflowOptions): string[] {
 
 export async function workflow(context: CDPContext, operation: string, options: WorkflowOptions): Promise<unknown> {
   const transport = workflowViewProfile();
+  if (options.screenshotScale !== undefined && (!Number.isFinite(options.screenshotScale) || options.screenshotScale < 0.1 || options.screenshotScale > 1))
+    throw new Error('WORKFLOW_INVALID_SCREENSHOT_SCALE: expected 0.1..1; no action dispatched');
   if (options.query !== undefined) {
     workflowQueryTerms(options.query);
     if (options.full || transport.profile !== 'haiku-compact') throw new Error('WORKFLOW_QUERY_REQUIRES_COMPACT_PROFILE_WITHOUT_FULL');
@@ -265,17 +267,28 @@ export async function workflow(context: CDPContext, operation: string, options: 
   Object.assign(view, { providerReason: projectionReason(projectionBlocked, projection.reason, view.providerStatus) });
   diagnostics.projectionConfig = { reason: projection.reason, path: projection.path };
   let screenshot: unknown;
+  let retainedOriginal: string | undefined;
   if (operation === 'screenshot' || options.screenshot) {
     try {
       const directory = join(store.dir, 'evidence');
       mkdirSync(directory, { recursive: true });
       const path = join(directory, `${randomUUID()}.png`);
-      const result = await runCli(['screenshot', page.id, '--output', path, '--format', 'png', '--cdp-url', context.cdpUrl,
+      const originalPath = options.screenshotScale !== undefined && options.screenshotScale < 1 ? path.replace(/\.png$/, '-original.png') : undefined;
+      retainedOriginal = originalPath;
+      const result = await runCli(['screenshot', page.id, '--output', path, '--format', 'png', '--scale', String(options.screenshotScale ?? 1),
+        '--coordinate-frame', ...(originalPath ? ['--original-output', originalPath] : []), '--cdp-url', context.cdpUrl,
         ...(context.workspaceSessionName ? ['--session', context.workspaceSessionName] : [])]);
+      const dimensions = result.rows.find(row => row.data?.width)?.data;
       screenshot = { available: result.ok, path: result.ok ? path : undefined, source: view.source, evidence: result.rows,
+        scale: options.screenshotScale ?? 1, pixelWidth: dimensions?.width ?? null, pixelHeight: dimensions?.height ?? null,
+        originalPath: dimensions?.originalFile, originalPixelWidth: dimensions?.originalWidth, originalPixelHeight: dimensions?.originalHeight,
+        coordinateFrame: dimensions?.coordinateFrame ?? null,
+        coordinateSpace: 'CSS viewport; image pixels are scaled. Use source-bound keys for actions. Reduced pixels may not prove small text; request scale 1 when needed.',
         semanticStable: result.ok ? semanticSignature(current, false) === semanticSignature(await take(0, false), false) : false };
     } catch {
       screenshot = { available: false, semanticStable: null, source: view.source,
+        ...(retainedOriginal && existsSync(retainedOriginal) ? { originalPath: retainedOriginal, originalAvailable: true,
+          instructionOriginal: 'Original capture bytes survived downstream failure. Alignment is not verified; reviewer may inspect the artifact, never infer a clean visual pass.' } : {}),
         instruction: 'Screenshot or alignment capture failed; action/state evidence remains valid at its capture time. Recover pixels without repeating the action.' };
     }
   }

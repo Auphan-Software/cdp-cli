@@ -27,6 +27,27 @@ beforeAll(async () => {
 }, 30000);
 afterAll(async () => { await chrome?.close(); await app?.close(); if (root?.startsWith(tmpdir())) await rm(root, { recursive: true, force: true }); }, 30000);
 describe('compact live execution', () => {
+  it('retains original same-capture pixels and CSS dimensions while transporting a scaled copy', async () => {
+    const page = await chrome.createPage(app.baseUrl);
+    const seen = await call('screenshot', page.id, ['--screenshot-scale', '0.25', '--query', 'Cash|Account']);
+    const shot = seen.value.screenshot;
+    expect(shot.available, JSON.stringify(seen)).toBe(true);
+    expect(shot.semanticStable).toBe(true);
+    expect(shot.pixelWidth).toBe(Math.round(shot.originalPixelWidth * 0.25));
+    expect(shot.pixelHeight).toBe(Math.round(shot.originalPixelHeight * 0.25));
+    expect(shot.coordinateFrame.width).toBeGreaterThan(0);
+    expect(shot.coordinateFrame.height).toBeGreaterThan(0);
+    const { readFile } = await import('node:fs/promises');
+    const original = await readFile(shot.originalPath), scaled = await readFile(shot.path);
+    expect(original.readUInt32BE(16)).toBe(shot.originalPixelWidth);
+    expect(scaled.readUInt32BE(16)).toBe(shot.pixelWidth);
+    expect(original.equals(scaled)).toBe(false);
+    const invalid = await call('act', page.id, ['--source', seen.value.view.source.id, '--action', 'click', '--selector', '#cash', '--screenshot-scale', '0']);
+    expect(invalid.error).toBe(true);
+    const socket = await CdpSession.connect(page.webSocketDebuggerUrl);
+    try { expect((await socket.command('Runtime.evaluate', { expression: 'window.dispatches||0', returnByValue: true })).result.value).toBe(0); }
+    finally { socket.close(); }
+  }, 30000);
   it('finds the actual nested child action and scopes post-action state without relaxing canonical freshness', async () => {
     const page = await chrome.createPage(app.baseUrl);
     const evaluate = async (expression: string) => {

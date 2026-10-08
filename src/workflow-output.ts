@@ -4,6 +4,22 @@ import { randomUUID } from 'node:crypto';
 import type { AgentView } from './experimental/decision.js';
 
 export const WORKFLOW_TEXT_BYTES = 24_000;
+/** Keep failure witnesses without interpreting an absent event as safe redispatch. */
+export function actionWitnesses(rows: any[]): any[] {
+  return rows.flatMap<any>(row => row.data && ('clickDelivered' in row.data || 'witnessedEvent' in row.data) ?
+    [{ clickDelivered: row.data.clickDelivered, witnessedEvent: row.data.witnessedEvent, frameReached: row.data.frameReached }] :
+    row.error === true ? [{ code: String(row.code ?? 'ERROR').slice(0, 100), message: String(row.message ?? '').slice(0, 200),
+      ...(row.details && 'witnessedEvent' in row.details ? { witnessedEvent: row.details.witnessedEvent === null ? null :
+        Object.fromEntries(['type', 'trusted', 'targetMatches', 'x', 'y', 'target'].filter(key =>
+          ['string', 'number', 'boolean'].includes(typeof row.details.witnessedEvent?.[key])).map(key => [key,
+            typeof row.details.witnessedEvent[key] === 'string' ? row.details.witnessedEvent[key].slice(0, 100) : row.details.witnessedEvent[key]])) } : {}) }] : []);
+}
+export function retainActionWitnesses(action: any): void {
+  if (action.witness !== undefined) return;
+  const witnesses = actionWitnesses(action.evidence ?? []);
+  action.witness = witnesses.slice(0, 8);
+  if (witnesses.length > 8) action.witnessOmitted = witnesses.length - 8;
+}
 export interface WorkflowViewProfile { profile: 'current-24k' | 'rich-64k' | 'haiku-compact'; maxBytes: number; protectedStateBytes: number; errorBytes: number }
 /** Resolve before dispatch; profile affects transport only, never source capture. */
 export function workflowViewProfile(env: NodeJS.ProcessEnv = process.env): WorkflowViewProfile {
@@ -39,8 +55,7 @@ export function boundWorkflowResult(result: any, artifactPath: string, protected
     view.errors = [];
   }
   if (value.action) {
-    value.action.witness ??= (value.action.evidence ?? []).flatMap((row: any) => row.data && ('clickDelivered' in row.data || 'witnessedEvent' in row.data) ?
-      [{ clickDelivered: row.data.clickDelivered, witnessedEvent: row.data.witnessedEvent, frameReached: row.data.frameReached }] : []);
+    retainActionWitnesses(value.action);
     value.action.evidenceOmitted = (value.action.evidenceOmitted ?? 0) + (value.action.evidence ?? []).length;
     value.action.evidence = [];
   }
