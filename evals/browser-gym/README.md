@@ -1,8 +1,9 @@
 # Mako2 browser gym: optimize verified completion cost
 
 Status: accounting, evidence contracts, readiness validation and seven-case catalog implemented;
-**live fixture, independent SQL/RQ/bill verifier and richer-view ablation are not yet implemented**.
-Tracked by `cdp-cli-8n1`. Nothing here launches a model or mutates a Mako2 database.
+**local cash fixture and independent SQL/RQ/bill adapter are implemented; the live Haiku pilot,
+remaining six fixture adapters and richer-view ablation still need measured results**.
+Tracked by `cdp-cli-8n1`. The accounting commands do not launch a model or mutate a Mako2 database.
 
 See [official Anthropic research and its implementation implications](anthropic-haiku-guidance.md)
 for browser tool contracts, effort, steering, compaction and cache behavior.
@@ -122,7 +123,8 @@ fixture adapter must generate the attestations from those checks, not flip flags
 
 A scored run has this structure; artifact paths must be absolute, and supervisor/native records
 are included separately. Independent proof must come from the verifier, never the browser worker.
-The verifier adapter still needs to be built; role labels alone are not a security boundary.
+The cash adapter below requires a separate controller review of actual bill pixels;
+role labels alone are not a security boundary. Other case adapters remain unimplemented.
 
 ```json
 {
@@ -145,6 +147,26 @@ Every required check in cases.json needs real artifact paths. The incomplete exa
 Negative cases are successful tests when the intended refusal/non-mutation is proven. Planned fault
 drills include stale UI, failed wait after delivered payment, wrong password and missing bill sink;
 the grader must distinguish product failures from fixture/harness failures without hiding either cost.
+
+## Short worker contract
+
+## Cash fixture verification
+
+`mako-evidence.mjs` reads the dedicated local fixture database and pins the product candidate.
+After independently reading the actual bill pixels, the controller records its invoice/transaction,
+line items, tax totals and image SHA256 in a bill-review JSON. Supply an independent boot record
+and that review to collect persisted payment, all RQ transactions and pending requests:
+
+```sh
+node --test evals/browser-gym/mako-evidence.test.mjs
+node evals/browser-gym/mako-evidence.mjs /absolute/fixture.json INVOICE_ID /absolute/artifacts /absolute/boot.json /absolute/bill-review.json
+```
+
+Exactly one accepted transaction and one matching payment are required; a reprint or pending
+request cannot quietly qualify as a clean cash run. This adapter does not automate image reading.
+MCP opt-in `CDP_WORKFLOW_MAX_ACTIONS` and `CDP_WORKFLOW_DEADLINE_MS` gate mutations before
+dispatch; observation/expansion remain available to preserve evidence after exhaustion. A separate
+controller watchdog is still required to bound the worker process and its other tools.
 
 ## Short worker contract
 

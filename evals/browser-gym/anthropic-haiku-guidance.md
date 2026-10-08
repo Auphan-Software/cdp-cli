@@ -1,6 +1,6 @@
 # Anthropic guidance applied to the browser gym
 
-Research checked 2026-10-07 against official Anthropic documentation. Recommendations below
+Research checked 2026-10-08 against official Anthropic documentation. Recommendations below
 distinguish documented behavior from our proposed experiments. No live Haiku E2E result is implied.
 
 ## Effort, prompts and steering
@@ -73,4 +73,6 @@ is valid from response bytes alone or from a run blocked before the sale and pri
 The gym auditor now counts compaction iterations, avoids adding top-level usage twice, and declines
 to estimate cost when multi-phase/cache attribution is insufficient. Three regression tests cover
 zero top-level counters, multiple phases and unattributed cache usage. Native API integration,
-target resolution, live fixtures and compaction experiments remain tracked implementation work.
+native browser-toolset integration and compaction experiments remain tracked implementation work.
+Source-bound target resolution, visible-action protection and execution budgets are implemented;
+the local cash fixture and independent payment/RQ/bill adapter are ready for a measured pilot.
