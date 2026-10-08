@@ -1,6 +1,6 @@
 # Native Anthropic browser versus CDP workflow benchmark
 
-Status 2026-10-08: researched and preflight implemented; no native performance run yet.
+Status 2026-10-08: native CLI cash qualification passed; matched CDP comparison pending.
 Tracked by `cdp-cli-8dl`. Preferred next comparison is now Claude Code's official Chrome
 integration versus our workflow on the same managed CLI runtime. It supports a direct Pro/Max
 login and does not require an API key. The earlier API-only requirement was too narrow.
@@ -8,7 +8,34 @@ The API toolset experiment below remains a separate option, not a prerequisite f
 
 ## Preferred Claude CLI comparison
 
-Connection probe attempted after Henry installed/authorized the extension. Managed agent2067,
+After Henry signed the extension into the same Claude account, managed agent2067 completed
+one fresh cash journey using Haiku5.5/medium, Claude Code2.1.294 and the official extension
+in Edge. Session `49a1bdee-e6e8-4769-864b-3f5d317f2ff0` used a short system contract, strict
+empty MCP configuration, disabled slash skills and no Agent/Task/shell tools. The transcript
+contains no CDP calls or delegation. Invoice150386 passed all seven independent checks:
+cash payment, accepted ARG WebSRM transaction, no pending transaction, printed bill/payload
+parity, cashier boot and unchanged fixture configuration. The controller reviewed actual bill
+pixels and matched transaction `05M7-06MU-05E9-05LF`; boot evidence came from the native
+read-only JavaScript receipt, rather than the actor's summary.
+
+Elapsed transcript time was133.797seconds, with22 native browser calls and26 total tools.
+Two tool errors occurred: a screenshot of the initial internal new-tab page and a stale
+`ref_46` click. A separate JavaScript response blocked query-string data without marking
+is_error; a pathname-only retry succeeded. The actor recovered without controller intervention,
+duplicate payment or fallback. Prompt limits were30 browser calls/10minutes and were respected;
+they were not enforced by a deterministic native executor. Final screenshot is617x338 from
+the1234x676 browser viewport. No compaction occurred.
+
+Recorded assistant usage:34 fresh input,37080 cache creation,320443 cache read and5163
+output tokens (362720 total). The existing auditor estimates $0.01320533 API-equivalent
+cost under its2026-10-07 pricing table; this is not a subscription charge or independently
+verified bill. Artifacts: `C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/native-chrome-cash-01/`
+(native.jsonl, accounting.json, effective-launch.json, boot.json, proof.json, cash-evidence.json,
+bill-review.json and closed-invoice.jpg). Earlier connection/setup attempts are separate and
+excluded from this successful journey's usage. This establishes native functionality, not a
+performance winner: the older CDP runs had different startup context and are not matched controls.
+
+Earlier connection probe attempted after Henry installed/authorized the extension. Managed agent2067,
 work item8508, terminal `haiku55-native-chrome-connection` used a fresh native session
 `b1c1c8ce-7fe2-47ac-bb94-9078df31c389`. Actual process flags proved Haiku5.5/medium,
 --chrome, strict empty MCP configuration, disabled slash skills and no Agent/Task/shell tools;
