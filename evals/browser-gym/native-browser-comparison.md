@@ -8,6 +8,19 @@ The API toolset experiment below remains a separate option, not a prerequisite f
 
 ## Preferred Claude CLI comparison
 
+Connection probe attempted after Henry installed/authorized the extension. Managed agent2067,
+work item8508, terminal `haiku55-native-chrome-connection` used a fresh native session
+`b1c1c8ce-7fe2-47ac-bb94-9078df31c389`. Actual process flags proved Haiku5.5/medium,
+--chrome, strict empty MCP configuration, disabled slash skills and no Agent/Task/shell tools;
+no generic subagent profile was injected into this fresh launch. Retained native calls were
+Read, ToolSearch, `mcp__claude-in-chrome__tabs_context_mcp` and Write, with no CDP calls.
+The official tool returned **Browser extension is not connected**, advising that the extension
+and CLI use the same account and that a post-install browser restart may be necessary. No
+tabs or business actions occurred. Henry reported authorization under another subscription;
+that is a possible cause, not a verified diagnosis. The worker exited after this single probe.
+Artifacts: `C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/native-chrome-probe-01/`.
+This is connection qualification, not performance evidence.
+
 Local Claude Code2.1.294 exposes `--chrome`, and `claude auth status` confirms a logged-in
 `claude.ai` account. The native Chrome messaging host is registered. The official extension
 `fcoeoabgfenejglbffodgkkbkcdhcgfn` was absent from the inspected Chrome/Edge default profiles
