@@ -111,3 +111,29 @@ test('stale recovery source is usable and missing sources are counted as mismatc
   assert.equal(a.workflow[1].actionDelivered, false);
   assert.equal(auditNative(record('one', usage(0, 0, 0, 0), 'claude-haiku-5-5', [tool('b', 'act', {})])).chainMismatches, 1);
 });
+test('on-demand compaction is billed through iterations despite zero top-level tokens', () => {
+  const row = record('compact', { ...usage(0, 0, 0, 0), iterations: [
+    { type: 'compaction', input_tokens: 144, output_tokens: 276 },
+  ] });
+  const a = auditNative([row, row].join('\n'));
+  assert.equal(a.processedTokens, 420);
+  assert.equal(a.compactionIterations, 1);
+  assert.equal(a.peakInputTokens, 144);
+  assert.ok(Math.abs(a.estimatedApiUsd - 0.0001524) < 1e-12);
+});
+test('multiple billing phases count iterations without adding top-level usage again', () => {
+  const a = auditNative(record('one', { ...usage(500, 0, 0, 100), iterations: [
+    { type: 'compaction', input_tokens: 200, output_tokens: 50 },
+    { type: 'message', input_tokens: 300, output_tokens: 50 },
+  ] }));
+  assert.equal(a.processedTokens, 600);
+  assert.equal(a.peakInputTokens, 300);
+  assert.equal(a.estimatedApiUsd, null);
+  assert.ok(a.warnings.length);
+});
+test('unattributed cache usage in iteration exports cannot silently reduce estimated cost', () => {
+  const a = auditNative(record('one', { ...usage(0, 100, 0, 0), iterations: [
+    { type: 'compaction', input_tokens: 100, output_tokens: 10 },
+  ] }));
+  assert.equal(a.estimatedApiUsd, null);
+});

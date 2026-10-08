@@ -4,6 +4,9 @@ Status: accounting, evidence contracts, readiness validation and seven-case cata
 **live fixture, independent SQL/RQ/bill verifier and richer-view ablation are not yet implemented**.
 Tracked by `cdp-cli-8n1`. Nothing here launches a model or mutates a Mako2 database.
 
+See [official Anthropic research and its implementation implications](anthropic-haiku-guidance.md)
+for browser tool contracts, effort, steering, compaction and cache behavior.
+
 ## What the existing measurements establish
 
 The 2.2.3 formatter replay reduced two saved Add/Done responses from 124,815 to 47,732 UTF-8
@@ -49,6 +52,9 @@ Current rates, USD/M tokens, checked 2026-10-07:
 One-hour writes use 2x the corresponding base input rate. The 100k Haiku tier applies to each
 request's total input, including cached tokens; 1M context capacity is not a 1M cheap tier.
 The auditor handles per-request pricing, native stream deduplication and cache TTL categories.
+It counts `usage.iterations` for compaction even when top-level counters are zero, without adding
+the top-level totals again. Multi-phase or unattributed cache usage makes price unavailable until
+verified billing attribution exists; it is never silently priced as free.
 Unknown TTL is explicitly estimated as 5m; unknown models make cost unavailable. Refresh rates
 when launching a later benchmark. Cost alone never overrides false-pass or evidence failures.
 

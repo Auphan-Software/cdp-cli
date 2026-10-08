@@ -23,7 +23,7 @@ export function auditNative(text) {
     if (row.type === 'assistant' && message.usage) {
       const id = message.id || row.uuid;
       if (!id) throw new Error('Assistant usage lacks a deduplication ID');
-      const prior = messages.get(id) || { model: message.model, usage: {}, cache: {}, time: row.timestamp };
+      const prior = messages.get(id) || { model: message.model, usage: {}, cache: {}, time: row.timestamp, iterations: [] };
       if (prior.model !== message.model) throw new Error('Model changed within one assistant message');
       for (const field of fields) {
         const value = message.usage[field] || 0;
@@ -32,6 +32,19 @@ export function auditNative(text) {
       }
       for (const field of ['ephemeral_5m_input_tokens', 'ephemeral_1h_input_tokens']) {
         prior.cache[field] = Math.max(prior.cache[field] || 0, message.usage.cache_creation?.[field] || 0);
+      }
+      if (message.usage.iterations) {
+        if (!Array.isArray(message.usage.iterations)) throw new Error('Invalid usage iterations');
+        message.usage.iterations.forEach((iteration, index) => {
+          const saved = prior.iterations[index] || { type: iteration.type, usage: {} };
+          if (saved.type !== iteration.type) throw new Error('Usage iteration type changed');
+          for (const field of fields) {
+            const value = iteration[field] || 0;
+            if (!Number.isSafeInteger(value) || value < 0) throw new Error(`Invalid iteration usage: ${field}`);
+            saved.usage[field] = Math.max(saved.usage[field] || 0, value);
+          }
+          prior.iterations[index] = saved;
+        });
       }
       messages.set(id, prior);
     }
@@ -43,17 +56,31 @@ export function auditNative(text) {
   }
   const usage = Object.fromEntries(fields.map(field => [field, 0]));
   const models = {}, toolNames = {}, warnings = new Set();
-  let estimatedApiUsd = 0, peakInputTokens = 0, longContextRequests = 0, unknownPrice = false;
+  let estimatedApiUsd = 0, peakInputTokens = 0, longContextRequests = 0, unknownPrice = false, compactionIterations = 0;
   for (const message of messages.values()) {
-    const u = message.usage;
+    const iterations = message.iterations;
+    compactionIterations += iterations.filter(i => i.type === 'compaction').length;
+    const u = iterations.length ? Object.fromEntries(fields.map(field =>
+      [field, iterations.reduce((sum, i) => sum + i.usage[field], 0)])) : message.usage;
     for (const field of fields) usage[field] += u[field];
     count(models, message.model || 'unknown');
-    const inputSize = u.input_tokens + u.cache_creation_input_tokens + u.cache_read_input_tokens;
+    const inputSize = iterations.length ? Math.max(...iterations.map(i =>
+      i.usage.input_tokens + i.usage.cache_creation_input_tokens + i.usage.cache_read_input_tokens)) :
+      u.input_tokens + u.cache_creation_input_tokens + u.cache_read_input_tokens;
     peakInputTokens = Math.max(peakInputTokens, inputSize);
     const model = Object.keys(rates).find(key => message.model === key || message.model?.startsWith(`${key}-`));
     if (!model) { unknownPrice = true; warnings.add(`Unknown pricing: ${message.model}`); continue; }
     const long = model === 'claude-haiku-5-5' && inputSize > 100_000;
     if (long) longContextRequests++;
+    // Do not fabricate per-iteration pricing when a threshold request spans multiple
+    // billing phases or exports omit cache attribution. Keep usage, mark cost unknown.
+    if (iterations.length > 1 || (iterations.length &&
+      (message.usage.cache_creation_input_tokens > u.cache_creation_input_tokens ||
+       message.usage.cache_read_input_tokens > u.cache_read_input_tokens))) {
+      unknownPrice = true;
+      warnings.add('Iteration usage counted; multi-phase/cache-attribution pricing requires verified API billing data');
+      continue;
+    }
     const multiplier = long ? 5 : 1, rate = rates[model];
     const hour = message.cache.ephemeral_1h_input_tokens || 0;
     const minute = message.cache.ephemeral_5m_input_tokens || 0;
@@ -86,7 +113,7 @@ export function auditNative(text) {
   const times = [...messages.values()].map(m => Date.parse(m.time)).filter(Number.isFinite);
   return { usage, processedTokens: Object.values(usage).reduce((a, b) => a + b, 0), models,
     estimatedApiUsd: unknownPrice ? null : estimatedApiUsd, pricingAsOf: '2026-10-07', warnings: [...warnings],
-    peakInputTokens, longContextRequests, compactionBoundaries: boundaries.size,
+    peakInputTokens, longContextRequests, compactionBoundaries: boundaries.size, compactionIterations,
     elapsedSeconds: times.length ? (Math.max(...times) - Math.min(...times)) / 1000 : null,
     toolCalls: tools.size, toolNames, toolErrors: [...results.values()].filter(r => r.is_error).length,
     chainMismatches, capOverrides, workflow };
