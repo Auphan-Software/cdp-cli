@@ -1,6 +1,9 @@
 # Native Anthropic browser versus CDP workflow benchmark
 
-Status 2026-10-08: native CLI cash qualification passed; matched CDP comparison pending.
+Status 2026-10-08: both short-context cash arms passed7/7 business checks. Native consumed
+69.5% fewer recorded tokens and88.7% less assistant API-equivalent cost on this one pair.
+See [retained results and limitations](native-cdp-cash-results.md). No universal winner or
+compaction savings established; CDP transport optimization remains pending.
 Tracked by `cdp-cli-8dl`. Preferred next comparison is now Claude Code's official Chrome
 integration versus our workflow on the same managed CLI runtime. It supports a direct Pro/Max
 login and does not require an API key. The earlier API-only requirement was too narrow.
