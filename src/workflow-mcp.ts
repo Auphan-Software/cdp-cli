@@ -3,6 +3,7 @@ import { createInterface } from 'node:readline';
 import { readFileSync } from 'node:fs';
 import { performance } from 'node:perf_hooks';
 import { runCli } from './workflow.js';
+import { workflowViewProfile } from './workflow-output.js';
 import { version } from './version.js';
 
 export interface WorkflowExecutionBudget {
@@ -80,6 +81,7 @@ const tools = Object.keys(optionsByTool).map(name => ({ name,
 }));
 
 export async function callWorkflowTool(name: string, args: Record<string, unknown>, executionBudget?: WorkflowExecutionBudget): Promise<unknown> {
+  workflowViewProfile(); // Validate inherited transport settings before admission or child dispatch.
   if (!tools.some(tool => tool.name === name)) throw new Error('Unknown workflow tool');
   const page = process.env.CDP_PAGE?.trim(), session = process.env.CDP_SESSION?.trim();
   if (!page || !session) throw new Error('CDP_PAGE and CDP_SESSION must be inherited from the browser owner. Use existing CLI setup/preflight; this server never adopts or creates a page.');

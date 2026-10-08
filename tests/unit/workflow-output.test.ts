@@ -3,11 +3,57 @@ vi.unmock('fs');
 import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { boundWorkflowResult, WORKFLOW_TEXT_BYTES } from '../../src/workflow-output.js';
+import { boundWorkflowResult, WORKFLOW_TEXT_BYTES, workflowViewProfile } from '../../src/workflow-output.js';
+import { workflow } from '../../src/workflow.js';
+import { callWorkflowTool, createWorkflowBudget } from '../../src/workflow-mcp.js';
 import { StateStore } from '../../src/state/store.js';
 import type { PageState } from '../../src/state/types.js';
 
 describe('bounded workflow transport', () => {
+  it('defaults to 24k and reports profile metadata even for fitting output without changing its evidence', () => {
+    const result = { success: true, value: { view: { source: { id: 'source' }, elements: [{ k: 'next', name: 'Add' }] } } };
+    const before = JSON.stringify(result);
+    const output = boundWorkflowResult(result, 'unused.json', new Set(), workflowViewProfile({}));
+    expect(output.value.output).toEqual({ bounded: false, profile: 'current-24k', maxBytes: 24000 });
+    expect(output.value.view).toEqual(result.value.view);
+    expect(JSON.stringify(result)).toBe(before);
+    expect(workflowViewProfile({ CDP_WORKFLOW_VIEW_PROFILE: 'current-24k' })).toEqual(workflowViewProfile({}));
+  });
+  it('reserves richer current controls ahead of historical diffs, using UTF8 bytes and identical canonical artifacts', () => {
+    const root = mkdtempSync(join(tmpdir(), 'workflow-rich-'));
+    try {
+      const controls = Array.from({ length: 160 }, (_, i) => ({ k: `control${i}`, role: 'button', name: `Buy ${i} ${'界'.repeat(60)}`, state: { vis: true, en: true } }));
+      const result = { success: true, value: { action: { commandSucceeded: true, deliveryUnknown: false },
+        view: { source: { id: 'same-source' }, coverage: {}, errors: [], omitted: { count: 0 }, elements: controls,
+          diff: { changes: Array.from({ length: 600 }, (_, i) => ({ kind: 'removed', key: `old${i}`, from: { text: '界'.repeat(80) } })) } } } };
+      const protectedKeys = new Set(controls.map(n => n.k));
+      const small = boundWorkflowResult(result, join(root, 'small.json'), protectedKeys, workflowViewProfile({}));
+      const rich = boundWorkflowResult(result, join(root, 'rich.json'), protectedKeys, workflowViewProfile({ CDP_WORKFLOW_VIEW_PROFILE: 'rich-64k' }));
+      expect(Buffer.byteLength(JSON.stringify(small))).toBeLessThanOrEqual(24000);
+      expect(Buffer.byteLength(JSON.stringify(rich))).toBeLessThanOrEqual(64000);
+      expect(rich.value.view.elements.length).toBeGreaterThan(small.value.view.elements.length);
+      expect(rich.value.view.elements.length).toBe(controls.length);
+      expect(rich.value.output.profile).toBe('rich-64k');
+      expect(rich.value.output.omittedElements).toBe(0);
+      expect(rich.value.output.omittedChanges).toBeGreaterThan(0);
+      expect(rich.value.view.source).toEqual(small.value.view.source);
+      expect(rich.value.action).toEqual(small.value.action);
+      expect(JSON.parse(readFileSync(join(root, 'rich.json'), 'utf8'))).toEqual(result);
+      expect(readFileSync(join(root, 'rich.json'), 'utf8')).toBe(readFileSync(join(root, 'small.json'), 'utf8'));
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+  it('rejects invalid profiles before workflow page access or MCP action admission/dispatch', async () => {
+    const findPage = vi.fn(), budget = createWorkflowBudget({ CDP_WORKFLOW_MAX_ACTIONS: '1' });
+    for (const invalid of ['', 'rich', '64000', ' rich-64k']) {
+      vi.stubEnv('CDP_WORKFLOW_VIEW_PROFILE', invalid);
+      try {
+        await expect(workflow({ findPage } as any, 'act', { page: 'owned', task: 'buy', source: 'source', action: 'click', selector: '#buy' })).rejects.toThrow('WORKFLOW_INVALID_VIEW_PROFILE');
+        await expect(callWorkflowTool('act', { task: 'buy', source: 'source', action: 'click', selector: '#buy' }, budget)).rejects.toThrow('WORKFLOW_INVALID_VIEW_PROFILE');
+        expect(findPage).not.toHaveBeenCalled();
+        expect(budget.snapshot().actionsUsed).toBe(0);
+      } finally { vi.unstubAllEnvs(); }
+    }
+  });
   it('expires only overflow artifacts associated with an expired canonical source', () => {
     const root = mkdtempSync(join(tmpdir(), 'workflow-retention-'));
     try {

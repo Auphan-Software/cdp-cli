@@ -12,7 +12,7 @@ import type { PageState } from './state/types.js';
 import { projectState, mustKeep } from './experimental/decision.js';
 import { DaemonClient } from './daemon/client.js';
 import { workflowProjectionProvider, workflowProjectionConfiguration, projectionReason } from './workflow-projection.js';
-import { boundWorkflowResult, WORKFLOW_TEXT_BYTES } from './workflow-output.js';
+import { boundWorkflowResult, workflowViewProfile } from './workflow-output.js';
 
 const execFileAsync = promisify(execFile);
 const exeMode = typeof CDP_CLI_EXE_MODE !== 'undefined' && CDP_CLI_EXE_MODE === true;
@@ -105,6 +105,7 @@ export function actionArgs(options: WorkflowOptions): string[] {
 }
 
 export async function workflow(context: CDPContext, operation: string, options: WorkflowOptions): Promise<unknown> {
+  const transport = workflowViewProfile();
   if (!options.task.trim() || options.task.length > 8000) throw new Error('WORKFLOW_INVALID_TASK');
   if (options.frame && /^\d+$/.test(options.frame) && options.frame !== '0') throw new Error('WORKFLOW_STABLE_FRAME_SELECTOR_REQUIRED');
   const page = await context.findPage(options.page);
@@ -137,18 +138,20 @@ export async function workflow(context: CDPContext, operation: string, options: 
     if (!Number.isSafeInteger(offset) || offset < 0 || offset > previous.elements.length || !Number.isSafeInteger(limit) || limit < 1 || limit > 1000) throw new Error('WORKFLOW_INVALID_EXPANSION_RANGE');
     const state = { ...previous, hints: undefined, elements: [] as PageState['elements'] };
     const expanded = { success: true, type: 'workflow-expand', value: { state, historical: true,
+      output: { bounded: false, profile: transport.profile, maxBytes: transport.maxBytes },
       canonicalPath: join(store.dir, `${previous.id}.json`), pagination: { offset, total: previous.elements.length, nextOffset: null as number | null },
       instruction: 'Canonical capture at source time; pagination may omit elements and hints remain in canonicalPath. Observe again before a new action.' } };
     for (const node of previous.elements.slice(offset, offset + limit)) {
       const { locator: _locator, ...evidence } = node;
       state.elements.push(evidence);
-      if (Buffer.byteLength(JSON.stringify(expanded)) > WORKFLOW_TEXT_BYTES - 100) { state.elements.pop(); break; }
+      if (Buffer.byteLength(JSON.stringify(expanded)) > transport.maxBytes - 100) { state.elements.pop(); break; }
     }
     const next = offset + state.elements.length;
     if (next < previous.elements.length) expanded.value.pagination.nextOffset = next;
     // An indivisible node or metadata can exceed transport; the artifact is authoritative.
-    if (Buffer.byteLength(JSON.stringify(expanded)) > WORKFLOW_TEXT_BYTES || (next === offset && next < previous.elements.length)) {
+    if (Buffer.byteLength(JSON.stringify(expanded)) > transport.maxBytes || (next === offset && next < previous.elements.length)) {
       return { success: true, type: 'workflow-expand', value: { historical: true, source: { id: previous.id, digest: previous.digest },
+        output: { bounded: true, profile: transport.profile, maxBytes: transport.maxBytes },
         canonicalPath: expanded.value.canonicalPath, artifactRequired: true, instruction: 'Record exceeds transport budget; read canonicalPath without repeating an action.' } };
     }
     return expanded;
@@ -191,7 +194,7 @@ export async function workflow(context: CDPContext, operation: string, options: 
           'A failed command or wait may follow a delivered interaction. Inspect recovered state; do not repeat the action blindly.' };
       try { current = await take(); }
       catch { return boundWorkflowResult({ success: false, type: 'workflow-action', value: { action, observationUnavailable: true,
-        instruction: 'Observe to recover evidence; do not repeat the action blindly.' } }, join(store.dir, `${previous.id}-workflow-${randomUUID()}.json`)); }
+        instruction: 'Observe to recover evidence; do not repeat the action blindly.' } }, join(store.dir, `${previous.id}-workflow-${randomUUID()}.json`), new Set(), transport); }
       }
   } else current = await take();
   const diffBase = previous?.captureProfile === current.captureProfile ? previous : (observedBefore?.captureProfile === current.captureProfile ? observedBefore : undefined);
@@ -244,5 +247,5 @@ export async function workflow(context: CDPContext, operation: string, options: 
   }
   const result = { success: !stale, type: stale ? 'workflow-stale' : 'workflow-observation', value: { ...(action ? { action } : {}), view, diagnostics,
     canonicalPath: join(store.dir, `${current.id}.json`), ...(screenshot ? { screenshot } : {}) } };
-  return boundWorkflowResult(result, join(store.dir, `${current.id}-workflow.json`), mustKeep(options.task, current, { hints: current.hints, diff, errors, targets, protectVisibleActions: true }));
+  return boundWorkflowResult(result, join(store.dir, `${current.id}-workflow.json`), mustKeep(options.task, current, { hints: current.hints, diff, errors, targets, protectVisibleActions: true }), transport);
 }

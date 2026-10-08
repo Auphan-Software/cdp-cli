@@ -104,7 +104,10 @@ Run stages, rather than a giant Cartesian matrix:
   printed-bill pixels and line/tax parity. A QR JPEG is not a bill. Stabilize harness before trials.
 - **State-view ablation:** current-24k versus a proposed richer semantic view (e.g. 64k transport)
   with explicit source-bound targets, labels/parents, modal state, amounts and local effect evidence.
-  The wider profile is **not implemented**; mark profileImplemented=false until it exists. Preserve
+  `CDP_WORKFLOW_VIEW_PROFILE=rich-64k` enables the experimental 64k transport with a 48k
+  reservation for protected current state. Default `current-24k` retains its 16k reservation.
+  Only transport packing changes; source capture, action delivery and canonical evidence stay
+  the same. Both fitting and bounded results report their profile and maximum bytes. Preserve
   delivery uncertainty, coverage, capture cap and complete artifacts identically. Compare with
   reranker off first; test reranker separately after finding a useful view.
 - **Context ablation:** selected view, same model/effort; compare supported context renewal
