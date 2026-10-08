@@ -31,4 +31,20 @@ describe('post-delivery observation recovery', () => {
       expect(mocks.exec).toHaveBeenCalledTimes(1);
     } finally { vi.unstubAllEnvs(); rmSync(root, { recursive: true, force: true }); }
   });
+  it('retains explicit unknown click delivery when the command completed but the witness could not verify it', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'workflow-click-unknown-'));
+    vi.stubEnv('CDP_STATE_ROOT', root); vi.stubEnv('CDP_WORKFLOW_CLOCK_SELECTORS', '[]');
+    try {
+      const context = { cdpUrl: 'http://owned.test', workspaceSessionName: 'owner', findPage: async () => ({ id: 'page' }) } as unknown as CDPContext;
+      const store = new StateStore(context.cdpUrl, 'owner', 'page', root);
+      const canonical = { schema: 'cdp-cli.page-state/1', capturedAt: '', targetId: 'page', session: 'owner', captureProfile: 'profile', url: 'http://owned.test', title: 'Owned', readyState: 'complete', bodyTextHash: 'same', nodeCount: 0, elements: [], coverage: { truncated: false, unreachableFrames: [], blockedByDialog: false } } as Omit<PageState,'id'|'seq'|'digest'>;
+      const source = store.save(canonical);
+      mocks.capture.mockImplementationOnce(async (_context, options) => { options.onCaptured(store.save(canonical)); return true; }).mockResolvedValueOnce(false);
+      mocks.exec.mockImplementation((_file, _args, _options, callback) => callback(null, { stdout: JSON.stringify({ success: true, data: { clickDelivered: null, frameReached: null } }) }));
+      const result = await workflow(context, 'act', { page: 'page', task: 'click once', source: source.id, action: 'click', selector: '#save' }) as any;
+      expect(result.value.action.commandSucceeded).toBe(true);
+      expect(result.value.action.deliveryUnknown).toBe(true);
+      expect(result.value.action.evidence[0].data.clickDelivered).toBe(null);
+    } finally { vi.unstubAllEnvs(); rmSync(root, { recursive: true, force: true }); }
+  });
 });

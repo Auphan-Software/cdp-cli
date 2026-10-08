@@ -85,6 +85,26 @@ function capturePage(options: any): any {
       el.getAttribute('placeholder') || buttonValue || (typed ? '' : el.innerText || el.textContent || '')));
   };
   const result: any[] = [];
+  // Keys describe evidence identity; they are not reversible CSS. Keep a
+  // complete root-relative locator separately for source-bound workflow acts.
+  const locatorOf = (el: any) => {
+    if (!options.experimentalHints || el.getRootNode() !== root) return undefined;
+    const parts: string[] = [];
+    let current = el;
+    while (current && current.nodeType === 1) {
+      const tag = current.tagName.toLowerCase();
+      const siblings = current.parentElement ? Array.from(current.parentElement.children)
+        .filter((child: any) => child.tagName === current.tagName) : [current];
+      parts.unshift(`${tag}:nth-of-type(${siblings.indexOf(current) + 1})`);
+      current = current.parentElement;
+    }
+    const selector = parts.join('>');
+    if (!selector || selector.length > 8000) return undefined;
+    try {
+      const matches = root.querySelectorAll(selector);
+      return matches.length === 1 && matches[0] === el ? selector : undefined;
+    } catch { return undefined; }
+  };
   const unreachableFrames: string[] = [];
   let nodeCount = 0;
   let truncated = false;
@@ -161,12 +181,17 @@ function capturePage(options: any): any {
         el.getAttribute('role') === 'textbox';
       const rawValue = editable ? String(el.innerText || '') : interactive &&
         !/^(checkbox|radio|submit|button|reset|file|hidden)$/i.test(el.type || '') && 'value' in el ? String(el.value) : undefined;
+      const locator = locatorOf(el);
       candidates.push({ fp, candidate, role, name, text, rawValue,
-        state, box, path: path(el), ...(cosmeticClock(el) ? { cosmeticClock: true } : {}), ...(options.experimentalHints ? { el } : {}) });
+        state, box, path: path(el), ...(locator ? { locator } : {}),
+        ...(cosmeticClock(el) ? { cosmeticClock: true } : {}), ...(options.experimentalHints ? { el } : {}) });
     }
   };
   let root = document;
   if (options.frame && options.frame !== '0') {
+    if (options.experimentalHints && !/^\d+$/.test(options.frame) && document.querySelectorAll(options.frame).length > 1) {
+      throw new Error(`STATE_AMBIGUOUS_FRAME_SELECTOR: ${options.frame}`);
+    }
     const frame = /^\d+$/.test(options.frame) ? document.querySelectorAll('iframe')[Number(options.frame) - 1] : document.querySelector(options.frame);
     if (!frame || frame.tagName.toLowerCase() !== 'iframe') throw new Error(`FRAME_NOT_FOUND: ${options.frame}`);
     try { root = frame.contentDocument; } catch { root = null; }
@@ -175,12 +200,24 @@ function capturePage(options: any): any {
   if (root) walk(root, options.frame && options.frame !== '0' ? `frame:${options.frame}` : 'top');
   const counts = new Map<string, number>();
   for (const item of candidates) counts.set(`${item.fp}|${item.candidate}`, (counts.get(`${item.fp}|${item.candidate}`) || 0) + 1);
+  const duplicatePaths = new Map<string, number>();
+  for (const item of candidates) {
+    const key = `${item.fp}|${item.candidate}>${item.path}`;
+    duplicatePaths.set(key, (duplicatePaths.get(key) || 0) + 1);
+  }
+  const occurrences = new Map<string, number>();
   for (const item of candidates) {
     const duplicate = (counts.get(`${item.fp}|${item.candidate}`) || 0) > 1;
-    result.push({ k: `${item.fp}|${item.candidate}${duplicate ? `>${item.path}` : ''}`,
+    const duplicateKey = `${item.fp}|${item.candidate}>${item.path}`;
+    const ordinal = (occurrences.get(duplicateKey) || 0) + 1;
+    occurrences.set(duplicateKey, ordinal);
+    // Duplicate IDs can also collapse path(): emit distinct evidence records
+    // while retaining ambiguous identity and refusing source-bound actions.
+    result.push({ k: `${item.fp}|${item.candidate}${duplicate ? `>${item.path}${duplicatePaths.get(duplicateKey) > 1 ? `>occurrence:${ordinal}` : ''}` : ''}`,
       kq: duplicate ? 'ambiguous' : item.candidate.includes('path:') ? 'weak' : 'strong',
       role: item.role, ...(item.name ? { name: item.name } : {}), ...(item.text ? { text: item.text } : {}),
       ...(item.cosmeticClock ? { cosmeticClock: true } : {}),
+      ...(item.locator ? { locator: item.locator } : {}),
       ...(item.rawValue !== undefined ? { rawValue: item.rawValue } : {}), state: item.state, box: item.box });
   }
   // Opt-in experiment metadata; ordinary captures retain their existing shape.

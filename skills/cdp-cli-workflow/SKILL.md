@@ -19,6 +19,13 @@ It returns fresh state, a diff and diagnostic errors in that same call. Inspect
 that result before requesting another observation. Use `waitFor` / `waitForText`
 for asynchronous effects rather than fixed sleeps. Frame selectors must be stable.
 
+For click/fill/select, prefer `targetKey` with the exact `k` returned in the current
+view. The tool resolves its source-bound canonical locator; never translate the key
+into CSS. Use either targetKey or selector, not both. Unsupported nested frame or
+shadow targets require the existing frame/target tools. A stale response supplies
+fresh state to reassess. `deliveryUnknown:true` requires effect verification before
+any retry, even when the underlying command reported success.
+
 ## Normal action loop
 
 Read this skill before the first browser operation in each fresh context. Keep a

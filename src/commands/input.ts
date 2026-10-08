@@ -645,7 +645,10 @@ async function armDocumentClickWitness(
           expectedX,
           expectedY,
           expectedEventType,
+          initialUrl: doc.defaultView?.location.href ?? null,
           seen: false,
+          targetReached: false,
+          targetEvent: null,
           event: null,
           last: null
         };
@@ -653,17 +656,23 @@ async function armDocumentClickWitness(
           const witness = doc.__cdpDocumentClickWitness;
           if (!witness || witness.seen) return;
           if (event.type !== witness.expectedEventType) return;
+          if (event.isTrusted !== true || (event.type === 'mousedown' && event.button !== 0)) return;
           const eventPoint = event.type === 'touchstart' ? event.touches[0] : event;
-          if (eventPoint) witness.last = { x: eventPoint.clientX, y: eventPoint.clientY,
-            target: event.target?.tagName?.toLowerCase() ?? null };
-          if (!eventPoint ||
-              (event.type === 'mousedown' && event.button !== 0) ||
-              Math.abs(eventPoint.clientX - witness.expectedX) > 1 ||
-              Math.abs(eventPoint.clientY - witness.expectedY) > 1) return;
-
           const path = typeof event.composedPath === 'function' ? event.composedPath() : [];
           const targetMatches = path.includes(expectedTarget) ||
             (event.target && expectedTarget.contains(event.target));
+          if (eventPoint) witness.last = { x: eventPoint.clientX, y: eventPoint.clientY,
+            target: event.target?.tagName?.toLowerCase() ?? null, type: event.type,
+            trusted: true, targetMatches: !!targetMatches };
+          // A trusted event on the chosen target is evidence of possible delivery
+          // even if renderer coordinate conversion differs from the dispatch.
+          if (eventPoint && targetMatches) {
+            witness.targetReached = true;
+            witness.targetEvent = witness.last;
+          }
+          if (!eventPoint ||
+              Math.abs(eventPoint.clientX - witness.expectedX) > 1 ||
+              Math.abs(eventPoint.clientY - witness.expectedY) > 1) return;
           if (!targetMatches) return;
 
           const n = event.target;
@@ -672,6 +681,8 @@ async function armDocumentClickWitness(
           witness.seen = true;
           witness.event = {
             type: event.type,
+            trusted: true,
+            targetMatches: true,
             x: eventPoint.clientX,
             y: eventPoint.clientY,
             target
@@ -704,8 +715,11 @@ async function verifyDocumentClickDelivered(
           const witness = doc.__cdpDocumentClickWitness;
           return {
             documentSurvives: !!doc.defaultView && doc.defaultView.document === doc,
+            targetConnected: this.isConnected,
+            locationChanged: !!witness && witness.initialUrl !== (doc.defaultView?.location.href ?? null),
             seen: witness ? witness.seen === true : null,
-            event: witness ? witness.event ?? witness.last : null
+            targetReached: witness ? witness.targetReached === true : null,
+            event: witness ? witness.event ?? witness.targetEvent ?? witness.last : null
           };
         }
       `,
@@ -713,12 +727,18 @@ async function verifyDocumentClickDelivered(
     });
 
     const value = callResult.result?.value;
+    const event = value?.event && typeof value.event === 'object' ? value.event : null;
+    // Positive pre-handler evidence survives node removal or SPA navigation.
+    if (value?.seen === true) return { delivered: true, event };
     if (value?.documentSurvives !== true || typeof value?.seen !== 'boolean') {
-      return { delivered: null, event: null };
+      return { delivered: null, event };
+    }
+    if (value.targetConnected === false || value.locationChanged === true || value.targetReached === true) {
+      return { delivered: null, event };
     }
     return {
       delivered: value.seen,
-      event: value.event && typeof value.event === 'object' ? value.event : null
+      event
     };
   } catch {
     return { delivered: null, event: null };
@@ -1633,6 +1653,7 @@ export async function click(
     // same way occlusion is confirmed before dispatching.
     let frameReached: boolean | null = null;
     let clickDelivered: boolean | null = null;
+    let witnessedEvent: Record<string, unknown> | null = null;
 
     if (clickPoint?.hitIsFrame && hitFrameObjectId) {
       const verdict = await verifyFrameReached(context, ws, hitFrameObjectId);
@@ -1667,6 +1688,7 @@ export async function click(
         documentWitnessObjectId
       );
       clickDelivered = verdict.delivered;
+      witnessedEvent = verdict.event;
 
       if (verdict.delivered === false) {
         throw new ClickError(
@@ -1728,6 +1750,7 @@ export async function click(
       frameReached,
       // null when delivery could not be witnessed (frame/touch/navigation/context loss)
       clickDelivered,
+      ...(documentWitnessObjectId ? { witnessedEvent } : {}),
       ...(frameReached !== null && { hitFrame: clickPoint?.hit ?? null }),
       ...(options.waitFor && { waitedFor: options.waitFor }),
       ...(options.waitForText && { waitedForText: options.waitForText }),

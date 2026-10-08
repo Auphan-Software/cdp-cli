@@ -225,6 +225,67 @@ describe('Input Commands', () => {
       capture.restore();
     });
 
+    it.each([
+      { name: 'matching trusted event followed by removal and navigation', event: 'trusted', drift: 0.75, detach: true, navigate: true, delivered: true },
+      { name: 'trusted target event outside coordinate tolerance', event: 'trusted', drift: 1.5, detach: false, navigate: false, delivered: null },
+      { name: 'node detached and SPA navigated before witness verification', event: 'none', drift: 0, detach: true, navigate: true, delivered: null },
+      { name: 'synthetic event on the chosen node', event: 'synthetic', drift: 0, detach: false, navigate: false, delivered: false },
+      { name: 'trusted event on a different node', event: 'other', drift: 0, detach: false, navigate: false, delivered: false }
+    ])('executes the witness and conservatively classifies $name', async scenario => {
+      const capture = captureConsoleOutput();
+      const exitMock = mockProcessExit();
+      const context = new CDPContext();
+      const originalConnect = context.connect.bind(context);
+      const doc: any = { defaultView: { location: { href: 'http://fixture/#tables' } },
+        addEventListener: (_type: string, listener: any) => { doc.listener = listener; }, removeEventListener: vi.fn() };
+      doc.defaultView.document = doc;
+      const chosen: any = { tagName: 'BUTTON', id: 'submit', ownerDocument: doc, isConnected: true, contains: (node: any) => node === chosen };
+      const other = { tagName: 'BUTTON', id: 'other' };
+      const invoke = (source: string, args: any[] = []) => Function(`return (${source})`)().apply(chosen, args);
+      context.connect = async page => {
+        const ws = await originalConnect(page) as MockWebSocket;
+        const originalSend = ws.send.bind(ws);
+        ws.send = (data: string) => {
+          const msg = JSON.parse(data), fn = msg.params?.functionDeclaration ?? '';
+          const reply = (value?: any) => {
+            ws.sentMessages.push(msg);
+            setTimeout(() => ws.simulateMessage({ id: msg.id, result: { result: { value } } }), 5);
+          };
+          if (msg.method === 'Runtime.callFunctionOn' && (fn.includes('doc.__cdpDocumentClickWitness =') || fn.includes('documentSurvives') || fn.includes('delete doc.__cdpDocumentClickWitness'))) {
+            reply(invoke(fn, (msg.params.arguments ?? []).map((arg: any) => arg.value)));
+            return;
+          }
+          if (msg.method === 'Input.dispatchMouseEvent' && msg.params.type === 'mousePressed') {
+            if (scenario.event !== 'none') {
+              const target = scenario.event === 'other' ? other : chosen;
+              doc.listener({ type: 'mousedown', isTrusted: scenario.event !== 'synthetic', button: 0,
+                clientX: msg.params.x, clientY: msg.params.y - scenario.drift, target,
+                composedPath: () => [target, doc] });
+            }
+            if (scenario.detach) chosen.isConnected = false;
+            if (scenario.navigate) doc.defaultView.location.href = 'http://fixture/#invoice';
+          }
+          originalSend(data);
+        };
+        return ws;
+      };
+      try {
+        await input.click(context, 'button#submit', { page: 'page1' }).catch(() => undefined);
+        const result = JSON.parse(capture.getLogs()[0]);
+        if (scenario.delivered === false) {
+          expect(result.code).toBe('CLICK_NOT_DELIVERED');
+          expect(exitMock.exitCode).toBe(1);
+        } else {
+          expect(result.success).toBe(true);
+          expect(result.data.clickDelivered).toBe(scenario.delivered);
+          if (scenario.event === 'trusted') expect(result.data.witnessedEvent).toMatchObject({ trusted: true, targetMatches: true });
+          expect(exitMock.exitCode).toBe(null);
+        }
+        expect(doc.__cdpDocumentClickWitness).toBeUndefined();
+        expect(doc.removeEventListener).toHaveBeenCalledTimes(2);
+      } finally { capture.restore(); exitMock.restore(); }
+    });
+
     it('should recover when selector and page arguments are swapped', async () => {
       const capture = captureConsoleOutput();
       const context = new CDPContext();

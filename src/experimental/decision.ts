@@ -6,6 +6,8 @@ export interface ElementHint { region?: string; parents?: string[]; context?: st
 export interface Evidence {
   diff?: StateDiff;
   targets?: string[];
+  /** Operator workflows must retain the visible action surface independently of task vocabulary. */
+  protectVisibleActions?: boolean;
   hints?: Record<string, ElementHint>;
   errors?: Array<{ source: 'browser' | 'console' | 'network'; message: string }>;
 }
@@ -41,7 +43,9 @@ export function mustKeep(task: string, state: PageState, evidence: Evidence = {}
     const s = e.state ?? {};
     const hint = evidence.hints?.[e.k];
     const text = [e.name, e.text, ...(hint?.context ?? [])].join(' ').toLowerCase();
-    if (/^(alert|status|log|dialog|alertdialog|textbox|combobox|searchbox|spinbutton)$/.test(e.role) ||
+    if ((evidence.protectVisibleActions && s.vis !== false && (s.en !== undefined ||
+      /^(button|link|tab|menuitem|menuitemcheckbox|menuitemradio|option|switch|combobox|textbox|searchbox|spinbutton|checkbox|radio|summary)$/.test(e.role))) ||
+      /^(alert|status|log|dialog|alertdialog|textbox|combobox|searchbox|spinbutton)$/.test(e.role) ||
       /\b(error|failed|failure|invalid|denied|unavailable)\b/i.test(text) || hint?.live || hint?.editable ||
       e.value !== undefined || s.focused === true || s.invalid === true || s.checked !== undefined || s.selected !== undefined ||
       s.ariaChecked !== undefined || s.pressed !== undefined || s.current !== undefined ||
@@ -87,7 +91,7 @@ export async function projectState(task: string, state: PageState, options: Evid
   // Only hidden, unprotected elements can be removed without a relevance decision.
   // Repeated labels/text across rows must never be deduplicated by string equality.
   let nodes = structuredClone(state.elements).filter(e => options.prune === false || keep.has(e.k) || e.state?.vis !== false)
-    .map(e => options.prune === false ? { ...e, ...(options.hints?.[e.k]?.context ? { context: [...options.hints[e.k].context!] } : {}) } : compact(e, options.hints?.[e.k]));
+    .map(({ locator: _locator, ...e }) => options.prune === false ? { ...e, ...(options.hints?.[e.k]?.context ? { context: [...options.hints[e.k].context!] } : {}) } : compact(e, options.hints?.[e.k]));
   const view = (): AgentView => ({ source: { id: state.id, digest: state.digest, targetId: state.targetId, session: state.session },
     url: state.url, title: state.title, coverage: structuredClone(state.coverage), focus: state.focus,
     dialog: state.dialog ? structuredClone(state.dialog) : undefined, elements: nodes,

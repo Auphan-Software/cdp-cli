@@ -18,7 +18,7 @@ const execFileAsync = promisify(execFile);
 const exeMode = typeof CDP_CLI_EXE_MODE !== 'undefined' && CDP_CLI_EXE_MODE === true;
 export interface WorkflowOptions {
   page: string; task: string; source?: string; frame?: string; maxElements?: number;
-  stabilityMs?: number; full?: boolean; action?: string; selector?: string; value?: string;
+  stabilityMs?: number; full?: boolean; action?: string; selector?: string; targetKey?: string; value?: string;
   url?: string; key?: string; waitFor?: string; waitForText?: string; screenshot?: boolean;
   offset?: number; limit?: number;
 }
@@ -58,6 +58,20 @@ export function semanticSignature(state: PageState, clockTolerance = true): stri
     url: state.url, title: state.title, readyState: state.readyState, bodyTextHash: clockTolerance ? state.actionTextHash ?? state.bodyTextHash : state.bodyTextHash,
     dialog: state.dialog, focus: state.focus, hints: state.hints, coverage: { ...state.coverage, unstable: undefined, volatileKeys: undefined },
     elements: state.elements.map(({ box: _box, ...node }) => clockTolerance && node.cosmeticClock ? { ...node, text: undefined, name: undefined } : node) });
+}
+
+/** Resolve only canonical source metadata, never infer CSS from an opaque key. */
+export function resolveWorkflowTarget(state: PageState, options: WorkflowOptions): string | undefined {
+  if (options.targetKey === undefined) return options.selector;
+  if (!['click', 'fill', 'select'].includes(options.action ?? '')) throw new Error('WORKFLOW_TARGET_KEY_ACTION_UNSUPPORTED: no action delivered');
+  if (options.selector !== undefined) throw new Error('WORKFLOW_TARGET_CONFLICT: use either targetKey or selector; no action delivered');
+  if (!options.targetKey.trim() || options.targetKey.length > 8000 || options.targetKey.includes('\0')) throw new Error('WORKFLOW_INVALID_TARGET_KEY: no action delivered');
+  const matches = state.elements.filter(element => element.k === options.targetKey);
+  if (matches.length !== 1 || matches[0].kq === 'ambiguous') throw new Error('WORKFLOW_TARGET_KEY_UNKNOWN_OR_AMBIGUOUS: no action delivered');
+  const target = matches[0];
+  if (!target.locator || target.locator.length > 8000 || target.locator.includes('\0')) throw new Error('WORKFLOW_TARGET_KEY_UNSUPPORTED: observe the target frame explicitly or use the existing target tools; no action delivered');
+  if (target.state?.vis === false || target.state?.en === false) throw new Error('WORKFLOW_TARGET_KEY_UNAVAILABLE: no action delivered');
+  return target.locator;
 }
 
 export function actionArgs(options: WorkflowOptions): string[] {
@@ -126,7 +140,8 @@ export async function workflow(context: CDPContext, operation: string, options: 
       canonicalPath: join(store.dir, `${previous.id}.json`), pagination: { offset, total: previous.elements.length, nextOffset: null as number | null },
       instruction: 'Canonical capture at source time; pagination may omit elements and hints remain in canonicalPath. Observe again before a new action.' } };
     for (const node of previous.elements.slice(offset, offset + limit)) {
-      state.elements.push(node);
+      const { locator: _locator, ...evidence } = node;
+      state.elements.push(evidence);
       if (Buffer.byteLength(JSON.stringify(expanded)) > WORKFLOW_TEXT_BYTES - 100) { state.elements.pop(); break; }
     }
     const next = offset + state.elements.length;
@@ -144,13 +159,14 @@ export async function workflow(context: CDPContext, operation: string, options: 
   let stale = false;
   if (operation === 'act') {
     if (!previous) throw new Error('WORKFLOW_SOURCE_REQUIRED');
-    const args = actionArgs(options);
-    const before = await take(options.stabilityMs ?? 200, false, options.selector);
+    const selector = resolveWorkflowTarget(previous, options);
+    const args = actionArgs({ ...options, selector, targetKey: undefined });
+    const before = await take(options.stabilityMs ?? 200, false, selector);
     if (previous.coverage.unstable || before.coverage.unstable || before.coverage.blockedByDialog || before.coverage.dialogProbeUnavailable ||
       semanticSignature(previous) !== semanticSignature(before)) {
       stale = true;
       current = before;
-      action = { kind: options.action, actionDelivered: false, commandSucceeded: false, deliveryUnknown: false,
+      action = { kind: options.action, ...(options.targetKey ? { targetKey: options.targetKey } : {}), actionDelivered: false, commandSucceeded: false, deliveryUnknown: false,
         code: 'WORKFLOW_STALE_SOURCE', instruction: 'No action delivered. Inspect the fresh view/source and reassess; do not blindly retry.' };
     } else {
       let deliveryUnknown = false;
@@ -167,7 +183,10 @@ export async function workflow(context: CDPContext, operation: string, options: 
         for (const field of ['value', 'previousValue']) if (typeof value[field] === 'string') value[field] = store.mask(value[field]);
         return { ...row, data: value };
       }) : result.rows;
-      action = { kind: options.action, commandSucceeded: deliveryUnknown ? null : result.ok, deliveryUnknown, evidence: actionEvidence,
+      const unwitnessedClick = options.action === 'click' && result.rows.some(row =>
+        row.data?.clickDelivered === null && row.data?.frameReached !== true);
+      action = { kind: options.action, ...(options.targetKey ? { targetKey: options.targetKey } : {}), commandSucceeded: deliveryUnknown ? null : result.ok,
+        deliveryUnknown: deliveryUnknown || unwitnessedClick, evidence: actionEvidence,
         instruction: result.ok ? 'Command delivery is not proof of the expected effect; check state and assertions.' :
           'A failed command or wait may follow a delivered interaction. Inspect recovered state; do not repeat the action blindly.' };
       try { current = await take(); }
@@ -204,7 +223,8 @@ export async function workflow(context: CDPContext, operation: string, options: 
       diff?.changes.some(change => change.kind === 'text-unmodelled') ? 'unsafe-coverage' : undefined;
   const projection = workflowProjectionConfiguration();
   const provider = projectionBlocked ? undefined : workflowProjectionProvider();
-  const view = await projectState(options.task, current, { prune: !options.full, hints: current.hints, diff, errors, provider });
+  const targets = options.targetKey ? [options.targetKey] : [];
+  const view = await projectState(options.task, current, { prune: !options.full, hints: current.hints, diff, errors, provider, targets, protectVisibleActions: true });
   Object.assign(view, { providerReason: projectionReason(projectionBlocked, projection.reason, view.providerStatus) });
   diagnostics.projectionConfig = { reason: projection.reason, path: projection.path };
   let screenshot: unknown;
@@ -224,5 +244,5 @@ export async function workflow(context: CDPContext, operation: string, options: 
   }
   const result = { success: !stale, type: stale ? 'workflow-stale' : 'workflow-observation', value: { ...(action ? { action } : {}), view, diagnostics,
     canonicalPath: join(store.dir, `${current.id}.json`), ...(screenshot ? { screenshot } : {}) } };
-  return boundWorkflowResult(result, join(store.dir, `${current.id}-workflow.json`), mustKeep(options.task, current, { hints: current.hints, diff, errors }));
+  return boundWorkflowResult(result, join(store.dir, `${current.id}-workflow.json`), mustKeep(options.task, current, { hints: current.hints, diff, errors, targets, protectVisibleActions: true }));
 }

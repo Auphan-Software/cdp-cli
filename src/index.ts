@@ -677,7 +677,7 @@ cli.command('workflow <operation> <page>', 'Observe, act with fresh state, expan
     .option('stability-ms', { type: 'number', default: 200 })
     .option('full', { type: 'boolean', default: false }).option('screenshot', { type: 'boolean', default: false })
     .option('action', { type: 'string', choices: ['click', 'fill', 'select', 'press-key', 'navigate', 'back', 'forward', 'reload'] })
-    .option('selector', { type: 'string' }).option('value', { type: 'string' })
+    .option('selector', { type: 'string' }).option('target-key', { type: 'string', description: 'Source-bound element key instead of a CSS selector' }).option('value', { type: 'string' })
     .option('url', { type: 'string' }).option('key', { type: 'string' })
     .option('wait-for', { type: 'string' }).option('wait-for-text', { type: 'string' }),
   async argv => {
@@ -688,7 +688,7 @@ cli.command('workflow <operation> <page>', 'Observe, act with fresh state, expan
         offset: argv.offset as number | undefined, limit: argv.limit as number | undefined,
         maxElements: argv['max-elements'] as number, stabilityMs: argv['stability-ms'] as number,
         full: argv.full as boolean, screenshot: argv.screenshot as boolean, action: argv.action as string | undefined,
-        selector: argv.selector as string | undefined, value: argv.value as string | undefined, url: argv.url as string | undefined,
+        selector: argv.selector as string | undefined, targetKey: argv['target-key'] as string | undefined, value: argv.value as string | undefined, url: argv.url as string | undefined,
         key: argv.key as string | undefined, waitFor: argv['wait-for'] as string | undefined, waitForText: argv['wait-for-text'] as string | undefined });
       outputLine(result);
       if ((result as { success?: boolean }).success === false) process.exitCode = 1;

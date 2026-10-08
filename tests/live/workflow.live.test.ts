@@ -168,7 +168,7 @@ describe('deployed deterministic browser workflow', () => {
       expect(full.value.view.elements.length).toBeGreaterThan(state.value.view.elements.length);
       if (process.env.CDP_WORKFLOW_REQUIRE_RERANK === '1') expect(state.value.view.providerStatus).toBe('applied');
       expect(state.value.diagnostics.console).toBe('available');
-      const changed = await request('tools/call',{name:'act',arguments:{task:'reproduce Save',source:state.value.view.source.id,action:'click',selector:'#save',screenshot:true,stabilityMs:20}});
+      const changed = await request('tools/call',{name:'act',arguments:{task:'reproduce Save',source:state.value.view.source.id,action:'click',targetKey:state.value.view.elements.find((node:any)=>node.k==='top|id:save').k,screenshot:true,stabilityMs:20}});
       expect(changed.isError,JSON.stringify(changed.content.filter((c:any)=>c.type==='text'))).not.toBe(true);
       const result = JSON.parse(changed.content[0].text);
       expect(Buffer.byteLength(changed.content[0].text)).toBeLessThanOrEqual(24000);

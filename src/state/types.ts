@@ -8,6 +8,8 @@ export interface StateElement {
   state?: Record<string, boolean | string>;
   box?: [number, number, number, number];
   cosmeticClock?: boolean;
+  /** Canonical-only, unique CSS locator within the explicit capture root. */
+  locator?: string;
 }
 
 export interface PageState {

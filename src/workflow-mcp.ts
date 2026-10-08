@@ -15,13 +15,15 @@ const properties = {
   offset: { type: 'integer', minimum: 0, maximum: 10000, description: 'Historical expand element offset; source-bound pagination.' },
   limit: { type: 'integer', minimum: 1, maximum: 1000, description: 'Historical expand maximum records; byte budget may return fewer.' },
   action: { type: 'string', enum: ['click', 'fill', 'select', 'press-key', 'navigate', 'back', 'forward', 'reload'] },
-  selector: { type: 'string' }, value: { type: 'string' }, url: { type: 'string' }, key: { type: 'string' },
+  selector: { type: 'string', description: 'CSS selector, mutually exclusive with targetKey.' },
+  targetKey: { type: 'string', description: 'Exact element k from the source view; preferred for click/fill/select. Mutually exclusive with selector. Unsupported nested-frame/shadow targets require the existing target tools.' },
+  value: { type: 'string' }, url: { type: 'string' }, key: { type: 'string' },
   waitFor: { type: 'string', description: 'CSS selector wait armed with the action.' },
   waitForText: { type: 'string', description: 'Text wait; prefer selectors for asynchronously replaced pages.' }
 };
 const optionsByTool: Record<string, string[]> = {
   observe: ['task', 'source', 'frame', 'full', 'screenshot', 'maxElements', 'stabilityMs'],
-  act: ['task', 'source', 'frame', 'full', 'screenshot', 'stabilityMs', 'action', 'selector', 'value', 'url', 'key', 'waitFor', 'waitForText'],
+  act: ['task', 'source', 'frame', 'full', 'screenshot', 'stabilityMs', 'action', 'selector', 'targetKey', 'value', 'url', 'key', 'waitFor', 'waitForText'],
   expand: ['task', 'source', 'offset', 'limit'],
   screenshot: ['task', 'source', 'frame', 'full', 'maxElements', 'stabilityMs']
 };
