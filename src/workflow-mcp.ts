@@ -57,8 +57,10 @@ const properties = {
   screenshot: { type: 'boolean', description: 'Also return screenshot pixels; use only when visual evidence is needed.' },
   maxElements: { type: 'integer', minimum: 1, maximum: 10000, description: 'Canonical capture cap, not an output budget. Acts inherit their source cap.' },
   stabilityMs: { type: 'integer', minimum: 0, maximum: 5000 },
-  offset: { type: 'integer', minimum: 0, maximum: 10000, description: 'Historical expand element offset; source-bound pagination.' },
+  offset: { type: 'integer', minimum: 0, maximum: 50000000, description: 'Historical element/record offset, or Unicode codepoint offset for artifact fragments; source-bound pagination.' },
   limit: { type: 'integer', minimum: 1, maximum: 1000, description: 'Historical expand maximum records; byte budget may return fewer.' },
+  section: { type: 'string', enum: ['elements', 'receipt', 'errors', 'changes', 'coverage', 'artifact'], description: 'Historical evidence section. receipt includes delivery/witness and diagnostics. artifact returns paginated Unicode JSON fragments for oversized records. Available without file tools.' },
+  receiptId: { type: 'string', description: 'Optional recovery.receiptId for an action whose post-action observation failed. Source remains recovery.source; this retrieves delivery evidence only.' },
   action: { type: 'string', enum: ['click', 'fill', 'select', 'press-key', 'navigate', 'back', 'forward', 'reload'] },
   selector: { type: 'string', description: 'CSS selector, mutually exclusive with targetKey.' },
   targetKey: { type: 'string', description: 'Exact element k from the source view; preferred for click/fill/select. Mutually exclusive with selector. Unsupported nested-frame/shadow targets require the existing target tools.' },
@@ -69,12 +71,12 @@ const properties = {
 const optionsByTool: Record<string, string[]> = {
   observe: ['task', 'source', 'frame', 'full', 'screenshot', 'maxElements', 'stabilityMs'],
   act: ['task', 'source', 'frame', 'full', 'screenshot', 'stabilityMs', 'action', 'selector', 'targetKey', 'value', 'url', 'key', 'waitFor', 'waitForText'],
-  expand: ['task', 'source', 'offset', 'limit'],
+  expand: ['task', 'source', 'offset', 'limit', 'section', 'receiptId'],
   screenshot: ['task', 'source', 'frame', 'full', 'maxElements', 'stabilityMs']
 };
 const tools = Object.keys(optionsByTool).map(name => ({ name,
   description: name === 'act' ? 'Perform one bounded browser action and return fresh compact state, diff and diagnostic errors in the same call. Requires the last source ID. Never retry a possibly delivered action blindly.' :
-    name === 'expand' ? 'Read the full canonical historical capture for a source ID; it is not a fresh observation.' :
+    name === 'expand' ? 'Read source-bound historical elements or receipt/errors/changes/coverage evidence. It is not a fresh observation. Use for required omitted evidence.' :
     name === 'screenshot' ? 'Capture owned-page screenshot pixels and compact state together. Use for visual evidence, not every step.' :
     'Observe the inherited owned CDP page with protected evidence and optional configured relevance projection. Busy or unavailable providers retain the deterministic view.',
   inputSchema: { type: 'object', properties: Object.fromEntries(optionsByTool[name].map(key => [key, properties[key as keyof typeof properties]])), required: name === 'act' ? ['task', 'source', 'action'] : name === 'expand' ? ['task', 'source'] : ['task'], additionalProperties: false }

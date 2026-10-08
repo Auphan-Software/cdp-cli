@@ -674,6 +674,8 @@ cli.command('workflow <operation> <page>', 'Observe, act with fresh state, expan
     .option('source', { type: 'string', description: 'Previous source ID; required for act/expand' })
     .option('frame', { type: 'string' }).option('max-elements', { type: 'number', description: 'Canonical capture cap; acts inherit omitted settings from their source' })
     .option('offset', { type: 'number' }).option('limit', { type: 'number' })
+    .option('section', { type: 'string', choices: ['elements', 'receipt', 'errors', 'changes', 'coverage', 'artifact'] })
+    .option('receipt-id', { type: 'string' })
     .option('stability-ms', { type: 'number', default: 200 })
     .option('full', { type: 'boolean', default: false }).option('screenshot', { type: 'boolean', default: false })
     .option('action', { type: 'string', choices: ['click', 'fill', 'select', 'press-key', 'navigate', 'back', 'forward', 'reload'] })
@@ -685,7 +687,7 @@ cli.command('workflow <operation> <page>', 'Observe, act with fresh state, expan
     try {
       const result = await workflow(context, argv.operation as string, { page: argv.page as string, task: argv.task as string,
         source: argv.source as string | undefined, frame: argv.frame as string | undefined,
-        offset: argv.offset as number | undefined, limit: argv.limit as number | undefined,
+        offset: argv.offset as number | undefined, limit: argv.limit as number | undefined, section: argv.section as string | undefined, receiptId: argv['receipt-id'] as string | undefined,
         maxElements: argv['max-elements'] as number, stabilityMs: argv['stability-ms'] as number,
         full: argv.full as boolean, screenshot: argv.screenshot as boolean, action: argv.action as string | undefined,
         selector: argv.selector as string | undefined, targetKey: argv['target-key'] as string | undefined, value: argv.value as string | undefined, url: argv.url as string | undefined,

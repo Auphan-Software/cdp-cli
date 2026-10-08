@@ -36,6 +36,28 @@ export class StateStore {
   mask(value: string): { len: number; h: string } {
     return { len: value.length, h: createHmac('sha256', this.key).update(value).digest('hex').slice(0, 24) };
   }
+  /** Transport identities persist across captures/restarts; never reuse an ordinal. */
+  references(profile: string, keys: string[]): Record<string, string> {
+    return this.withLock(() => {
+      const path = join(this.dir, 'references.json');
+      const profiles = existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : {};
+      const entry = profiles[profile] ??= { namespace: randomBytes(8).toString('hex'), next: 0, keys: {} };
+      const result: Record<string, string> = {};
+      for (const key of keys) {
+        if (!Object.prototype.hasOwnProperty.call(entry.keys, key)) entry.keys[key] = `r${entry.namespace}.${(++entry.next).toString(36)}`;
+        result[key] = entry.keys[key];
+      }
+      atomicWrite(path, JSON.stringify(profiles));
+      return result;
+    });
+  }
+  resolveReference(profile: string, reference: string): string {
+    const path = join(this.dir, 'references.json');
+    const entry = existsSync(path) ? JSON.parse(readFileSync(path, 'utf8'))[profile] : undefined;
+    const matches = Object.entries(entry?.keys ?? {}).filter(([, value]) => value === reference);
+    if (matches.length !== 1) throw new Error('WORKFLOW_REFERENCE_UNKNOWN: no action delivered; observe again');
+    return matches[0][0];
+  }
   private indexPath(): string { return join(this.dir, 'index.json'); }
   private withLock<T>(work: () => T): T {
     const path = join(this.dir, 'index.lock');
@@ -81,6 +103,16 @@ export class StateStore {
         if (expired.includes(captureId)) delete index.aliases[name];
       }
       atomicWrite(this.indexPath(), JSON.stringify(index));
+      if (expired.length) {
+        const refsPath = join(this.dir, 'references.json');
+        try {
+          if (existsSync(refsPath)) {
+            const profiles = JSON.parse(readFileSync(refsPath, 'utf8'));
+            for (const profile of Object.keys(profiles)) if (expired.some(id => profile.endsWith(`/${id}`))) delete profiles[profile];
+            atomicWrite(refsPath, JSON.stringify(profiles));
+          }
+        } catch { /* Optional transport metadata must not discard a saved capture. */ }
+      }
       for (const expiredId of expired) {
         try { unlinkSync(join(this.dir, `${expiredId}.json`)); }
         catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }

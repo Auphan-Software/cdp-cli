@@ -13,6 +13,7 @@ import { projectState, mustKeep } from './experimental/decision.js';
 import { DaemonClient } from './daemon/client.js';
 import { workflowProjectionProvider, workflowProjectionConfiguration, projectionReason } from './workflow-projection.js';
 import { boundWorkflowResult, workflowViewProfile } from './workflow-output.js';
+import { compactWorkflowResult, expandWorkflowEvidence, saveWorkflowArtifact } from './workflow-compact.js';
 
 const execFileAsync = promisify(execFile);
 const exeMode = typeof CDP_CLI_EXE_MODE !== 'undefined' && CDP_CLI_EXE_MODE === true;
@@ -20,7 +21,7 @@ export interface WorkflowOptions {
   page: string; task: string; source?: string; frame?: string; maxElements?: number;
   stabilityMs?: number; full?: boolean; action?: string; selector?: string; targetKey?: string; value?: string;
   url?: string; key?: string; waitFor?: string; waitForText?: string; screenshot?: boolean;
-  offset?: number; limit?: number;
+  offset?: number; limit?: number; section?: string; receiptId?: string;
 }
 
 /** Opt-in site configuration; never infer harmlessness from time-shaped text. */
@@ -114,6 +115,10 @@ export async function workflow(context: CDPContext, operation: string, options: 
   const store = new StateStore(context.cdpUrl, context.workspaceSessionName, page.id, process.env.CDP_STATE_ROOT);
   const previous = options.source ? store.load(options.source) : undefined;
   const settings = previous?.captureOptions;
+  if (options.targetKey?.startsWith('r') && /^r[a-f0-9]{16}\./.test(options.targetKey)) {
+    if (!previous) throw new Error('WORKFLOW_SOURCE_REQUIRED');
+    options = { ...options, targetKey: store.resolveReference(`${previous.captureProfile}/${previous.id}`, options.targetKey) };
+  }
   if (operation === 'act' && settings && ((options.maxElements !== undefined && options.maxElements !== settings.maxElements) ||
     (frameSupplied && options.frame !== settings.frame))) throw new Error('WORKFLOW_CAPTURE_PROFILE_MISMATCH: no action delivered; keep the source capture settings');
   if (operation === 'act' && settings) options = { ...options, maxElements: settings.maxElements, frame: settings.frame };
@@ -127,14 +132,18 @@ export async function workflow(context: CDPContext, operation: string, options: 
   }
   const take = async (stabilityMs = options.stabilityMs ?? 200, recordObservation = true, actionSelector?: string): Promise<PageState> => {
     let state: PageState | undefined;
+    let captureError: unknown;
     if (!await capture(context, { page: page.id, frame: options.frame, maxElements: options.maxElements ?? 2000,
       stabilityMs, quiet: true, includeHints: true, clockSelectors, actionSelector, name: recordObservation ? observationAlias : undefined,
-      onCaptured: value => { state = value; } }) || !state) throw new Error('WORKFLOW_OBSERVATION_FAILED');
+      onCaptured: value => { state = value; }, onError: error => { captureError = error; } }) || !state) {
+      throw new Error(`WORKFLOW_OBSERVATION_FAILED: ${captureError instanceof Error ? captureError.message : 'capture unavailable'}`);
+    }
     return state;
   };
   if (operation === 'expand') {
     if (!previous) throw new Error('WORKFLOW_SOURCE_REQUIRED');
     const offset = options.offset ?? 0, limit = options.limit ?? 100;
+    if (options.section && options.section !== 'elements') return expandWorkflowEvidence(store, previous.id, options.section, offset, limit, transport.maxBytes, options.receiptId);
     if (!Number.isSafeInteger(offset) || offset < 0 || offset > previous.elements.length || !Number.isSafeInteger(limit) || limit < 1 || limit > 1000) throw new Error('WORKFLOW_INVALID_EXPANSION_RANGE');
     const state = { ...previous, hints: undefined, elements: [] as PageState['elements'] };
     const expanded = { success: true, type: 'workflow-expand', value: { state, historical: true,
@@ -199,14 +208,29 @@ export async function workflow(context: CDPContext, operation: string, options: 
         instruction: result.ok ? 'Command delivery is not proof of the expected effect; check state and assertions.' :
           'A failed command or wait may follow a delivered interaction. Inspect recovered state; do not repeat the action blindly.' };
       try { current = await take(); }
-      catch { return boundWorkflowResult({ success: false, type: 'workflow-action', value: { action, observationUnavailable: true,
-        instruction: 'Observe to recover evidence; do not repeat the action blindly.' } }, join(store.dir, `${previous.id}-workflow-${randomUUID()}.json`), new Set(), transport); }
+      catch {
+        const receiptId = randomUUID(), path = join(store.dir, `${previous.id}-workflow-${receiptId}.json`);
+        const failure: any = { success: false, type: 'workflow-action', value: { action, observationUnavailable: true,
+          recovery: { source: previous.id, receiptId, fullArtifactAvailable: false },
+          instruction: 'Observe to recover current state. Expand section receipt with recovery source/receiptId for historical delivery evidence. Do not repeat the action blindly.' } };
+        const saved = saveWorkflowArtifact(path, failure);
+        failure.value.recovery.fullArtifactAvailable = saved;
+        return boundWorkflowResult(failure, path, new Set(), transport, failure, saved);
+      }
       }
   } else current = await take();
+  // One additional observation may settle navigation. Never redispatch an action.
+  let settlingUnavailable = false;
+  if (transport.profile === 'haiku-compact' && current.coverage.unstable && !stale) {
+    const exitCode = process.exitCode;
+    try { current = await take(Math.max(options.stabilityMs ?? 200, 200)); }
+    catch { process.exitCode = exitCode; settlingUnavailable = true; }
+  }
   const diffBase = previous?.captureProfile === current.captureProfile ? previous : (observedBefore?.captureProfile === current.captureProfile ? observedBefore : undefined);
   const diff = diffBase ? diffStates(diffBase, current) : undefined;
   const errors: Array<{ source: 'console' | 'network'; message: string }> = [];
   const diagnostics: Record<string, unknown> = { boundedLast: 100, console: 'unavailable', network: 'unavailable' };
+  if (settlingUnavailable) diagnostics.additionalSettling = 'unavailable';
   if (historyUnavailable) diagnostics.workflowHistory = 'unavailable';
   if (previous && previous.captureProfile !== current.captureProfile) diagnostics.workflowHistory = 'profile-mismatch';
   let daemon: DaemonClient | undefined;
@@ -253,5 +277,8 @@ export async function workflow(context: CDPContext, operation: string, options: 
   }
   const result = { success: !stale, type: stale ? (refusalCode ? 'workflow-target-rejection' : 'workflow-stale') : 'workflow-observation', value: { ...(action ? { action } : {}), view, diagnostics,
     canonicalPath: join(store.dir, `${current.id}.json`), ...(screenshot ? { screenshot } : {}) } };
-  return boundWorkflowResult(result, join(store.dir, `${current.id}-workflow.json`), mustKeep(options.task, current, { hints: current.hints, diff, errors, targets, protectVisibleActions: true }), transport);
+  const protectedKeys = mustKeep(options.task, current, { hints: current.hints, diff, errors, targets, protectVisibleActions: true });
+  if (transport.profile === 'haiku-compact') return compactWorkflowResult(result, store, current.captureProfile, operation, protectedKeys, transport,
+    { full: options.full, task: options.task, hints: current.hints, targets });
+  return boundWorkflowResult(result, join(store.dir, `${current.id}-workflow.json`), protectedKeys, transport);
 }

@@ -61,7 +61,7 @@ function normalize(raw: RawCapture, store: StateStore): Omit<PageState, 'id' | '
     ...(raw.actionTextHash ? { actionTextHash: raw.actionTextHash } : {}), nodeCount: raw.nodeCount, elements, coverage: raw.coverage };
 }
 
-export async function capture(context: CDPContext, options: { page: string; name?: string; frame?: string; ignore?: string[]; maxElements?: number; stabilityMs?: number; quiet?: boolean; includeHints?: boolean; clockSelectors?: string[]; actionSelector?: string; onCaptured?: (state: PageState) => void }): Promise<boolean> {
+export async function capture(context: CDPContext, options: { page: string; name?: string; frame?: string; ignore?: string[]; maxElements?: number; stabilityMs?: number; quiet?: boolean; includeHints?: boolean; clockSelectors?: string[]; actionSelector?: string; onCaptured?: (state: PageState) => void; onError?: (error: unknown) => void }): Promise<boolean> {
   try {
     if (options.maxElements !== undefined && (!Number.isSafeInteger(options.maxElements) || options.maxElements < 1 || options.maxElements > 10_000)) {
       throw new Error('STATE_INVALID_MAX_ELEMENTS');
@@ -131,6 +131,7 @@ export async function capture(context: CDPContext, options: { page: string; name
     });
     return true;
   } catch (error) {
+    options.onError?.(error);
     if (!options.quiet) outputCommandError(error, 'STATE_CAPTURE_FAILED');
     process.exitCode = 1;
     return false;

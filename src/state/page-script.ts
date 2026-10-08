@@ -14,7 +14,7 @@ function capturePage(options: any): any {
     return matched.length === 1 ? matched : [];
   });
   const actionTarget = options.actionSelector && (!options.frame || options.frame === '0') ? document.querySelector(options.actionSelector) : null;
-  const clockFormat = /^(?:(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),?\s+)?(?:[A-Za-z]{3}\s+\d{1,2},\s+\d{2,4}\s+)?(?:[01]?\d|2[0-3]):[0-5]\d(?::[0-5]\d)?(?:\s*[ap]m)?$/i;
+  const clockFormat = /^(?:(?:Mon(?:day)?|Tue(?:sday)?|Wed(?:nesday)?|Thu(?:rsday)?|Fri(?:day)?|Sat(?:urday)?|Sun(?:day)?),?\s+)?(?:(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{1,2},\s+\d{2,4}\s+)?(?:[01]?\d|2[0-3]):[0-5]\d(?::[0-5]\d)?(?:\s*[ap]m)?$/i;
   const cosmeticClock = (el: any) => clocks.includes(el) && el.children.length === 0 &&
     clockFormat.test(String(el.textContent || '').trim()) &&
     !el.closest('button,a,input,select,textarea,[onclick],[tabindex],[contenteditable],[role],[aria-live]') &&

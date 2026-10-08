@@ -1,0 +1,17 @@
+# Experimental Haiku response profile
+
+Set `CDP_WORKFLOW_VIEW_PROFILE=haiku-compact` on the owned workflow bridge. The default remains `current-24k`. The experimental ceiling is 8,000 UTF-8 bytes; canonical captures and business-action freshness checks remain authoritative.
+
+Each node `k` is an opaque **source-bound** reference. Always use `view.source.id` and a reference from that same result for `act`. A reference from another capture is rejected even when its structural key would match. Never reconstruct CSS from a reference. Missing/expired references require a new observation. Namespace storage is outside canonical captures and expires with retained captures. Original canonical keys may appear if reference storage fails; the delivery receipt remains valid.
+
+An action result includes the current protected action surface and changed nodes, global alerts, delivery status/witnesses and diagnostics. Unprotected unchanged text can be excluded. `observe` restores a self-contained current view subject to the explicit byte bound. After context loss, observe before deciding an action. A source ID alone does not establish retained context. Current readiness and historical diff coverage are separate; neither incomplete coverage nor unavailable diagnostics proves a clean pass.
+
+Intentional exclusions are counted under `value.recovery.excluded`. Byte omissions are counted under `value.output`. Change inventory entries can omit their historical node details; diagnostic messages can omit text beyond 200 characters. These summaries are not full proof. Required omitted evidence must be retrieved before conclusions. The profile does not deduplicate diagnostic events or override hidden selected/checked/value protection.
+
+Use `expand` with the source and `section: receipt`, `errors`, `changes` or `coverage` for historical workflow evidence without file access. `section: elements` retains existing canonical element pagination. An indivisible oversized record can be read as `section: artifact`, with `offset`/`limit` in Unicode codepoints. Concatenate all fragments before interpreting the complete JSON. Availability failure is explicit. If post-action observation failed, use `recovery.source` plus `recovery.receiptId` when expanding delivery evidence; observe separately to recover current state. Never repeat a possibly delivered payment to recover evidence.
+
+Screenshots retain protected state and return pixels through MCP, with source/alignment information. Rendered screenshots are not redacted by text-value masking. Capture acquisition, alignment and image delivery can fail independently; a saved path is not visual proof.
+
+The clock correction is deliberately separate from transport: explicitly configured, noninteractive leaf clocks recognize supported English abbreviated/full weekdays and months. It applies to all profiles. No generic alphabetic time prefix or French locale inference is added. Duplicate selectors, live/editable content and action ancestry fail closed. The experimental workflow may take one additional settling capture, never another action dispatch; failed settling remains explicit.
+
+Evaluate model completion cost, every recovery call, latency, failures and independent business/visual proof. `evals/browser-gym/replay-compact.mjs` measures reconstructed serializer bytes from saved canonical inputs; it does not measure model tokens, actual dispatch, settling or recovery cost. No claim of superiority to native browser use is made by a byte replay.
