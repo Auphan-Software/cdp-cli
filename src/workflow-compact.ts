@@ -59,20 +59,13 @@ export function scopedWorkflowView(view: any, query: string, hints: PageState['h
 }
 
 export function compactWorkflowResult(result: any, store: StateStore, captureProfile: string, operation: string,
-  protectedKeys: Set<string>, profile: WorkflowViewProfile, context: { full?: boolean; task?: string; hints?: PageState['hints']; targets?: string[]; query?: string; boxes?: Record<string, number[]>;
-    nodes?: PageState['elements']; beforeNodes?: PageState['elements']; beforeHints?: PageState['hints'] } = {}): any {
+  protectedKeys: Set<string>, profile: WorkflowViewProfile, context: { full?: boolean; task?: string; hints?: PageState['hints']; targets?: string[]; query?: string; boxes?: Record<string, number[]> } = {}): any {
   const original = structuredClone(result);
   const view = original.value.view;
   const path = join(store.dir, `${view.source.id}-workflow.json`);
   const available = saveWorkflowArtifact(path, original);
   // Do not intentionally exclude evidence when its recovery artifact is unavailable.
   if (!available) return boundWorkflowResult(original, path, protectedKeys, profile);
-  try { store.load(view.source.id); }
-  catch {
-    original.value.recovery = { source: view.source.id, fullArtifactAvailable: true, sourceAvailable: false,
-      instruction: 'Source unavailable; historical expansion cannot be established. Do not infer success or repeat uncertain delivery.' };
-    return boundWorkflowResult(original, path, protectedKeys, profile, original, true);
-  }
   const compact = structuredClone(original), value = compact.value, current = value.view;
   if (context.query) scopedWorkflowView(current, context.query, context.hints, context.targets, context.boxes);
   const keys = new Set<string>(current.elements.map((n: any) => n.k));
@@ -89,10 +82,7 @@ export function compactWorkflowResult(result: any, store: StateStore, capturePro
     return boundWorkflowResult(original, path, protectedKeys, profile, original, true);
   }
   const changed = new Set((current.diff?.changes ?? []).map((c: any) => c.key));
-  const omitted: Record<string, number> = { hiddenOptions: 0, unchangedText: 0, screenshotState: 0, screenshotEvidence: 0, canonicalPath: 0, coverageKeys: 0, actionEvidence: 0, changeDetails: 0, errorDetails: 0 };
-  const allNodes = new Map((context.nodes ?? []).map(node => [node.k, node]));
-  const beforeNodes = new Map((context.beforeNodes ?? []).map(node => [node.k, node]));
-  const global = (node: any, hints: any) => /^(alert|status|log|dialog|alertdialog)$/.test(node.role) || hints?.live || node.state?.invalid || node.state?.busy;
+  const omitted: Record<string, number> = { hiddenOptions: 0, unchangedText: 0, screenshotState: 0, coverageKeys: 0, actionEvidence: 0, changeDetails: 0, errorDetails: 0 };
   current.elements = current.elements.filter((node: any) => {
     if (context.full) return true;
     // Keep a self-contained action surface plus changes and global status. Full observe restores context.
@@ -106,16 +96,10 @@ export function compactWorkflowResult(result: any, store: StateStore, capturePro
   }
   if (current.focus) current.focus = refs[current.focus];
   for (const change of current.diff?.changes ?? []) {
-    const canonicalKey = change.key;
     if (change.key) change.key = refs[change.key];
     if (!context.full && (change.kind === 'added' || change.kind === 'removed')) {
       if (change.from !== undefined || change.to !== undefined) omitted.changeDetails++;
       delete change.from; delete change.to;
-    }
-    const node = allNodes.get(canonicalKey), before = beforeNodes.get(canonicalKey);
-    if (!context.full && context.query && change.kind === 'field' && ['name', 'text'].includes(change.field) && node && before &&
-      !global(node, context.hints?.[canonicalKey]) && !global(before, context.beforeHints?.[canonicalKey])) {
-      omitted.changeDetails++; delete change.from; delete change.to; change.detailOmitted = true;
     }
   }
   current.errors = current.errors.map((error: any) => {
@@ -135,19 +119,6 @@ export function compactWorkflowResult(result: any, store: StateStore, capturePro
     value.action.evidenceOmitted = omitted.actionEvidence;
   }
   if (value.action?.targetKey && refs[value.action.targetKey]) value.action.targetKey = refs[value.action.targetKey];
-  // Duplicate CLI image rows stay in the receipt artifact; pixels and alignment remain explicit.
-  if (!context.full && value.screenshot?.evidence?.length) {
-    const failures = value.screenshot.evidence.filter((row: any) => row.error === true);
-    if (failures.length) value.screenshot.failures = failures.slice(0, 8).map((row: any) => ({ code: String(row.code ?? 'ERROR').slice(0, 100), message: String(row.message ?? '').slice(0, 200) }));
-    if (failures.length > 8) value.screenshot.failuresOmitted = failures.length - 8;
-    omitted.screenshotEvidence = value.screenshot.evidence.length;
-    value.screenshot.evidenceOmitted = (value.screenshot.evidenceOmitted ?? 0) + omitted.screenshotEvidence;
-    value.screenshot.evidence = [];
-  }
-  if (!context.full) {
-    try { store.load(current.source.id); if ('canonicalPath' in value) { delete value.canonicalPath; omitted.canonicalPath = 1; } }
-    catch { /* Keep the path if source-bound expansion cannot be established. */ }
-  }
   current.readiness = current.coverage.unstable || current.coverage.truncated || current.coverage.blockedByDialog ||
     current.coverage.dialogProbeUnavailable || current.coverage.unreachableFrames?.length || current.coverage.ambiguousKeysCount ||
     current.coverage.ambiguousKeys?.length ? 'incomplete' : 'ready';
