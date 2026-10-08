@@ -2,7 +2,7 @@ import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { createInterface } from 'node:readline';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { LiveChrome, startFixture, CdpSession, waitFor, type LiveFixture } from './harness.js';
@@ -32,7 +32,8 @@ afterAll(async () => {
 
 const receipt = (response: any) => JSON.parse(response.content[0].text);
 const budget = (response: any) => response.content.filter((block: any) => block.type === 'text')
-  .map((block: any) => JSON.parse(block.text)).find((row: any) => row.type === 'workflow-execution-budget').value;
+  .flatMap((block: any) => { try { return [JSON.parse(block.text)]; } catch { return []; } })
+  .find((row: any) => row.type === 'workflow-execution-budget').value;
 
 describe('recoverable stale receipts in the real stdio MCP bridge', () => {
   it('preserves large JSON recovery state without MCP error classification and never delivers the stale action', async () => {
@@ -101,7 +102,9 @@ describe('recoverable stale receipts in the real stdio MCP bridge', () => {
       const done = await valid.request('tools/call', act(recovered.value.view.source.id));
       expect(done.isError, JSON.stringify(done)).not.toBe(true);
       expect(receipt(done).value.action).toMatchObject({ commandSucceeded: true, deliveryUnknown: false });
-      expect(receipt(done).value.action.evidence[0].data.clickDelivered).toBe(true);
+      const completed = receipt(done);
+      const delivery = completed.value.output?.bounded ? JSON.parse(await readFile(completed.value.output.fullPath, 'utf8')) : completed;
+      expect(delivery.value.action.evidence[0].data.clickDelivered).toBe(true);
       expect(budget(done).actionsUsed).toBe(2);
       expect(await evaluate('window.targetClicks')).toBe(1);
       const currentSource = receipt(done).value.view.source.id;
