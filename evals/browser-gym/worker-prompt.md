@@ -18,6 +18,16 @@ coverage is better than claiming success. Inspect the actual rendered bill image
 or QR image does not establish printed-bill content. Send identifiers to the independent verifier;
 your own statement of PASS is not the final grade.
 
+For a supplied receipt directory, use the controller's bounded discovery recipe. Mako2 PDFCreator
+PNGs use timestamp filenames; do not search those filenames for invoice IDs. Identify the invoice
+from the rendered bill pixels, preferably among files changed since the controller baseline.
+If only a recent-file lookup is permitted, inspect at most the assigned number of candidates and
+record any unresolved identity gap. Never reprint or resend merely to make evidence easier to find.
+Report transport packing (for example current-24k) separately from headless browser mode.
+Distinguish a discount preset from its separate required reason: in the zero-netting fixture,
+100% Proprio is the preset; select the existing Customer Unhappy reason afterward. Do not
+invent a reason with the preset's name or change fixture configuration to create one.
+
 At each verified milestone, persist a compact checkpoint: candidate/fixture, cashier ID, invoice/txn
 IDs, delivered actions, expected totals, pending checks, temporary mutations and cleanup. After
 renewal, read that checkpoint, confirm browser/fixture identity and reacquire current state.

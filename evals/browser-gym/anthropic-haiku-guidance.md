@@ -57,8 +57,9 @@ their pixels when needed. Existing smoke data contains no native compaction boun
 establish whether conversation compression helps.
 
 Runtime qualification on 2026-10-08 found that Claude Code 2.1.294 rejects `--autocompact 80k`
-and requires at least 100k. Our managed pilot uses the supported 100k setting; implementing an
-80k on-demand API controller remains a separate experiment. Threshold configuration alone
+and requires at least 100k. The 100k attempt hit compaction thrashing before browser actions;
+successful managed qualifications use 250k. An 80k on-demand API controller remains a separate
+experiment. Threshold configuration alone
 still does not prove either compaction occurrence or lower total cost.
 
 ## Migration and measurement

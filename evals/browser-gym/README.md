@@ -1,13 +1,16 @@
 # Mako2 browser gym: optimize verified completion cost
 
 Status: accounting, evidence contracts, readiness validation and seven-case catalog implemented;
-**local cash fixture and independent SQL/RQ/bill adapter are implemented; one Haiku cash pilot
-passed all seven independent checks. Remaining six fixture adapters and controlled ablations
-still need measured results**.
+**cash, long modifier, expired deletion/payment, no-print fallback and invalid-tax journeys
+have independently verified Haiku results. Zero-total netting is in progress. Controlled view,
+model, startup and compaction comparisons remain unverified**. Per-run build identities and
+failed attempts are retained below; these results do not establish token or cost savings.
 Tracked by `cdp-cli-8n1`. The accounting commands do not launch a model or mutate a Mako2 database.
 
 See [official Anthropic research and its implementation implications](anthropic-haiku-guidance.md)
 for browser tool contracts, effort, steering, compaction and cache behavior.
+See [the remaining controlled comparison plan](comparison-plan.md) for packing, managed
+startup and compaction gates, including the reporting-epoch and renewal-policy confounds.
 
 ## What the existing measurements establish
 
@@ -327,3 +330,17 @@ Both workers had zero native compaction boundaries. These successes do not estab
 conversation compression. Zero-total netting and invalid-tax identity remain unverified.
 Raw evidence/accounting: Q:/apps/jarvis/logs/investigations/haiku-websrm-gym/expired-pay-current-01/
 and Q:/apps/jarvis/logs/investigations/haiku-websrm-gym/no-print-current-01/.
+
+## Invalid tax identity on source e97788e
+
+Managed Haiku 2055 completed one fresh invoice 150382: Pepsi $4.13, Cash $5 once.
+Independent proof passed 5/5. Current transaction 19 contains the required JW00B999522E
+identity mismatch, alongside 034E/043E/540E. The actual printed bill shows both invalid marks,
+the deliberately changed QST, and no displayed RQ transaction identifier. The controller restored
+the original QST exactly. The corrected timestamp-file lookup located the right bill directly.
+One epoch recorded 2,767,015 tokens, 29 tools, 6 workflow calls; assistant API-equivalent estimate
+USD 0.214851 and complete native report USD 0.224527. Native compactions, source mismatches and
+unavailable receipts: zero. Raw proof/transcripts/accounting:
+Q:/apps/jarvis/logs/investigations/haiku-websrm-gym/invalid-tax-current-01/.
+Zero-total netting remains in progress; matched packing/model and compaction/startup comparisons
+remain unverified. No savings conclusion follows from this correctness result.

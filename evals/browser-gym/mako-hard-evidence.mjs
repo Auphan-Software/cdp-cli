@@ -128,7 +128,7 @@ export function hardChecks(before, after, cleanup, review, expected, hash = imag
 /** Recipes only: snapshot values first; stop other workers; require one row for each CAS. */
 export function hardFixtureRecipe(caseId, original) {
   if (!cases.has(caseId)) throw new Error('Unsupported fixture');
-  if (caseId === 'zero-total-netting') return { database: 'mako2_haiku_websrm_gym', setupSql: [], restoreSql: [], journey: 'Fresh Pepsi invoice → Cash $5 → Recall Invoice → OK → invoice discount 100% Proprio → refund Cash -$4.00 and -$0.13 → close. Preserve all three payment rows and initial/recall/final transactions.' };
+  if (caseId === 'zero-total-netting') return { database: 'mako2_haiku_websrm_gym', setupSql: [], restoreSql: [], journey: 'Fresh Pepsi invoice → Cash $5 → Recall Invoice → OK → invoice discount preset 100% Proprio → existing Customer Unhappy reason → refund Cash -$4.00 and -$0.13 → close. Proprio names the preset, not a second reason. Preserve all three payment rows and initial/recall/final transactions.' };
   if (caseId === 'long-modifier') return { database: 'mako2_haiku_websrm_gym', setupSql: [], restoreSql: [], modifierNote: modifierFixtureNote,
     journey: 'Fresh Pepsi invoice → select Pepsi line → Modify → item Notes → enter modifierNote → save → Pay → Cash $5. Verify print_receipt_notes=1 before launch; do not substitute invoice notes.' };
   if (caseId === 'invalid-tax-identity') {
