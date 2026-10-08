@@ -3,13 +3,16 @@
 Status: accounting, evidence contracts, readiness validation and seven-case catalog implemented;
 **cash, long modifier, expired deletion/payment, no-print fallback and invalid-tax journeys
 have independently verified Haiku results. Zero-total netting passed business checks after a
-prompt correction, but its transport qualification remains incomplete. Controlled view,
-model, startup and compaction comparisons remain unverified**. Per-run build identities and
-failed attempts are retained below; these results do not establish token or cost savings.
+prompt correction, but its transport qualification remains incomplete. A clean cash packing
+pair now supports keeping current-24k: 19.2% fewer recorded tokens and 17.7% lower supplemental
+native API-equivalent cost in that pair. Model, startup and compaction savings remain unverified**.
+Per-run build identities and failed attempts are retained below; one pair is not a general savings guarantee.
 Tracked by `cdp-cli-8n1`. The accounting commands do not launch a model or mutate a Mako2 database.
 
 See [official Anthropic research and its implementation implications](anthropic-haiku-guidance.md)
 for browser tool contracts, effort, steering, compaction and cache behavior.
+See [the clean packing comparison](clean-packing-results.md) for both cost scopes, matching
+inputs, independent completion checks and the measured default decision.
 See [the remaining controlled comparison plan](comparison-plan.md) for packing, managed
 startup and compaction gates, including the reporting-epoch and renewal-policy confounds.
 

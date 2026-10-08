@@ -3,21 +3,28 @@
 Reviewed against retained native transcripts and current Jarvis launch/controller code on
 2026-10-08. Correctness qualification and cost comparison are separate gates.
 
-## Packing: one clean cash pair
+## Packing: completed clean cash pair
 
 Keep current-24k as the default. The earlier pair does not identify a cheaper view:
 current2046's browser epoch cost USD0.225340, rich2047's entire epoch USD0.236421.
 An extra reporting-only current epoch cost USD0.020404, larger than the apparent rich
 whole-run advantage. Current also lost a host-truncated receipt; rich required offload reads.
 
-Run one randomized current-24k/rich-64k pair with the same pinned build/product/operator
+Completed one randomized current-24k/rich-64k pair with the same pinned build/product/operator
 prompt, Haiku5.5 medium,250k setting and equivalent dedicated fixture state. Retain unique
 invoice/RQ identities rather than claiming a database rewind. Require all seven independent
 cash checks and complete source/profile receipts. Preserve offloaded results with original
 paths and hashes; include extraction, reporting, failures and renewals in each arm's cost.
-The controller finds the matching bill from changed-file evidence; the actor stops after its
+The controller found the matching bill from changed-file evidence; the actor stopped after its
 assigned browser work. Unrelated renewal or incomplete receipt evidence makes the comparison
 inconclusive. Do not repeat all seven product cases merely to measure packing.
+
+Both arms passed 7/7 cash checks with complete source/profile receipts, one epoch and no
+compactions. Current used 19.2% fewer recorded tokens and reported 17.7% lower supplemental
+native API-equivalent cost. Keep current-24k; rich-64k remains opt-in. See
+[the full comparison and limits](clean-packing-results.md). No further full matrix is justified
+solely to choose this default. The startup and compaction-economics work below are separate
+follow-ups, not conditions for accepting this measured packing decision.
 
 ## Startup: a separate managed-launch concern
 

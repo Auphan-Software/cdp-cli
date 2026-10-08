@@ -1,7 +1,8 @@
 # Anthropic guidance applied to the browser gym
 
 Research checked 2026-10-08 against official Anthropic documentation. Recommendations below
-distinguish documented behavior from our proposed experiments. No live Haiku E2E result is implied.
+distinguish documented behavior from our experiments. Live results are recorded separately in
+[the gym README](README.md) and [the clean packing comparison](clean-packing-results.md).
 
 ## Effort, prompts and steering
 
@@ -53,8 +54,9 @@ Our proposed ~80k renewal is an experiment, not an Anthropic recommendation. Com
 renewal on the same long Web-SRM journey. Count summary generation, cache rebuilding, parent and
 failed-attempt cost. Independently check payment state, invoice/transaction IDs, pending evidence
 and restoration obligations after renewal. Retain bill files outside the conversation and reload
-their pixels when needed. Existing smoke data contains no native compaction boundaries and cannot
-establish whether conversation compression helps.
+their pixels when needed. The earlier smoke contained no native compaction boundaries. The later
+zero-netting run recorded two actual compactions with correct final business state, but missing
+summary-generation accounting and two historical transport gaps prevent a compaction-savings claim.
 
 Runtime qualification on 2026-10-08 found that Claude Code 2.1.294 rejects `--autocompact 80k`
 and requires at least 100k. The 100k attempt hit compaction thrashing before browser actions;
@@ -70,7 +72,7 @@ and assistant prefills when migrating; preserve supported conversation blocks.
 [Migration guide](https://platform.claude.com/docs/en/models/haiku-5-5/migration-guide)
 
 Our release criterion remains cost per independently verified completion, with failures included.
-Compare medium/high Haiku and a Sonnet control from equivalent fixture snapshots. DOM transport
+For a future model comparison, compare medium/high Haiku and a Sonnet control from equivalent fixture snapshots. DOM transport
 packing, reranking and conversation compaction are separate experiments. No savings conclusion
 is valid from response bytes alone or from a run blocked before the sale and printed-bill checks.
 
@@ -80,7 +82,21 @@ The gym auditor now counts compaction iterations, avoids adding top-level usage 
 to estimate cost when multi-phase/cache attribution is insufficient. Three regression tests cover
 zero top-level counters, multiple phases and unattributed cache usage. Native API and browser
 toolset integration and controlled compaction comparisons remain tracked implementation work.
-Source-bound target resolution, visible-action protection, execution budgets and an opt-in richer
-64k view are implemented. The local cash fixture passed one independently verified Haiku medium
-pilot; the 100k-window attempt stopped from compaction thrashing before browser actions. See
-README.md for usage scopes, native cost reports, retained failures and remaining comparison gaps.
+Source-bound target resolution, visible-action protection, execution budgets, truthful refusal
+receipts and an opt-in richer 64k view are implemented. All seven business journeys have Haiku
+medium evidence; historical zero-netting transport remains incomplete. The clean cash pair passed
+7/7 and transport checks in both arms, supporting current-24k as default: 19.2% fewer recorded
+tokens and 17.7% lower supplemental native API-equivalent cost in that pair. It does not justify
+a general savings claim. The 100k-window attempt stopped from compaction thrashing before
+browser actions. See README.md for complete scopes, retained failures and remaining gaps.
+
+## Practical Haiku operator contract
+
+Use a short, bounded journey with explicit completion checks and a clear stop condition.
+Keep adaptive thinking/medium effort for custom-tool work; reserve high for an evaluated
+instruction-following need. Give current task text rather than the entire coding history.
+Prefer source-bound returned targets, focused page reads and fresh action-plus-state results.
+Use screenshots for visual proof and reload the actual evidence after compaction when needed.
+Deliver mid-task human corrections as user messages outside tool results. Avoid changing
+top-level effort mid-conversation because that invalidates message caching. These choices
+follow the official contracts above; our custom MCP tools are not Anthropic's native browser toolset.
