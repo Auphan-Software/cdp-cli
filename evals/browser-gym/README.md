@@ -242,7 +242,26 @@ sales, payments and pending rows. Controller DOM, pixels, boot and exact restora
 `mako-hard-evidence.mjs` covers zero netting, long modifier truncation, the no-printable-item SOB
 fallback and invalid tax identity. It selects the current invoice transaction, requires actual
 controller bill/boot review and restored fixture identity, and offers scoped CAS recipes. These
-are verifier implementations with unit and read-only SQL checks, not completed E2E cases.
+are verifier implementations with unit and read-only SQL checks. Long modifier additionally
+passed a real managed Haiku E2E qualification (below); the other five remaining cases are unproven.
+
+## Long modifier qualification
+
+Managed agent2048 on source build1b1530e completed invoice150379 with one Pepsi and the141-character
+item note. The controller captured an unpaid baseline before authorizing one cash payment,
+then verified all seven checks: persisted note, accepted ARG transaction16, exact127-character
+trimmed description and printed-bill parity. The bill's repeated a glyphs were counted from pixels
+(ten rows of twelve plus one), rather than assumed from SQL. Missing boundary-tail text is expected.
+
+All three native epochs are retained:6,321,400 recorded tokens,72tools,USD0.496206 recorded-assistant
+estimate /0.519919 supplemental native report. There were two Jarvis context renewals and zero
+native compactions, source mismatches or unavailable receipts. These costs include both phases,
+failed wait/input correction, renewals and completion reporting; Codex/qualification costs are excluded.
+
+The first verifier attempt rejected Windows backslash versus forward-slash spellings of the same
+image. Absolute path normalization fixed the verifier; regression tests reject unchanged/different
+files. Initial5/7 and final7/7 outcomes are recorded separately. Original artifacts and accounting:
+`Q:/apps/jarvis/logs/investigations/haiku-websrm-gym/long-modifier-current-01/`.
 
 Sources: [Haiku launch and rates](https://www.anthropic.com/claude-haiku-5-5),
 [Haiku prompting](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-haiku-5-5),

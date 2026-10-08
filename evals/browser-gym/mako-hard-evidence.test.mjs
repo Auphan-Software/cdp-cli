@@ -1,8 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { resolve, dirname, basename } from 'node:path';
 import { hardChecks, hardFixtureRecipe, hardSnapshotSql, modifierFixtureNote } from './mako-hard-evidence.mjs';
 
-const sha = 'a'.repeat(64), path = 'C:/autoprint/bill.png';
+const sha = 'a'.repeat(64), path = resolve('autoprint/bill.png');
 const originalFixture = { qst: '5678912340TQ0001', printNotes: '1', water: { product_id: 3651, invoice_print: 0 },
   waterPrices: [{ line_id: 1, size_id: 1, store_id: 14417, price: 2.39, status: 1 }, { line_id: 1, size_id: 2, store_id: 14417, price: 1.99, status: 1 }] };
 function fixture(caseId) {
@@ -12,7 +13,7 @@ function fixture(caseId) {
     capturedAt: '2026-10-08T09:00:00Z', config: { srm_system: '2', end_point: 'DEV', cert_offline: '0', certificate: 'AB12', expiry: expected.originalExpiry, expired: false },
     fixture: structuredClone(originalFixture), invoice: { invoice_id: 123, status: 1, employee_id: 1441700010, total: 4.13, total_paid: 0 },
     sales: [{ sales_id: 1, product_id: 3640, quantity: 1, status: 1, price: 3.59 }], salesNotes: [], payments: [], txns: [], pending: [],
-    billSink: { directory: 'C:/autoprint', complete: true, files: [] } };
+    billSink: { directory: resolve('autoprint'), complete: true, files: [] } };
   if (caseId === 'no-printable-item') { before.fixture.water.invoice_print = 1; before.fixture.waterPrices.forEach(p => p.price = 0); }
   if (caseId === 'invalid-tax-identity') before.fixture.qst = expected.invalidQst;
   const after = structuredClone(before); after.capturedAt = '2026-10-08T09:01:00Z';
@@ -43,12 +44,21 @@ function fixture(caseId) {
   if (caseId === 'invalid-tax-identity') { txn.trans_error_id = 'JW00B999540E'; txn.errors = [{ id: 'JW00B999522E' }]; }
   const cleanup = structuredClone(after); cleanup.capturedAt = '2026-10-08T09:02:00Z'; cleanup.fixture = structuredClone(originalFixture);
   const review = { reviewer: 'controller-pixels', caseId, invoiceId: 123, txnId: 3, path, sha256: sha, transaction: 'accepted',
-    boot: { path: 'C:/proof/boot.json', sha256: sha }, text: caseId === 'invalid-tax-identity' ? 'CERTIFICAT INVALIDE NE PAS REMETTRE AU CLIENT' : 'AUCUN PAIEMENT',
+    boot: { path: resolve('proof/boot.json'), sha256: sha }, text: caseId === 'invalid-tax-identity' ? 'CERTIFICAT INVALIDE NE PAS REMETTRE AU CLIENT' : 'AUCUN PAIEMENT',
     displayedTransactionAbsent: true, qst: expected.invalidQst, amounts: Object.fromEntries(Object.entries(payload.mont).map(([k,v]) => [k, Math.round(v*100)])),
     items: payload.items.map(i => ({ description: i.descr, quantity: Number(i.qte), priceCents: Math.round(Number(i.prix)*100), tax: i.tax, precisions: (i.preci ?? []).map(d => d.descr) })) };
   return { before, after, cleanup, review, expected, read: () => ({ jq: 'function', nav: 'object', text: 'Michel Untel', invoiceId: 123, stationId: 1 }) };
 }
 const check = f => hardChecks(f.before, f.after, f.cleanup, f.review, f.expected, () => sha, f.read);
+test('bill identity normalizes filesystem path spelling without admitting unchanged or different files', () => {
+  const f = fixture('long-modifier');
+  f.after.billSink.files[0].path = dirname(path).replaceAll('\\', '/') + '//' + basename(path);
+  assert.equal(check(f)['bill-image'], true);
+  f.before.billSink.files = [{ path, sha256: sha }];
+  assert.equal(check(f)['bill-image'], false);
+  f.before.billSink.files = []; f.after.billSink.files[0].path += '.other';
+  assert.equal(check(f)['bill-image'], false);
+});
 for (const caseId of ['zero-total-netting', 'long-modifier', 'no-printable-item', 'invalid-tax-identity']) {
   test(`${caseId} passes only with actual controller bill/boot identity and restored fixture`, () => {
     assert.ok(Object.values(check(fixture(caseId))).every(Boolean));

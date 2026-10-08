@@ -12,6 +12,7 @@ const canonical = value => Array.isArray(value) ? value.map(canonical) : value &
   ? Object.fromEntries(Object.keys(value).sort().map(key => [key, canonical(value[key])])) : value;
 const same = (a, b) => JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
 const integer = value => Number.isSafeInteger(value) && value > 0;
+const samePath = (a, b) => typeof a === 'string' && typeof b === 'string' && isAbsolute(a) && isAbsolute(b) && resolve(a) === resolve(b);
 export const modifierFixtureNote = 'Note: ' + 'a'.repeat(121) + ' ' + 'boundary tail'; // Character 128 is a space.
 
 export function hardSnapshotSql(invoiceId, stationId = 1) {
@@ -70,7 +71,7 @@ export function hardChecks(before, after, cleanup, review, expected, hash = imag
     boot.text?.includes(expected.cashierName ?? 'Michel Untel') && before.invoice.employee_id === Number(expected.cashierEmployeeId);
   const sink = before.billSink?.complete === true && after.billSink?.complete === true && before.billSink.directory === after.billSink.directory &&
     Array.isArray(before.billSink.files) && Array.isArray(after.billSink.files) && after.billSink.files.some(file =>
-      file.path === review?.path && file.sha256 === review.sha256 && !before.billSink.files.some(old => old.path === file.path && old.sha256 === file.sha256));
+      samePath(file.path, review?.path) && file.sha256 === review.sha256 && !before.billSink.files.some(old => samePath(old.path, file.path) && old.sha256 === file.sha256));
   const bill = current && sink && review?.reviewer === 'controller-pixels' && review.invoiceId === id && review.caseId === before.caseId &&
     review.txnId === txn.txn_id && artifact(review, hash);
   const parity = bill && review.transaction === txn.trans_no && Array.isArray(review.items) && review.items.length === items.length &&
