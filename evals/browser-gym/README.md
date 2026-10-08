@@ -117,7 +117,8 @@ Run stages, rather than a giant Cartesian matrix:
   obligations and cleanup after compaction. Never repeat payment because its history was summarized.
   The existing 250k Jarvis default can cross Haiku's expensive tier before compaction.
   Installed Claude Code 2.1.294 rejects an 80k threshold and accepts a minimum of 100k. The
-  managed pilot therefore uses 100k. An 80k API/on-demand arm needs a separately implemented
+  100k pilot compacted three times before browser work; the 250k pilot completed cash, but
+  crossed the expensive tier. Neither establishes an optimal threshold. An 80k API/on-demand arm needs a separately implemented
   controller; a Jarvis field accepting the value does not establish runtime support.
 - **Hard-case pilot:** all seven cases in cases.json, Haiku medium/high plus Sonnet control, initially
   three runs per promising arm in randomized order from equivalent snapshots. Expand trials for
@@ -163,7 +164,8 @@ fixture adapter must generate the attestations from those checks, not flip flags
 A scored run has this structure; artifact paths must be absolute, and supervisor/native records
 are included separately. Independent proof must come from the verifier, never the browser worker.
 The cash adapter below requires a separate controller review of actual bill pixels;
-role labels alone are not a security boundary. Other case adapters remain unimplemented.
+role labels alone are not a security boundary. Negative and hard-case adapters now exist below;
+their fixture recipes and UI journeys still require actual qualification.
 
 ```json
 {
@@ -210,6 +212,37 @@ controller watchdog is still required to bound the worker process and its other 
 See worker-prompt.md. Use only inherited observe/act/expand/screenshot plus bounded fixture/verifier
 tools once those adapters exist. Keep repository search, service repair and old transcripts out of the
 operator toolset, not just out of the prompt. No implementation agent nested under the QA lane.
+
+## Host behavior and matched cash evidence
+
+See [matched-cash-results.md](matched-cash-results.md). Both business journeys passed seven
+independent checks. The 24k run's stale receipt was truncated by Claude's MCP-error handling,
+so its transport attestation is incomplete; do not promote it to a clean matched baseline.
+The 64k run offloaded one result to a file and required three extraction calls. Preserved,
+hash-pinned `transcripts[].persistedResults` entries allow the auditor to recover that exact
+receipt without guessing truncated state. Missing artifacts remain unavailable.
+
+Expected stale no-dispatch outcomes and execution-budget refusals now use normal MCP text
+with explicit `success:false`, delivery fields and recovery instructions. Unexpected errors
+remain MCP errors. CLI failure status is unchanged. Agents must inspect the receipt, not
+equate a normal MCP transport response with a completed action.
+
+`launch-gate.mjs fixture.json launch.json` checks the clean build, pinned project skill, prompt,
+MCP runtime/profile/budgets, product candidate and model/effort/window before Jarvis admission.
+Its caller must stop on any nonzero exit; PowerShell does not do that automatically for native commands.
+
+## Remaining case adapters
+
+`mako-negative-evidence.mjs` reads scoped invoice/payment/pending/transaction snapshots and
+hashes the complete bill sink. Expiry recipes use compare-and-swap on only the dedicated
+station's expiry timestamp. The payment refusal can commit the payment and CLOSE pending row;
+do not expect an unchanged unpaid invoice or retry payment. Delete refusal preserves invoice,
+sales, payments and pending rows. Controller DOM, pixels, boot and exact restoration are required.
+
+`mako-hard-evidence.mjs` covers zero netting, long modifier truncation, the no-printable-item SOB
+fallback and invalid tax identity. It selects the current invoice transaction, requires actual
+controller bill/boot review and restored fixture identity, and offers scoped CAS recipes. These
+are verifier implementations with unit and read-only SQL checks, not completed E2E cases.
 
 Sources: [Haiku launch and rates](https://www.anthropic.com/claude-haiku-5-5),
 [Haiku prompting](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-haiku-5-5),

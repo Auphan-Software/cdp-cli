@@ -74,7 +74,7 @@ describe('execution budget enforcement in the real stdio bridge', () => {
         source = first(completed).value.view.source.id;
       }
       const denied = await request('tools/call', { name: 'act', arguments: { task: 'increment again', source, action: 'click', targetKey: 'top|id:increment' } });
-      expect(denied.isError).toBe(true);
+      expect(denied.isError).not.toBe(true);
       expect(first(denied).value.action).toMatchObject({ code: policy.code, actionDelivered: false, deliveryUnknown: false });
       expect(budget(denied)).toMatchObject({ exhausted: true, actionsUsed: policy.expected });
       const recovered = await request('tools/call', { name: 'observe', arguments: { task: 'recover evidence', stabilityMs: 20 } });

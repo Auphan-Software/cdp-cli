@@ -103,7 +103,7 @@ export async function callWorkflowTool(name: string, args: Record<string, unknow
   const budget = executionBudget ?? (directCallBudget ??= createWorkflowBudget());
   if (name === 'act') {
     const code = budget.admitAction();
-    if (code) return { isError: true, content: [{ type: 'text', text: JSON.stringify({ success: false, type: 'workflow-budget-rejection', value: {
+    if (code) return { content: [{ type: 'text', text: JSON.stringify({ success: false, type: 'workflow-budget-rejection', value: {
       action: { kind: args.action, code, actionDelivered: false, commandSucceeded: false, deliveryUnknown: false },
       instruction: 'No action dispatched: the session execution budget is exhausted. Observe or expand to recover evidence; do not repeat previously delivered actions.'
     } }) }, ...budgetContent(budget)] };
@@ -128,7 +128,15 @@ export async function callWorkflowTool(name: string, args: Record<string, unknow
     } catch { content.push({ type: 'text', text: 'Screenshot artifact could not be read. Preserve the action/state evidence above; request new screenshot evidence without repeating the action.' }); }
   }
   content.push(...budgetContent(budget));
-  return { content, ...(result.ok ? {} : { isError: true }) };
+  const row = result.rows.length === 1 ? result.rows[0] : undefined;
+  const action = row?.value?.action;
+  // Expected no-dispatch outcomes carry current recovery state. Claude truncates
+  // MCP errors independently of our view budget, destroying that receipt's JSON.
+  // Keep unexpected failures as MCP errors; a stale refusal remains success:false.
+  const recoverableStale = row?.type === 'workflow-stale' && row.success === false &&
+    action?.code === 'WORKFLOW_STALE_SOURCE' && action.actionDelivered === false &&
+    action.commandSucceeded === false && action.deliveryUnknown === false;
+  return { content, ...(result.ok || recoverableStale ? {} : { isError: true }) };
 }
 
 export async function serveWorkflowMcp(): Promise<void> {

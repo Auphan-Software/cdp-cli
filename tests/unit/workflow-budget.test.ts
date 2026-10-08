@@ -43,7 +43,7 @@ describe('per-bridge execution budgets', () => {
     expect(first(completed)).toEqual(receipt);
     expect(status(completed)).toMatchObject({ actionsUsed: 1, actionsRemaining: 0, exhausted: true });
     const denied: any = await callWorkflowTool('act', args, budget);
-    expect(denied.isError).toBe(true);
+    expect(denied.isError).not.toBe(true);
     expect(first(denied).value.action).toMatchObject({ code: 'WORKFLOW_ACTION_BUDGET_EXHAUSTED', actionDelivered: false });
     expect(mocks.run).toHaveBeenCalledTimes(1);
     await callWorkflowTool('observe', { task: 'recover' }, budget);

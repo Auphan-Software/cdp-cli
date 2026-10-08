@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { dirname, resolve, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // API-equivalent estimates, not Claude Max invoices. Rates checked 2026-10-07.
@@ -13,7 +13,7 @@ const hash = path => createHash('sha256').update(readFileSync(path)).digest('hex
 const json = path => JSON.parse(readFileSync(path, 'utf8'));
 const count = (object, key) => { object[key] = (object[key] || 0) + 1; };
 
-export function auditNative(text, { path = null } = {}) {
+export function auditNative(text, { path = null, persistedResults = [], read = readFileSync } = {}) {
   const messages = new Map(), tools = new Map(), results = new Map(), boundaries = new Set();
   const sessionIds = new Set(), costStates = [];
   for (const line of text.split(/\r?\n/).filter(Boolean)) {
@@ -91,9 +91,7 @@ export function auditNative(text, { path = null } = {}) {
     if (long) longContextRequests++;
     // Do not fabricate per-iteration pricing when a threshold request spans multiple
     // billing phases or exports omit cache attribution. Keep usage, mark cost unknown.
-    if (iterations.length > 1 || (iterations.length &&
-      (message.usage.cache_creation_input_tokens > u.cache_creation_input_tokens ||
-       message.usage.cache_read_input_tokens > u.cache_read_input_tokens))) {
+    if (iterations.length > 1 || (iterations.length && fields.some(field => message.usage[field] > u[field]))) {
       unknownPrice = true;
       warnings.add('Iteration usage counted; multi-phase/cache-attribution pricing requires verified API billing data');
       continue;
@@ -108,34 +106,72 @@ export function auditNative(text, { path = null } = {}) {
       hour * rate.input * 2 + u.cache_read_input_tokens * rate.read + u.output_tokens * rate.output) / 1e6;
   }
   const workflow = [];
-  let latestSource, chainMismatches = 0, capOverrides = 0;
+  let latestSource, chainMismatches = 0, chainUnavailable = 0, capOverrides = 0, offloadedResults = 0, truncatedResults = 0, unavailableReceipts = 0;
   for (const [id, tool] of tools) {
     count(toolNames, tool.name);
     if (!tool.name?.includes('cdp-workflow')) continue;
     const result = results.get(id), content = result?.content;
-    const texts = typeof content === 'string' ? [content] : (content || []).filter(x => x.type === 'text').map(x => x.text);
+    let texts = typeof content === 'string' ? [content] : (content || []).filter(x => x.type === 'text').map(x => x.text);
+    const inlineBytes = texts.reduce((sum, text) => sum + Buffer.byteLength(text), 0);
+    if (typeof content === 'string' && /\.\.\. \[\d+ characters truncated\] \.\.\./.test(content)) {
+      truncatedResults++;
+      warnings.add('Host truncated an MCP result; missing receipt state cannot be inferred from its fragments');
+    }
+    const kind = tool.name.split('__').at(-1);
+    let persistedArtifact;
+    // Claude can offload a successful MCP result and expose only a path notice.
+    // Read only an explicitly preserved, hash-pinned artifact supplied by the controller.
+    const notice = typeof content === 'string' && content.match(/^Error: result \([\d,]+ characters\) exceeds maximum allowed tokens\. Output has been saved to ([^\r\n]+)\.\r?\nFormat: JSON array/);
+    if (notice) {
+      offloadedResults++;
+      const originalPath = notice[1].replaceAll('\\', '/');
+      const entry = persistedResults.find(p => p.originalPath?.replaceAll('\\', '/') === originalPath);
+      const tail = originalPath.match(/\/([a-f0-9-]{36})\/tool-results\/mcp-cdp-workflow-([a-z-]+)-\d+\.txt$/);
+      if (!entry || !tail || !sessionIds.has(tail[1]) || tail[2] !== kind || originalPath.split('/').includes('..') ||
+          !isAbsolute(entry.path ?? '') || !/^[a-f0-9]{64}$/.test(entry.sha256 ?? '')) {
+        warnings.add('Offloaded MCP receipt is unavailable or lacks valid controller provenance');
+      } else {
+        const bytes = read(entry.path);
+        if (createHash('sha256').update(bytes).digest('hex') !== entry.sha256) throw new Error('Preserved MCP result hash changed');
+        const blocks = JSON.parse(bytes.toString());
+        if (!Array.isArray(blocks) || blocks.some(b => b.type !== 'text' || typeof b.text !== 'string')) throw new Error('Invalid preserved MCP text result');
+        texts = blocks.map(b => b.text);
+        persistedArtifact = { path: entry.path, sha256: entry.sha256, originalPath };
+      }
+    }
     const receipts = [], budgets = [];
     const receiptTypes = new Set(['workflow-observation', 'workflow-stale', 'workflow-action',
       'workflow-expand', 'workflow-budget-rejection', 'workflow-command-failed']);
-    for (const text of texts) {
-      let parsed;
-      try { parsed = JSON.parse(text); } catch { continue; }
+    const parsedTexts = texts.flatMap(text => {
+      try { return [JSON.parse(text)]; } catch {
+        // Error results can concatenate blocks. Parse only complete JSON lines,
+        // never repair host-truncated fragments or manufacture a source/profile.
+        return text.split(/\r?\n/).flatMap(line => { try { return [JSON.parse(line)]; } catch { return []; } });
+      }
+    });
+    for (const parsed of parsedTexts) {
       if (parsed?.type === 'workflow-execution-budget') budgets.push(parsed.value);
       else if (receiptTypes.has(parsed?.type) && parsed.value && typeof parsed.value === 'object' &&
         (parsed.value.view?.source?.id || parsed.value.action || parsed.type === 'workflow-expand')) receipts.push(parsed);
     }
     if (receipts.length > 1) throw new Error('Ambiguous workflow receipts in one tool result');
     const returned = receipts[0];
-    const kind = tool.name.split('__').at(-1), action = returned?.value?.action;
-    if (kind === 'act' && (!tool.input?.source || !latestSource || tool.input.source !== latestSource)) chainMismatches++;
+    const action = returned?.value?.action;
+    if (!returned && kind !== 'screenshot') unavailableReceipts++;
+    if (kind === 'act') {
+      if (!tool.input?.source) chainMismatches++;
+      else if (!latestSource) chainUnavailable++;
+      else if (tool.input.source !== latestSource) chainMismatches++;
+    }
     if (Object.hasOwn(tool.input || {}, 'maxElements')) capOverrides++;
     const source = returned?.value?.view?.source?.id;
     workflow.push({ kind, inputSource: tool.input?.source, returnedSource: source,
-      textBytes: texts.reduce((sum, text) => sum + Buffer.byteLength(text), 0),
+      textBytes: texts.reduce((sum, text) => sum + Buffer.byteLength(text), 0), inlineBytes, persistedArtifact,
       code: action?.code, commandSucceeded: action?.commandSucceeded, actionDelivered: action?.actionDelivered,
       deliveryUnknown: action?.deliveryUnknown, omissions: returned?.value?.output,
       observationUnavailable: returned?.value?.observationUnavailable, executionBudgets: budgets });
     if (source) latestSource = source;
+    else if (!returned && kind !== 'expand') latestSource = undefined;
   }
   const times = [...messages.values()].map(m => Date.parse(m.time)).filter(Number.isFinite);
   const compactionCostComplete = compactionIterations >= boundaries.size;
@@ -169,7 +205,7 @@ export function auditNative(text, { path = null } = {}) {
     peakInputTokens, longContextRequests, compactionBoundaries: boundaries.size, compactionIterations,
     elapsedSeconds: times.length ? (Math.max(...times) - Math.min(...times)) / 1000 : null,
     toolCalls: tools.size, toolNames, toolErrors: [...results.values()].filter(r => r.is_error).length,
-    chainMismatches, capOverrides, workflow };
+    chainMismatches, chainUnavailable, capOverrides, offloadedResults, truncatedResults, unavailableReceipts, workflow };
 }
 
 // External verifier proof is required; a worker's self-reported PASS is insufficient.
@@ -229,17 +265,22 @@ export function scoreRun(run, catalog, read = readFileSync, artifactExists = exi
     throw new Error('Each transcript needs path, role and exact expected model');
   }
   if (new Set(run.transcripts.map(t => resolve(t.path))).size !== run.transcripts.length) throw new Error('Duplicate transcript paths');
-  const audits = run.transcripts.map(t => ({ ...auditNative(read(t.path, 'utf8'), { path: t.path }), role: t.role, path: t.path }));
+  const audits = run.transcripts.map(t => ({ ...auditNative(read(t.path, 'utf8'), {
+    path: t.path, persistedResults: t.persistedResults, read }), role: t.role, path: t.path }));
   const identityMatches = run.transcripts.some(t => t.role === 'worker') && audits.every((a, index) => {
     const declared = run.transcripts[index];
     return (declared.role !== 'worker' || declared.model === run.model) && Object.keys(a.models).length > 0 &&
       Object.keys(a.models).every(m => m === declared.model || m.startsWith(`${declared.model}-`));
   });
   const proofMatches = run.proof?.candidate === run.candidate && run.proof?.fixtureFingerprint === run.fixtureFingerprint;
-  const verified = identityMatches && proofMatches && verifiedOutcome(contract, run.proof, artifactExists);
+  const workerWorkflows = audits.filter(a => a.role === 'worker').flatMap(a => a.workflow);
+  const profileMatches = run.transportProfile === undefined ||
+    (['current-24k', 'rich-64k'].includes(run.transportProfile) && workerWorkflows.length > 0 &&
+      workerWorkflows.every(step => step.omissions?.profile === run.transportProfile));
+  const verified = identityMatches && profileMatches && proofMatches && verifiedOutcome(contract, run.proof, artifactExists);
   return { model: run.model, profile: run.profile, caseId: run.caseId, candidate: run.candidate,
     fixtureFingerprint: run.fixtureFingerprint, verified, workerClaimedPass: run.workerClaimedPass === true,
-    blocked: run.blocked === true, identityMatches,
+    blocked: run.blocked === true, identityMatches, profileMatches,
     estimatedApiUsd: audits.every(a => a.estimatedApiUsd !== null) ? audits.reduce((sum, a) => sum + a.estimatedApiUsd, 0) : null,
     audits };
 }

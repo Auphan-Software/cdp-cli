@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { resolve } from 'node:path';
 import { auditNative, readiness, scoreRun, summarizeTrials, verifiedOutcome } from './gym.mjs';
 
 const record = (id, usage, model = 'claude-haiku-5-5', content = []) => JSON.stringify({
@@ -16,6 +18,37 @@ const ready = { candidate: 'abc123', fixtureFingerprint: 'seed1', model: 'claude
 const contract = { id: 'cash-pepsi', requiredChecks: ['totals', 'bill'] };
 const proof = { verifier: 'independent', caseId: 'cash-pepsi', candidate: 'abc123', fixtureFingerprint: 'seed1',
   checks: [{ id: 'totals', passed: true, artifacts: ['db.json'] }, { id: 'bill', passed: true, artifacts: ['bill.png'] }] };
+
+test('host-offloaded MCP result retains source chain and declared profile only through pinned controller artifact', () => {
+  const sessionId = '684c056f-9765-4d3c-b461-e937cec65401';
+  const originalPath = `C:/Users/example/.claude/projects/project/${sessionId}/tool-results/mcp-cdp-workflow-act-123.txt`;
+  const blocks = [{ type: 'text', text: JSON.stringify({ type: 'workflow-observation', value: {
+    action: { commandSucceeded: true }, view: { source: { id: 's2' } }, output: { profile: 'rich-64k' } } }) }];
+  const bytes = Buffer.from(JSON.stringify(blocks));
+  const entry = { originalPath, path: resolve('preserved/result.txt'), sha256: createHash('sha256').update(bytes).digest('hex') };
+  const trace = [JSON.stringify({ type: 'assistant', sessionId, message: { id: 'one', model: 'claude-haiku-5-5', usage: usage(1, 0, 0, 1), content: [
+    { type: 'tool_use', id: 'o', name: 'mcp__cdp-workflow__observe', input: {} },
+    { type: 'tool_use', id: 'a', name: 'mcp__cdp-workflow__act', input: { source: 's1' } },
+    { type: 'tool_use', id: 'b', name: 'mcp__cdp-workflow__act', input: { source: 's2' } } ] } }),
+    JSON.stringify({ type: 'user', sessionId, message: { content: [
+      { type: 'tool_result', tool_use_id: 'o', content: [{ type: 'text', text: JSON.stringify({ type: 'workflow-observation', value: { view: { source: { id: 's1' } } } }) }] },
+      { type: 'tool_result', tool_use_id: 'a', content: `Error: result (74,433 characters) exceeds maximum allowed tokens. Output has been saved to ${originalPath}.\nFormat: JSON array with schema: [{type: string, text: string}]` },
+      { type: 'tool_result', tool_use_id: 'b', content: [{ type: 'text', text: JSON.stringify({ type: 'workflow-observation', value: { view: { source: { id: 's3' } } } }) }] } ] } }) ].join('\n');
+  const good = auditNative(trace, { persistedResults: [entry], read: () => bytes });
+  assert.equal(good.chainMismatches, 0);
+  assert.equal(good.offloadedResults, 1);
+  assert.equal(good.unavailableReceipts, 0);
+  assert.equal(good.workflow[1].omissions.profile, 'rich-64k');
+  assert.equal(good.workflow[1].persistedArtifact.sha256, entry.sha256);
+  let reads = 0;
+  for (const entries of [[], [{ ...entry, originalPath: originalPath.replace(sessionId, 'other') }]]) {
+    const missing = auditNative(trace, { persistedResults: entries, read: () => { reads++; return bytes; } });
+    assert.equal(missing.unavailableReceipts, 1);
+    assert.equal(missing.chainUnavailable, 1);
+  }
+  assert.equal(reads, 0);
+  assert.throws(() => auditNative(trace, { persistedResults: [entry], read: () => Buffer.from('changed') }), /hash changed/);
+});
 
 test('streamed assistant records count once using maximum reported components', () => {
   const a = auditNative([record('one', usage(10, 20, 30, 2)), record('one', usage(10, 20, 30, 8))].join('\n'));
@@ -40,6 +73,30 @@ test('one-hour cache writes cost 2x input, not 1.25x', () => {
 test('unknown cache TTL is explicitly estimated; unknown model cannot silently cost zero', () => {
   assert.ok(auditNative(record('one', usage(0, 100, 0, 0))).warnings.length);
   assert.equal(auditNative(record('one', usage(1, 0, 0, 0), 'unknown')).estimatedApiUsd, null);
+});
+
+test('iteration exports cannot silently lose fresh input or output from top-level counters', () => {
+  for (const field of ['input_tokens', 'output_tokens']) {
+    const counters = usage(0, 0, 0, 0); counters[field] = 100;
+    const a = auditNative(record('one', { ...counters, iterations: [{ type: 'message', ...usage(1, 0, 0, 1) }] }));
+    assert.equal(a.estimatedApiUsd, null);
+    assert.ok(a.warnings.some(w => w.includes('attribution')));
+  }
+});
+
+test('host-truncated error fragments do not manufacture a source or a transport attestation', () => {
+  const tools = [{ type: 'tool_use', id: 'one', name: 'mcp__cdp-workflow__act', input: { source: 'old' } },
+    { type: 'tool_use', id: 'two', name: 'mcp__cdp-workflow__act', input: { source: 'new' } }];
+  const error = '{"type":"workflow-stale","value":{"view":{"source":{"id":"new"}},\n\n... [13671 characters truncated] ...\n\n"output":{"profile":"current-24k"}}}\n' +
+    JSON.stringify({ type: 'workflow-execution-budget', value: { actionsUsed: 1 } });
+  const a = auditNative([record('one', usage(1, 0, 0, 1), 'claude-haiku-5-5', tools),
+    JSON.stringify({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'one', content: error }] } })].join('\n'));
+  assert.equal(a.truncatedResults, 1);
+  assert.equal(a.chainMismatches, 0);
+  assert.equal(a.chainUnavailable, 2);
+  assert.equal(a.workflow[0].returnedSource, undefined);
+  assert.equal(a.workflow[0].omissions, undefined);
+  assert.deepEqual(a.workflow[0].executionBudgets, [{ actionsUsed: 1 }]);
 });
 test('malformed transcript and invalid usage fail rather than undercount', () => {
   assert.throws(() => auditNative('{truncated'));
@@ -200,4 +257,21 @@ test('missing compaction generation makes cost incomplete; validated native cost
   }
   const billed = record('compaction', { ...usage(0, 0, 0, 0), iterations: [{ type: 'compaction', input_tokens: 5, output_tokens: 1 }] });
   assert.equal(auditNative([boundary, billed].join('\n')).compactionCostComplete, true);
+});
+
+test('a declared transport arm must match actual MCP receipts rather than worker metadata', () => {
+  const call = record('worker', usage(1, 0, 0, 1), 'claude-haiku-5-5',
+    [{type:'tool_use',id:'o',name:'mcp__cdp-workflow__observe',input:{task:'sale'}}]);
+  const result = JSON.stringify({type:'user',message:{content:[{type:'tool_result',tool_use_id:'o',
+    content:JSON.stringify({type:'workflow-observation',value:{view:{source:{id:'source'}},
+      output:{bounded:false,profile:'current-24k',maxBytes:24000}}})}]}});
+  const run={model:'claude-haiku-5-5',profile:'arm',transportProfile:'rich-64k',caseId:contract.id,
+    candidate:proof.candidate,fixtureFingerprint:proof.fixtureFingerprint,proof,
+    transcripts:[{path:'worker',role:'worker',model:'claude-haiku-5-5'}]};
+  const read=()=>[call,result].join('\n');
+  assert.equal(scoreRun(run,{cases:[contract]},read,()=>true).profileMatches,false);
+  assert.equal(scoreRun(run,{cases:[contract]},read,()=>true).verified,false);
+  run.transportProfile='current-24k';
+  assert.equal(scoreRun(run,{cases:[contract]},read,()=>true).verified,true);
+  assert.equal(scoreRun(run,{cases:[contract]},()=>call,()=>true).profileMatches,false);
 });
