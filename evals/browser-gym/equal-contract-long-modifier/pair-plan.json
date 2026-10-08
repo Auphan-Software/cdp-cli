@@ -1,0 +1,21 @@
+{
+  "limits": "60 browser calls / 10 minutes",
+  "pairedOutput": "same result and QA ledger obligations",
+  "case": "long-modifier",
+  "order": [
+    "native",
+    "cdp"
+  ],
+  "contractHash": "b5a75bd8908e0e68981a86a0b2f697645deef0520bc1a169319c9f6a85910c15",
+  "toolCommit": "0de851742533a92b4cbe4220fff080993f069a05",
+  "remainingConfounds": [
+    "native Edge versus owned Chrome",
+    "native tab allocation/navigation model-charged; CDP preallocation/preflight controller-charged",
+    "native JPEG versus CDP PNG"
+  ],
+  "createdAt": "2026-10-08T21:40:17.9949885Z",
+  "product": "e7197b53d508068efabf28a45156697b1f21d048",
+  "initialLedgerHash": "082e8d643beb207b34095f698b721f6fa67e246daadcbe7e9e75f2ead16ba376",
+  "operatorPromptHash": "b89522c45ba909cd23c172ca4b87ad9152b712d4c26b0022f3522374165329da",
+  "cliVersion": "2.1.295"
+}
