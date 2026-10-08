@@ -33,11 +33,18 @@ model identity and complete native accounting. A database model label alone is i
 
 ## Compaction: retention before economics
 
-Current cp-controller starts ordinary managed renewal before native compaction at the250k
-setting. Changing only the window therefore changes both Jarvis reseeding and native behavior.
+Current cp-controller can start ordinary managed renewal before native compaction at the250k
+setting. The actual zero-netting2056 run nevertheless recorded two native auto compactions
+in one session. Changing only the window can affect both Jarvis reseeding and native behavior.
 The100k attempt already thrashed before browser work; repeating it is not useful savings evidence.
 
-After reducing startup overhead, run one bounded retention drill against an already closed
+Use the actual zero-netting compactions first: the final payment/transaction checks pass without
+duplicate fiscal actions, but two malformed-call receipts lack profile attestation and summary
+generation usage is absent from exported assistant iterations. This is successful business-state
+retention, not a fully qualified cost comparison. Any additional drill should resolve a specific
+remaining retention gap rather than repeat this evidence.
+
+If needed after reducing startup overhead, run one bounded retention drill against an already closed
 invoice. Require an actual native compact_boundary, a sealed checkpoint with payment/RQ and
 cleanup obligations, fresh observation after compaction and no repeated fiscal action. Reload
 actual bill pixels when verification needs them; summaries do not retain the original image.

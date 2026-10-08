@@ -2,7 +2,8 @@
 
 Status: accounting, evidence contracts, readiness validation and seven-case catalog implemented;
 **cash, long modifier, expired deletion/payment, no-print fallback and invalid-tax journeys
-have independently verified Haiku results. Zero-total netting is in progress. Controlled view,
+have independently verified Haiku results. Zero-total netting passed business checks after a
+prompt correction, but its transport qualification remains incomplete. Controlled view,
 model, startup and compaction comparisons remain unverified**. Per-run build identities and
 failed attempts are retained below; these results do not establish token or cost savings.
 Tracked by `cdp-cli-8n1`. The accounting commands do not launch a model or mutate a Mako2 database.
@@ -344,3 +345,29 @@ unavailable receipts: zero. Raw proof/transcripts/accounting:
 Q:/apps/jarvis/logs/investigations/haiku-websrm-gym/invalid-tax-current-01/.
 Zero-total netting remains in progress; matched packing/model and compaction/startup comparisons
 remain unverified. No savings conclusion follows from this correctness result.
+
+## Zero-total netting: business pass, transport qualification incomplete
+
+Haiku2056 completed invoice150383 after a controller prompt correction: 100% Proprio names the
+discount preset; Customer Unhappy is the separate existing reason. The initial stop, correction,
+hidden-target rejection and all native context history remain retained. Three stored payments
+(+5 with .87change, -4, -.13) netzero; all three initial/recall/final RQ transactions are accepted,
+current transaction22 is AUC with zero amounts. The independently inspected final bill matches
+both payload items and totals and says AUCUN PAIEMENT. Controller business proof passes7/7;
+fixture remains original. No duplicate payment, second invoice, reprint or resend occurred.
+
+The native audit finds ONE session with TWO actual auto compactions (not two Jarvis epochs):
+226077→15412 tokens at10:01:54Z and224096→21182 at10:05:45Z. The actor's informal epoch labels
+must not override native evidence. After each boundary the next browser call was an act using
+its previous valid source; no blanket fresh-observe claim is supported. Business history survived.
+61tools,29workflow calls,6,166,294recorded tokens, USD0.630786 recorded-assistant subtotal;
+exported summary generation usage is missing. The separately retained native session report is
+USD0.717361. This establishes working state retention, not compaction savings.
+
+Strict scored qualification is false/profileMatchesfalse: hidden-target act refusal and an empty
+observe call return no profile-attesting workflow receipt (2unavailable receipts,0source-chain
+mismatches). Do not weaken the gate or call this a complete transport pass. Next tool work:
+structured pre-dispatch validation/refusal receipts with explicit no-delivery, actionable recovery
+and profile metadata; preserve strict treatment of unknown/ambiguous failures. Raw proof, native
+transcript and compaction-retention observations are in
+Q:/apps/jarvis/logs/investigations/haiku-websrm-gym/zero-netting-current-01/.
