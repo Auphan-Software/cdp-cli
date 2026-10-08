@@ -5,6 +5,36 @@ vi.mock('node:fs', () => ({ readFileSync: mocks.read }));
 import { callWorkflowTool, createWorkflowBudget } from '../../src/workflow-mcp.js';
 
 describe('readable expected refusals', () => {
+  it('returns malformed required arguments with profile and no dispatch or action-budget consumption', async () => {
+    vi.stubEnv('CDP_PAGE', 'owned-page'); vi.stubEnv('CDP_SESSION', 'owned-session');
+    mocks.run.mockClear();
+    const budget = createWorkflowBudget({ CDP_WORKFLOW_MAX_ACTIONS: '1' });
+    try {
+      for (const [name, args] of [['observe', {}], ['act', { task: 'click', action: 'click' }]] as const) {
+        const result: any = await callWorkflowTool(name, args, budget);
+        const receipt = JSON.parse(result.content[0].text);
+        expect(result.isError).not.toBe(true);
+        expect(receipt.value.rejection.commandDispatched).toBe(false);
+        expect(receipt.value.output.profile).toBe('current-24k');
+        expect(receipt.value).not.toHaveProperty('view');
+      }
+      expect(mocks.run).not.toHaveBeenCalled();
+      expect(budget.snapshot().actionsUsed).toBe(0);
+    } finally { vi.unstubAllEnvs(); }
+  });
+  it('keeps target refusals readable only with explicit no-delivery and fresh state', async () => {
+    vi.stubEnv('CDP_PAGE', 'owned-page'); vi.stubEnv('CDP_SESSION', 'owned-session');
+    const receipt = { success: false, type: 'workflow-target-rejection', value: {
+      action: { code: 'WORKFLOW_TARGET_KEY_UNAVAILABLE', actionDelivered: false, commandSucceeded: false, deliveryUnknown: false },
+      view: { source: { id: 'fresh' } }
+    } };
+    try {
+      mocks.run.mockResolvedValue({ ok: false, rows: [receipt] });
+      expect((await callWorkflowTool('act', { task: 'click', source: 'old', action: 'click', targetKey: 'hidden' }) as any).isError).not.toBe(true);
+      receipt.value.action.deliveryUnknown = true;
+      expect((await callWorkflowTool('act', { task: 'click', source: 'old', action: 'click', targetKey: 'hidden' }) as any).isError).toBe(true);
+    } finally { vi.unstubAllEnvs(); }
+  });
   it('retains large stale receipts as structured normal results, but never hides ambiguous delivery or unexpected errors', async () => {
     vi.stubEnv('CDP_PAGE', 'owned-page'); vi.stubEnv('CDP_SESSION', 'owned-session');
     const receipt = { success: false, type: 'workflow-stale', value: {

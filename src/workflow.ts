@@ -160,17 +160,23 @@ export async function workflow(context: CDPContext, operation: string, options: 
   let action: unknown;
   let current: PageState;
   let stale = false;
+  let refusalCode: string | undefined;
   if (operation === 'act') {
     if (!previous) throw new Error('WORKFLOW_SOURCE_REQUIRED');
-    const selector = resolveWorkflowTarget(previous, options);
-    const args = actionArgs({ ...options, selector, targetKey: undefined });
+    let selector: string | undefined;
+    try { selector = resolveWorkflowTarget(previous, options); }
+    catch (error) {
+      if (!(error instanceof Error) || error.message !== 'WORKFLOW_TARGET_KEY_UNAVAILABLE: no action delivered') throw error;
+      refusalCode = 'WORKFLOW_TARGET_KEY_UNAVAILABLE';
+    }
+    const args = refusalCode ? [] : actionArgs({ ...options, selector, targetKey: undefined });
     const before = await take(options.stabilityMs ?? 200, false, selector);
-    if (previous.coverage.unstable || before.coverage.unstable || before.coverage.blockedByDialog || before.coverage.dialogProbeUnavailable ||
+    if (refusalCode || previous.coverage.unstable || before.coverage.unstable || before.coverage.blockedByDialog || before.coverage.dialogProbeUnavailable ||
       semanticSignature(previous) !== semanticSignature(before)) {
       stale = true;
       current = before;
       action = { kind: options.action, ...(options.targetKey ? { targetKey: options.targetKey } : {}), actionDelivered: false, commandSucceeded: false, deliveryUnknown: false,
-        code: 'WORKFLOW_STALE_SOURCE', instruction: 'No action delivered. Inspect the fresh view/source and reassess; do not blindly retry.' };
+        code: refusalCode ?? 'WORKFLOW_STALE_SOURCE', instruction: 'No action delivered. Inspect the fresh view/source and reassess; do not blindly retry.' };
     } else {
       let deliveryUnknown = false;
       let result: Awaited<ReturnType<typeof runCli>>;
@@ -245,7 +251,7 @@ export async function workflow(context: CDPContext, operation: string, options: 
         instruction: 'Screenshot or alignment capture failed; action/state evidence remains valid at its capture time. Recover pixels without repeating the action.' };
     }
   }
-  const result = { success: !stale, type: stale ? 'workflow-stale' : 'workflow-observation', value: { ...(action ? { action } : {}), view, diagnostics,
+  const result = { success: !stale, type: stale ? (refusalCode ? 'workflow-target-rejection' : 'workflow-stale') : 'workflow-observation', value: { ...(action ? { action } : {}), view, diagnostics,
     canonicalPath: join(store.dir, `${current.id}.json`), ...(screenshot ? { screenshot } : {}) } };
   return boundWorkflowResult(result, join(store.dir, `${current.id}-workflow.json`), mustKeep(options.task, current, { hints: current.hints, diff, errors, targets, protectVisibleActions: true }), transport);
 }

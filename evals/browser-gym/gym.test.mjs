@@ -19,6 +19,38 @@ const contract = { id: 'cash-pepsi', requiredChecks: ['totals', 'bill'] };
 const proof = { verifier: 'independent', caseId: 'cash-pepsi', candidate: 'abc123', fixtureFingerprint: 'seed1',
   checks: [{ id: 'totals', passed: true, artifacts: ['db.json'] }, { id: 'bill', passed: true, artifacts: ['bill.png'] }] };
 
+test('typed input rejection preserves the source chain without inventing an observation', () => {
+  const receipt = { success: false, type: 'workflow-input-rejection', value: {
+    rejection: { code: 'WORKFLOW_MISSING_ARGUMENTS', stage: 'input-validation', commandDispatched: false }, output: { profile: 'current-24k' }
+  } };
+  const trace = rejection => [record('one', usage(1, 0, 0, 1), 'claude-haiku-5-5', [
+    { type: 'tool_use', id: 'o', name: 'mcp__cdp-workflow__observe', input: { task: 'read' } },
+    { type: 'tool_use', id: 'bad', name: 'mcp__cdp-workflow__act', input: {} },
+    { type: 'tool_use', id: 'a', name: 'mcp__cdp-workflow__act', input: { source: 's1' } }
+  ]), JSON.stringify({ type: 'user', message: { content: [
+    { type: 'tool_result', tool_use_id: 'o', content: JSON.stringify({ type: 'workflow-observation', value: { view: { source: { id: 's1' } }, output: { profile: 'current-24k' } } }) },
+    { type: 'tool_result', tool_use_id: 'bad', content: JSON.stringify(rejection) },
+    { type: 'tool_result', tool_use_id: 'a', content: JSON.stringify({ type: 'workflow-observation', value: { view: { source: { id: 's2' } }, output: { profile: 'current-24k' } } }) }
+  ] } })].join('\n');
+  const good = auditNative(trace(receipt));
+  assert.equal(good.unavailableReceipts, 0);
+  assert.equal(good.chainMismatches, 0);
+  assert.equal(good.workflow[1].returnedSource, undefined);
+  assert.equal(good.workflow[1].inputRejected, true);
+  receipt.value.rejection.commandDispatched = true;
+  const bad = auditNative(trace(receipt));
+  assert.equal(bad.unavailableReceipts, 1);
+  assert.ok(bad.chainMismatches > 0);
+  receipt.value.rejection.commandDispatched = false;
+  for (const extra of [{ view: { source: { id: 'forged' } } }, { action: { actionDelivered: true } }]) {
+    assert.equal(auditNative(trace({ ...receipt, value: { ...receipt.value, ...extra } })).unavailableReceipts, 1);
+  }
+  const validRequest = trace(receipt).replace('"input":{}', '"input":{"task":"click","source":"wrong","action":"click"}');
+  const disguised = auditNative(validRequest);
+  assert.equal(disguised.unavailableReceipts, 1);
+  assert.ok(disguised.chainMismatches > 0);
+});
+
 test('host-offloaded MCP result retains source chain and declared profile only through pinned controller artifact', () => {
   const sessionId = '684c056f-9765-4d3c-b461-e937cec65401';
   const originalPath = `C:/Users/example/.claude/projects/project/${sessionId}/tool-results/mcp-cdp-workflow-act-123.txt`;

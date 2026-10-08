@@ -118,6 +118,9 @@ export function auditNative(text, { path = null, persistedResults = [], read = r
       warnings.add('Host truncated an MCP result; missing receipt state cannot be inferred from its fragments');
     }
     const kind = tool.name.split('__').at(-1);
+    const missingRequired = typeof tool.input?.task !== 'string' || !tool.input.task.trim() ||
+      (['act', 'expand'].includes(kind) && (typeof tool.input?.source !== 'string' || !tool.input.source.trim())) ||
+      (kind === 'act' && typeof tool.input?.action !== 'string');
     let persistedArtifact;
     // Claude can offload a successful MCP result and expose only a path notice.
     // Read only an explicitly preserved, hash-pinned artifact supplied by the controller.
@@ -141,7 +144,7 @@ export function auditNative(text, { path = null, persistedResults = [], read = r
     }
     const receipts = [], budgets = [];
     const receiptTypes = new Set(['workflow-observation', 'workflow-stale', 'workflow-action',
-      'workflow-expand', 'workflow-budget-rejection', 'workflow-command-failed']);
+      'workflow-expand', 'workflow-budget-rejection', 'workflow-command-failed', 'workflow-target-rejection']);
     const parsedTexts = texts.flatMap(text => {
       try { return [JSON.parse(text)]; } catch {
         // Error results can concatenate blocks. Parse only complete JSON lines,
@@ -151,6 +154,12 @@ export function auditNative(text, { path = null, persistedResults = [], read = r
     });
     for (const parsed of parsedTexts) {
       if (parsed?.type === 'workflow-execution-budget') budgets.push(parsed.value);
+      else if (parsed?.type === 'workflow-input-rejection' && parsed.success === false &&
+        ['observe', 'act', 'expand', 'screenshot'].includes(kind) && missingRequired &&
+        parsed.value?.rejection?.code === 'WORKFLOW_MISSING_ARGUMENTS' &&
+        parsed.value.rejection.stage === 'input-validation' && parsed.value.rejection.commandDispatched === false &&
+        !parsed.value.view && !parsed.value.action &&
+        ['current-24k', 'rich-64k'].includes(parsed.value.output?.profile)) receipts.push(parsed);
       else if (receiptTypes.has(parsed?.type) && parsed.value && typeof parsed.value === 'object' &&
         (parsed.value.view?.source?.id || parsed.value.action || parsed.type === 'workflow-expand')) receipts.push(parsed);
     }
@@ -158,7 +167,8 @@ export function auditNative(text, { path = null, persistedResults = [], read = r
     const returned = receipts[0];
     const action = returned?.value?.action;
     if (!returned && kind !== 'screenshot') unavailableReceipts++;
-    if (kind === 'act') {
+    const inputRejected = returned?.type === 'workflow-input-rejection';
+    if (kind === 'act' && !inputRejected) {
       if (!tool.input?.source) chainMismatches++;
       else if (!latestSource) chainUnavailable++;
       else if (tool.input.source !== latestSource) chainMismatches++;
@@ -167,7 +177,8 @@ export function auditNative(text, { path = null, persistedResults = [], read = r
     const source = returned?.value?.view?.source?.id;
     workflow.push({ kind, inputSource: tool.input?.source, returnedSource: source,
       textBytes: texts.reduce((sum, text) => sum + Buffer.byteLength(text), 0), inlineBytes, persistedArtifact,
-      code: action?.code, commandSucceeded: action?.commandSucceeded, actionDelivered: action?.actionDelivered,
+      code: action?.code ?? returned?.value?.rejection?.code, inputRejected,
+      commandSucceeded: action?.commandSucceeded, actionDelivered: action?.actionDelivered,
       deliveryUnknown: action?.deliveryUnknown, omissions: returned?.value?.output,
       observationUnavailable: returned?.value?.observationUnavailable, executionBudgets: budgets });
     if (source) latestSource = source;

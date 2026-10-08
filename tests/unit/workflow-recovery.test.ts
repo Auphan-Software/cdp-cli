@@ -12,6 +12,27 @@ import type { CDPContext } from '../../src/context.js';
 import type { PageState } from '../../src/state/types.js';
 
 describe('post-delivery observation recovery', () => {
+  it('captures fresh state for a hidden canonical target without dispatching an action', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'workflow-hidden-'));
+    vi.stubEnv('CDP_STATE_ROOT', root); vi.stubEnv('CDP_WORKFLOW_CLOCK_SELECTORS', '[]');
+    mocks.exec.mockClear();
+    try {
+      const context = { cdpUrl: 'http://owned.test', workspaceSessionName: 'owner', findPage: async () => ({ id: 'page' }) } as unknown as CDPContext;
+      const store = new StateStore(context.cdpUrl, 'owner', 'page', root);
+      const canonical = { schema: 'cdp-cli.page-state/1', capturedAt: '', targetId: 'page', session: 'owner', captureProfile: 'profile', url: 'http://owned.test', title: 'Owned', readyState: 'complete', bodyTextHash: 'same', nodeCount: 1,
+        elements: [{ k: 'top|id:hidden', kq: 'strong', role: 'button', name: 'Hidden', locator: '#hidden', state: { vis: false, en: true } }],
+        coverage: { truncated: false, unreachableFrames: [], blockedByDialog: false } } as Omit<PageState,'id'|'seq'|'digest'>;
+      const source = store.save(canonical);
+      mocks.capture.mockImplementationOnce(async (_context, options) => { options.onCaptured(store.save(canonical)); return true; });
+      const result: any = await workflow(context, 'act', { page: 'page', task: 'hidden click', source: source.id, action: 'click', targetKey: 'top|id:hidden' });
+      expect(result.success).toBe(false);
+      expect(result.type).toBe('workflow-target-rejection');
+      expect(result.value.action).toMatchObject({ code: 'WORKFLOW_TARGET_KEY_UNAVAILABLE', actionDelivered: false, commandSucceeded: false, deliveryUnknown: false });
+      expect(result.value.view.source.id).not.toBe(source.id);
+      expect(result.value.output.profile).toBe('current-24k');
+      expect(mocks.exec).not.toHaveBeenCalled();
+    } finally { vi.unstubAllEnvs(); rmSync(root, { recursive: true, force: true }); }
+  });
   it('bounds a large delivered-command receipt even when subsequent capture fails', async () => {
     const root = mkdtempSync(join(tmpdir(), 'workflow-recovery-'));
     vi.stubEnv('CDP_STATE_ROOT', root); vi.stubEnv('CDP_WORKFLOW_CLOCK_SELECTORS', '[]');

@@ -81,7 +81,7 @@ const tools = Object.keys(optionsByTool).map(name => ({ name,
 }));
 
 export async function callWorkflowTool(name: string, args: Record<string, unknown>, executionBudget?: WorkflowExecutionBudget): Promise<unknown> {
-  workflowViewProfile(); // Validate inherited transport settings before admission or child dispatch.
+  const profile = workflowViewProfile(); // Validate inherited transport settings before admission or child dispatch.
   if (!tools.some(tool => tool.name === name)) throw new Error('Unknown workflow tool');
   const page = process.env.CDP_PAGE?.trim(), session = process.env.CDP_SESSION?.trim();
   if (!page || !session) throw new Error('CDP_PAGE and CDP_SESSION must be inherited from the browser owner. Use existing CLI setup/preflight; this server never adopts or creates a page.');
@@ -98,9 +98,14 @@ export async function callWorkflowTool(name: string, args: Record<string, unknow
     if (typeof value === 'boolean') command.push(value ? flag : '--no-' + flag.slice(2));
     else command.push(flag, String(value));
   }
-  if (typeof args.task !== 'string' || !args.task.trim() || ((name === 'act' || name === 'expand') && (typeof args.source !== 'string' || !args.source.trim())) ||
-    (name === 'act' && typeof args.action !== 'string')) throw new Error('Missing task/source/action');
   const budget = executionBudget ?? (directCallBudget ??= createWorkflowBudget());
+  if (typeof args.task !== 'string' || !args.task.trim() || ((name === 'act' || name === 'expand') && (typeof args.source !== 'string' || !args.source.trim())) ||
+    (name === 'act' && typeof args.action !== 'string')) return { content: [{ type: 'text', text: JSON.stringify({ success: false,
+      type: 'workflow-input-rejection', value: {
+        rejection: { code: 'WORKFLOW_MISSING_ARGUMENTS', stage: 'input-validation', commandDispatched: false },
+        output: { bounded: false, profile: profile.profile, maxBytes: profile.maxBytes },
+        instruction: 'No browser command dispatched. Supply a nonempty task, plus source and action for act or source for expand. Reuse valid current state; do not repeat a delivered action.'
+      } }) }, ...budgetContent(budget)] };
   if (name === 'act') {
     const code = budget.admitAction();
     if (code) return { content: [{ type: 'text', text: JSON.stringify({ success: false, type: 'workflow-budget-rejection', value: {
@@ -136,7 +141,10 @@ export async function callWorkflowTool(name: string, args: Record<string, unknow
   const recoverableStale = row?.type === 'workflow-stale' && row.success === false &&
     action?.code === 'WORKFLOW_STALE_SOURCE' && action.actionDelivered === false &&
     action.commandSucceeded === false && action.deliveryUnknown === false;
-  return { content, ...(result.ok || recoverableStale ? {} : { isError: true }) };
+  const recoverableTarget = row?.type === 'workflow-target-rejection' && row.success === false &&
+    action?.code === 'WORKFLOW_TARGET_KEY_UNAVAILABLE' && action.actionDelivered === false &&
+    action.commandSucceeded === false && action.deliveryUnknown === false && !!row.value.view?.source?.id;
+  return { content, ...(result.ok || recoverableStale || recoverableTarget ? {} : { isError: true }) };
 }
 
 export async function serveWorkflowMcp(): Promise<void> {

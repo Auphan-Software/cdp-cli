@@ -61,6 +61,12 @@ describe('execution budget enforcement in the real stdio bridge', () => {
     };
     try {
       await request('initialize');
+      const invalid = await request('tools/call', { name: 'observe', arguments: {} });
+      expect(invalid.isError).not.toBe(true);
+      expect(first(invalid)).toMatchObject({ success: false, type: 'workflow-input-rejection', value: {
+        rejection: { commandDispatched: false }, output: { profile: 'current-24k' }
+      } });
+      expect(budget(invalid).actionsUsed).toBe(0);
       const observed = await request('tools/call', { name: 'observe', arguments: { task: 'increment once', stabilityMs: 20 } });
       expect(observed.isError, JSON.stringify(observed)).not.toBe(true);
       expect(budget(observed)).toMatchObject({ actionsUsed: 0, maxActions: Number(policy.actions), deadlineMs: Number(policy.deadline) });

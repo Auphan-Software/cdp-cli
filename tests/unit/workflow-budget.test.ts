@@ -103,7 +103,10 @@ describe('per-bridge execution budgets', () => {
   it('does not spend a budget on invalid MCP arguments and isolates different bridge policies', async () => {
     const budget = createWorkflowBudget({ CDP_WORKFLOW_MAX_ACTIONS: '1' }, () => 0);
     await expect(callWorkflowTool('act', { ...args, action: 'invented' }, budget)).rejects.toThrow('Invalid option');
-    await expect(callWorkflowTool('act', { ...args, source: '' }, budget)).rejects.toThrow('Missing');
+    const missing: any = await callWorkflowTool('act', { ...args, source: '' }, budget);
+    expect(first(missing)).toMatchObject({ success: false, type: 'workflow-input-rejection', value: { rejection: { commandDispatched: false } } });
+    expect(status(missing)).toMatchObject({ actionsUsed: 0, actionsRemaining: 1 });
+    expect(mocks.run).not.toHaveBeenCalled();
     await expect(callWorkflowTool('act', { ...args, waitFor: ' ' }, budget)).rejects.toThrow('empty wait');
     expect(budget.snapshot().actionsUsed).toBe(0);
     const other = createWorkflowBudget({ CDP_WORKFLOW_MAX_ACTIONS: '1' }, () => 0);

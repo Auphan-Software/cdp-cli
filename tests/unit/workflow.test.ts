@@ -29,7 +29,8 @@ describe('deterministic workflow contracts', () => {
       vi.stubEnv('CDP_PAGE', 'exact-page'); vi.stubEnv('CDP_SESSION', 'owner');
       await expect(callWorkflowTool('act', { task: 'read', page: 'other-page' })).rejects.toThrow('Unknown option');
       await expect(callWorkflowTool('observe', { task: 'read', maxElements: -1 })).rejects.toThrow('Invalid option');
-      await expect(callWorkflowTool('act', { task: 'read', action: 'click' })).rejects.toThrow('Missing task/source');
+      const missing: any = await callWorkflowTool('act', { task: 'read', action: 'click' });
+      expect(JSON.parse(missing.content[0].text)).toMatchObject({ success: false, type: 'workflow-input-rejection', value: { rejection: { commandDispatched: false } } });
     } finally { vi.unstubAllEnvs(); }
   });
   it('keeps screenshot alignment strict even for tolerated configured clock ticks', () => {

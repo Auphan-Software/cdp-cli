@@ -91,6 +91,14 @@ describe('source-bound target keys through the deployed CLI', () => {
     cases.push([nested.k, 'UNSUPPORTED'], [shadow.k, 'UNSUPPORTED']);
     for (const [key, code] of cases) {
       const rejected = await act(page.id, observed, key);
+      if (code === 'UNAVAILABLE') {
+        expect(rejected.success).toBe(false);
+        expect(rejected.type).toBe('workflow-target-rejection');
+        expect(rejected.value.action).toMatchObject({ code: 'WORKFLOW_TARGET_KEY_UNAVAILABLE', actionDelivered: false, commandSucceeded: false, deliveryUnknown: false });
+        expect(rejected.value.view.source.id).not.toBe(observed.value.view.source.id);
+        expect(rejected.value.output.profile).toBe('current-24k');
+        continue;
+      }
       expect(rejected.message, JSON.stringify(rejected)).toContain(`WORKFLOW_TARGET_KEY_${code}`);
       expect(rejected.message).toContain('no action delivered');
     }
