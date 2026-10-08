@@ -800,6 +800,12 @@ Clicking an `<option>` inside a `<select>` does **not** work and never can — C
 
 The target is scrolled into view before the click, and the click point is hit-tested first so a click that would be swallowed by an overlay fails loudly instead of reporting a false success:
 
+For top-document clicks, a covered center triggers a bounded search of inset points inside the
+visible target rectangle. The chosen point must hit the target or its descendant. This lets a
+partially exposed control work without forcing the click or removing the overlay. Child-frame
+clicks, drag endpoints and explicit `--force` retain their center behavior. A forced dispatch still
+reports a failed delivery if the overlay receives the event.
+
 - `CLICK_OCCLUDED` - another element covers the click point (`details.occludedBy` names it). Pass `--force` to dispatch anyway.
 - `CLICK_OFFSCREEN` - the element could not be scrolled into the viewport.
 - `CLICK_DETACHED` - the element left the document before the click.
