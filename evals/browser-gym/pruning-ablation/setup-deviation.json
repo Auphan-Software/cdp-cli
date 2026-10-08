@@ -1,0 +1,10 @@
+{
+  "affectedArms": [
+    "focused",
+    "ranked"
+  ],
+  "reason": "Earlier arms did not explicitly activate newly allocated pages. Focused/ranked screenshot failures contaminate comparison; activation is a setup difference, not a proven cause.",
+  "rankedActivationDuringRun": false,
+  "baselineCostsRetained": true,
+  "activationAttemptRefusedByLease": true
+}

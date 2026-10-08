@@ -1,0 +1,23 @@
+{
+  "result": "success",
+  "saved_text": "fixture note 01",
+  "steps": [
+    {"step": "initial screenshot", "status": "failed", "detail": "Page.captureScreenshot timeout; state observed via scoped view (Notes textbox targetKey race45bc75e95aa7b.2, empty)", "evidence": null},
+    {"step": "fill Notes", "status": "pass", "targetKey": "race45bc75e95aa7b.2", "detail": "value len 15 = 'fixture note 01'"},
+    {"step": "pre-confirm screenshot", "status": "pass", "evidence": "C:/Users/wingz/.cdp-cli/state/31e541860f6a45f3/pruning-ablation-01/F1AF20D75BD0D0B326C281A07AC49E70/evidence/982f31a4-55e9-4de1-bfb0-a3218aaf12bf.png", "detail": "shows green checkmark beside Notes textbox"},
+    {"step": "discover confirm control", "status": "pass", "targetKey": "top|id:confirm", "detail": "expand elements (historical, source 273b4912...) listed button id=confirm box [536,124,52,44] matching visible green checkmark; scoped query omitted it"},
+    {"step": "click confirm", "status": "pass", "targetKey": "top|id:confirm", "detail": "single click; witnessed trusted mousedown on target at x562 y145; no retry"},
+    {"step": "verify Saved notes", "status": "pass", "detail": "status 'Saved notes: fixture note 01' (was 'Waiting')"},
+    {"step": "final screenshot", "status": "failed", "detail": "Page.captureScreenshot timeout; final state verified via observation only (source 5963947d-4458-4a5a-b7d5-882b668519ce)", "evidence": null}
+  ],
+  "recoveries": [
+    "initial and final screenshots timed out (Page.captureScreenshot); used observation state instead",
+    "confirm control absent from Notes|Saved scoped view; located via expand elements section, no CSS guessing"
+  ],
+  "unknowns": [
+    "final screenshot pixels not captured",
+    "initial screenshot pixels not captured (a later screenshot was used as visual evidence)",
+    "server-side persistence not independently verified beyond Saved notes status"
+  ],
+  "budget": {"actions_used": 2, "limit": 12, "elapsed_ms_approx": 117000, "limit_ms": 180000}
+}

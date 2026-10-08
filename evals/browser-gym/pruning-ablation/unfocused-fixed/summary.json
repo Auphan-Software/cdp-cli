@@ -1,0 +1,19 @@
+{
+  "arm": "unfocused-fixed",
+  "browserCalls": 4,
+  "expansions": 1,
+  "screenshots": 3,
+  "processedTokens": 145756,
+  "estimatedUsd": 0.008298280000000002,
+  "peakInput": 28503,
+  "compactions": 0,
+  "providerStatuses": {
+    "unused": 3
+  },
+  "providerReasons": {
+    "disabled": 3
+  },
+  "models": {
+    "claude-haiku-5-5": 8
+  }
+}

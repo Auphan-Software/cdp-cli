@@ -26,6 +26,21 @@ export function scopedWorkflowView(view: any, query: string, hints: PageState['h
   const matched = new Set<string>(view.elements.filter((node: any) => terms.some(term =>
     [node.name, node.text, ...(hints[node.k]?.context ?? [])].join(' ').normalize('NFC').toLowerCase().includes(term))).map((node: any) => node.k));
   const included = new Set(matched);
+  const editorGroups = new Set<string>();
+  for (const node of view.elements) {
+    if (node.state?.vis === false || (!matched.has(node.k) && node.k !== view.focus)) continue;
+    if (!hints[node.k]?.editable && !/^(textbox|searchbox|combobox|spinbutton)$/.test(node.role)) continue;
+    const group = hints[node.k]?.controlGroup;
+    if (group) editorGroups.add(group);
+  }
+  let editorControlsRetained = 0, editorGroupsLimited = 0;
+  for (const group of editorGroups) {
+    const controls = view.elements.filter((node: any) => hints[node.k]?.controlGroup === group && node.state?.vis !== false &&
+      /^(button|link|tab|menuitem|switch|combobox|textbox|searchbox|spinbutton|checkbox|radio|summary)$/.test(node.role));
+    // Bound contextual widening; oversized groups remain recoverable by expand.
+    if (controls.length > 12) { editorGroupsLimited++; continue; }
+    for (const node of controls) if (!included.has(node.k)) { included.add(node.k); editorControlsRetained++; }
+  }
   // Keep nearby text on the same rendered row: a Total label alone is not its amount.
   // This only broadens the read; it never infers a locator or changes action identity.
   for (const key of matched) {
@@ -53,7 +68,7 @@ export function scopedWorkflowView(view: any, query: string, hints: PageState['h
     if (!keep) excludedChanges++;
     return keep;
   });
-  view.scope = { query, matched: matched.size, excludedElements, excludedChanges,
+  view.scope = { query, matched: matched.size, excludedElements, excludedChanges, editorControlsRetained, editorGroupsLimited,
     instruction: 'Scoped read; excluded business facts are not verified. Query needed labels, observe without query for broader context, or expand historical evidence.' };
   view.omitted.count += excludedElements;
 }

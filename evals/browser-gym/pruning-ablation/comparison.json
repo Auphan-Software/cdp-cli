@@ -1,0 +1,152 @@
+{
+  "fixtureSha256": "2d6cc6b06784cc5293fb74dc9717c8a85fc2764e178aac4cc51ff99dd68cafd9",
+  "arms": [
+    {
+      "arm": "unfocused",
+      "browserCalls": 5,
+      "expansions": 1,
+      "screenshots": 3,
+      "processedTokens": 181286,
+      "estimatedUsd": 0.00974421,
+      "peakInput": 32184,
+      "compactions": 0,
+      "providerStatuses": {
+        "unused": 4
+      },
+      "providerReasons": {
+        "disabled": 4
+      },
+      "models": {
+        "claude-haiku-5-5": 9
+      }
+    },
+    {
+      "arm": "focused",
+      "browserCalls": 6,
+      "expansions": 1,
+      "screenshots": 3,
+      "processedTokens": 187021,
+      "estimatedUsd": 0.00903741,
+      "peakInput": 29536,
+      "compactions": 0,
+      "providerStatuses": {
+        "unused": 5
+      },
+      "providerReasons": {
+        "disabled": 5
+      },
+      "models": {
+        "claude-haiku-5-5": 10
+      }
+    },
+    {
+      "arm": "ranked",
+      "browserCalls": 6,
+      "expansions": 1,
+      "screenshots": 5,
+      "processedTokens": 204470,
+      "estimatedUsd": 0.010224140000000001,
+      "peakInput": 33930,
+      "compactions": 0,
+      "providerStatuses": {
+        "applied": 5
+      },
+      "providerReasons": {
+        "applied": 5
+      },
+      "models": {
+        "claude-haiku-5-5": 10
+      }
+    },
+    {
+      "arm": "unfocused-fixed",
+      "browserCalls": 4,
+      "expansions": 1,
+      "screenshots": 3,
+      "processedTokens": 145756,
+      "estimatedUsd": 0.008298280000000002,
+      "peakInput": 28503,
+      "compactions": 0,
+      "providerStatuses": {
+        "unused": 3
+      },
+      "providerReasons": {
+        "disabled": 3
+      },
+      "models": {
+        "claude-haiku-5-5": 8
+      }
+    },
+    {
+      "arm": "unfocused-final",
+      "browserCalls": 5,
+      "expansions": 1,
+      "screenshots": 2,
+      "processedTokens": 166389,
+      "estimatedUsd": 0.008779500000000003,
+      "peakInput": 29317,
+      "compactions": 0,
+      "providerStatuses": {
+        "unused": 4
+      },
+      "providerReasons": {
+        "disabled": 4
+      },
+      "models": {
+        "claude-haiku-5-5": 9
+      }
+    },
+    {
+      "arm": "focused-final",
+      "browserCalls": 5,
+      "expansions": 1,
+      "screenshots": 3,
+      "processedTokens": 166940,
+      "estimatedUsd": 0.0094038,
+      "peakInput": 29118,
+      "compactions": 0,
+      "providerStatuses": {
+        "unused": 3
+      },
+      "providerReasons": {
+        "disabled": 3
+      },
+      "models": {
+        "claude-haiku-5-5": 9
+      }
+    },
+    {
+      "arm": "ranked-final",
+      "browserCalls": 4,
+      "expansions": 1,
+      "screenshots": 3,
+      "processedTokens": 146061,
+      "estimatedUsd": 0.00874456,
+      "peakInput": 29634,
+      "compactions": 0,
+      "providerStatuses": {
+        "fallback": 1,
+        "applied": 2
+      },
+      "providerReasons": {
+        "request-failed": 1,
+        "applied": 2
+      },
+      "models": {
+        "claude-haiku-5-5": 8
+      }
+    }
+  ],
+  "allAttemptsEstimatedUsd": 0.0642319,
+  "finalFocusedCostChangePercent": 7.110883307705418,
+  "finalRankedCostChangePercent": -0.39797254968964024,
+  "promptHashes": {
+    "unfocused": "0bc47984dc747f3a5b3bb10e3a2a221d8a6ca80dde441d316a1a1449830160ad",
+    "focused": "0bc47984dc747f3a5b3bb10e3a2a221d8a6ca80dde441d316a1a1449830160ad",
+    "ranked": "0bc47984dc747f3a5b3bb10e3a2a221d8a6ca80dde441d316a1a1449830160ad",
+    "unfocused-fixed": "0bc47984dc747f3a5b3bb10e3a2a221d8a6ca80dde441d316a1a1449830160ad",
+    "unfocused-final": "0bc47984dc747f3a5b3bb10e3a2a221d8a6ca80dde441d316a1a1449830160ad",
+    "focused-final": "0bc47984dc747f3a5b3bb10e3a2a221d8a6ca80dde441d316a1a1449830160ad",
+    "ranked-final": "0bc47984dc747f3a5b3bb10e3a2a221d8a6ca80dde441d316a1a1449830160ad"
+  }
+}

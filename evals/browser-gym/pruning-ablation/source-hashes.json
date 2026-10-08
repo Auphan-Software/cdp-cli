@@ -1,0 +1,18 @@
+[
+  {
+    "Path": "Q:\\apps\\cdp-cli-haiku-gym\\src\\workflow-compact.ts",
+    "Hash": "B162A613AB678CA49507BAF73F03E06A338F1C09A82460305F32D54DF6BF3B99"
+  },
+  {
+    "Path": "Q:\\apps\\cdp-cli-haiku-gym\\src\\state\\page-script.ts",
+    "Hash": "F1716EBBF47E2DDE233892515C08EBD95EE68591968E30E7CBDDF87E1CB14AC7"
+  },
+  {
+    "Path": "Q:\\apps\\cdp-cli-haiku-gym\\src\\state\\types.ts",
+    "Hash": "89E2190762456E3561C6D93CDEC8B688937529BFF35B440F4C12EBFA48D67F80"
+  },
+  {
+    "Path": "Q:\\apps\\cdp-cli-haiku-gym\\src\\experimental\\decision.ts",
+    "Hash": "4799AC6325416B4D9636BE646D99FFDC01D27C091582FB757D47FACB2C6C9365"
+  }
+]

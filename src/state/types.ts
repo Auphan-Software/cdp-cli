@@ -26,7 +26,7 @@ export interface PageState {
   title: string;
   readyState: string;
   focus?: string;
-  hints?: Record<string, { parents?: string[]; context?: string[]; region?: string; live?: boolean; editable?: boolean }>;
+  hints?: Record<string, { parents?: string[]; context?: string[]; region?: string; controlGroup?: string; live?: boolean; editable?: boolean }>;
   bodyTextHash: string;
   actionTextHash?: string;
   nodeCount: number;

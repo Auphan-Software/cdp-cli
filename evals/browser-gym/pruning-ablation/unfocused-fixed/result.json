@@ -1,0 +1,23 @@
+{
+  "task": "save fixture note 01 in visible Notes editor via visible checkmark confirm",
+  "status": "success",
+  "saved_text": "fixture note 01",
+  "verification": {
+    "saved_status_text": "Saved notes: fixture note 01",
+    "textbox_value_len": 15,
+    "final_visual_check": "post-confirm screenshot shows textbox 'fixture note 01' and status 'Saved notes: fixture note 01'"
+  },
+  "steps": [
+    {"step": 1, "tool": "screenshot", "result": "initial view; textbox empty, status Waiting; buttons cancel (x, left) and confirm (check, right)", "evidence": "C:/Users/wingz/.cdp-cli/state/31e541860f6a45f3/pruning-ablation-01/29904049A676DBCCFB587CB2D60DEC1C/evidence/0e15b793-e585-4c91-94c4-ead61cc0b7eb.png"},
+    {"step": 2, "tool": "act fill", "targetKey": "r422c235a09afbc36.2", "value": "fixture note 01", "result": "delivered; textbox len 15", "evidence": "C:/Users/wingz/.cdp-cli/state/31e541860f6a45f3/pruning-ablation-01/29904049A676DBCCFB587CB2D60DEC1C/evidence/fb22479d-e28b-434e-916c-8774bd69daf0.png"},
+    {"step": 3, "tool": "expand elements", "result": "confirm control has id 'confirm' at box [536,124]; cancel id 'cancel' at [472,124]", "evidence": "canonical source 92f5fc3b-89d5-451f-8996-4539aa312ec2"},
+    {"step": 4, "tool": "act click", "targetKey": "r422084d1f72e8457.4", "result": "delivered; mousedown witnessed at x562 y145 on target path; status changed Waiting -> Saved notes: fixture note 01", "evidence": "C:/Users/wingz/.cdp-cli/state/31e541860f6a45f3/pruning-ablation-01/29904049A676DBCCFB587CB2D60DEC1C/evidence/e84b3de9-2b82-4c10-ab18-b5b8127b006d.png"}
+  ],
+  "budget": {"browser_calls": 4, "actions_used": 2, "max_actions": 12, "elapsed_ms_approx": 40000, "limit_ms": 180000},
+  "recoveries": [],
+  "unknowns": [
+    "Targets for act were keyed from successive source views; confirm target chosen by visual position plus expand id, not by accessible name (buttons unnamed).",
+    "Persistence beyond the page status text not independently checked; no reload or external store read performed.",
+    "Harness notice about checkpoint phase 'missing' on job.md read was not acted on."
+  ]
+}

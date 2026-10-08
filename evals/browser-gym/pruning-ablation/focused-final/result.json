@@ -1,0 +1,29 @@
+{
+  "task": "save fixture note 01 in Notes editor via visible checkmark confirm",
+  "status": "success",
+  "url": "http://127.0.0.1:58333/?arm=focused-final",
+  "steps": [
+    {"n": 1, "tool": "observe", "query": "Notes|Saved", "screenshotScale": 0.5, "result": "initial view; Notes textbox len 0; buttons unnamed (cancel X, confirm check); status Waiting"},
+    {"n": 2, "tool": "act:fill", "targetKey": "re544b88ec3b5ef12.2", "value": "fixture note 01", "result": "delivered; textbox len 15 (matches); source 9cd9d3db-e755-494c-b6d5-3278221336da"},
+    {"n": 3, "tool": "expand:elements", "source": "9cd9d3db-e755-494c-b6d5-3278221336da", "result": "element order heading, textbox, cancel(x472), confirm(x536), status; confirm box matches green check pixels"},
+    {"n": 4, "tool": "observe", "result": "rejected by input validation (full+query not allowed); no browser command dispatched; not retried"},
+    {"n": 5, "tool": "act:click", "targetKey": "r622c65bee32f1731.4", "source": "9cd9d3db-e755-494c-b6d5-3278221336da", "result": "delivered once; mousedown witnessed trusted at x562 y145 (green check); status changed Waiting -> Saved notes: fixture note 01"}
+  ],
+  "evidence": {
+    "initialScreenshot": "C:/Users/wingz/.cdp-cli/state/31e541860f6a45f3/pruning-ablation-01/F83700E26931BA4E2781C479D1DFF8E5/evidence/fa338d1f-d157-4a8b-8c50-b00d8536ad9b.png",
+    "postFillScreenshot": "C:/Users/wingz/.cdp-cli/state/31e541860f6a45f3/pruning-ablation-01/F83700E26931BA4E2781C479D1DFF8E5/evidence/a9ea1cc2-f003-4fc3-ab66-8249b5a122cf.png",
+    "finalScreenshot": "C:/Users/wingz/.cdp-cli/state/31e541860f6a45f3/pruning-ablation-01/F83700E26931BA4E2781C479D1DFF8E5/evidence/f3169efc-ac8a-4108-8984-c4d08475da9d.png",
+    "finalSource": "e23cefc2-aae1-433f-968f-1563846d6740",
+    "savedNotesText": "Saved notes: fixture note 01"
+  },
+  "recoveries": [
+    "observe with full+query rejected pre-dispatch; corrected by using source-bound element order and box data instead"
+  ],
+  "unknowns": [
+    "confirm targetKey r622c65bee32f1731.4 inferred from DOM order and box coords (expand used top|id:confirm keys); click witness confirms mousedown at green check position",
+    "click response targetKey echoed as rbe41599ed89d8262.4 (rebased source key); not a separate action",
+    "no network/console evidence inspected",
+    "no blind repeat of click performed"
+  ],
+  "budget": {"browserCallsUsed": 5, "maxCalls": 12, "elapsedApproxSeconds": 43, "maxSeconds": 180}
+}

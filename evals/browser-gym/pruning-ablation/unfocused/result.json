@@ -1,0 +1,31 @@
+{
+  "task": "save exact 'fixture note 01' in Notes editor via visible checkmark confirm",
+  "status": "success",
+  "url": "http://127.0.0.1:58333/?arm=unfocused",
+  "steps": [
+    "observe initial screenshot (scale 0.5) -> Notes textbox key rcccfdb11435d503f.2, buttons .3/.4 unnamed, status Waiting",
+    "act fill targetKey rcccfdb11435d503f.2 value 'fixture note 01' -> success, value len 15, screenshot shows text",
+    "observe no query -> buttons r4e40fbba90e3ca4b.3/.4; expand elements showed top|id:cancel box[472,124] and top|id:confirm box[536,124]; confirm = green checkmark",
+    "act click targetKey r4e40fbba90e3ca4b.4 (confirm) -> witness mousedown trusted at x562 y145 on checkmark; status changed Waiting -> 'Saved notes: fixture note 01'; screenshot confirms"
+  ],
+  "verification": {
+    "textboxValue": "fixture note 01 (len 15)",
+    "savedNotesStatus": "Saved notes: fixture note 01",
+    "finalScreenshot": "post-click screenshot in act result, scale 0.5, shows saved status and checkmark (not X) clicked"
+  },
+  "evidence_paths": [
+    "C:\\Users\\wingz\\.cdp-cli\\state\\31e541860f6a45f3\\pruning-ablation-01\\B08848C64FBE8AC088214F0D90F48FDD\\evidence\\1eea86f0-dff1-40fa-ab44-de1cb07ffc0e.png",
+    "C:\\Users\\wingz\\.cdp-cli\\state\\31e541860f6a45f3\\pruning-ablation-01\\B08848C64FBE8AC088214F0D90F48FDD\\evidence\\dcd95803-3e33-4f8a-a7ca-849f99ede709.png",
+    "C:\\Users\\wingz\\.cdp-cli\\state\\31e541860f6a45f3\\pruning-ablation-01\\B08848C64FBE8AC088214F0D90F48FDD\\evidence\\5830431a-8281-4f27-bb40-9f31b40ffa31.png"
+  ],
+  "browser_calls": 5,
+  "actions_used": 2,
+  "recoveries": [
+    "Buttons had no accessible names; identified confirm via expand elements (id confirm, x536) and visual checkmark, not guessed CSS"
+  ],
+  "unknowns": [
+    "Button key .4 mapped to confirm by element order and expand geometry; not name-verified. Post-click status and witness at checkmark coordinates support it.",
+    "Click witness targetKey in action result was r300a0a55cecf65ed.3 (post-action key), not the pre-action key used; no ambiguity in effect observed.",
+    "No persistence beyond on-page status checked; no reload performed."
+  ]
+}

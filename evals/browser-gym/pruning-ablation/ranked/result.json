@@ -1,0 +1,38 @@
+{
+  "job": "pruning-ablation-01/ranked",
+  "result": "success",
+  "saved_text": "fixture note 01",
+  "steps": [
+    "observe (query Notes|Saved, screenshotScale 0.5): screenshot timeout, no pixels, not used as evidence",
+    "screenshot retry on source ffaa3b33: success, initial pixels inspected (green checkmark, gray X, Notes textbox empty)",
+    "fill targetKey r96120801039ddc0f.2 with 'fixture note 01': delivered, textbox len 15",
+    "expand elements (source 22ef81a3): confirm control identified as top|id:confirm (box 536,124, green checkmark)",
+    "click targetKey top|id:confirm once: mousedown witnessed on checkmark; status changed to 'Saved notes: fixture note 01'",
+    "final screenshot (source dd9ec48a): textbox 'fixture note 01', status 'Saved notes: fixture note 01'"
+  ],
+  "evidence_paths": [
+    "C:/Users/wingz/.cdp-cli/state/31e541860f6a45f3/pruning-ablation-01/5517A2AF91003A0121B72F8FD21AFE10/evidence/cd500d54-3e52-427b-9bcd-4e05067aefbc.png",
+    "C:/Users/wingz/.cdp-cli/state/31e541860f6a45f3/pruning-ablation-01/5517A2AF91003A0121B72F8FD21AFE10/evidence/3d508c07-45a8-45e2-b665-57f9b35a68f6.png",
+    "C:/Users/wingz/.cdp-cli/state/31e541860f6a45f3/pruning-ablation-01/5517A2AF91003A0121B72F8FD21AFE10/evidence/769662c1-362a-4596-a760-334d44a3ed03.png"
+  ],
+  "canonical_state_paths": [
+    "C:/Users/wingz/.cdp-cli/state/31e541860f6a45f3/pruning-ablation-01/5517A2AF91003A0121B72F8FD21AFE10/08b2fa56-032d-40eb-80ef-3dab8e5c05a5.json",
+    "C:/Users/wingz/.cdp-cli/state/31e541860f6a45f3/pruning-ablation-01/5517A2AF91003A0121B72F8FD21AFE10/dd9ec48a-c290-4864-ae64-07ac5325b22f.json"
+  ],
+  "recoveries": [
+    "initial observe screenshot timed out (Page.captureScreenshot); recovered with screenshot tool on same-state source",
+    "expand elements used to locate confirm control, since Notes|Saved query excluded the button"
+  ],
+  "unknowns": [
+    "click action returned targetKey rfda03b336b204b73.3 while input key was top|id:confirm; click witnessed on checkmark at 562,145 but mapping not explicitly confirmed",
+    "post-click observe screenshot timed out; final verification relied on final screenshot and Saved status text",
+    "saved persistence beyond the on-page status not verified",
+    "no blind repeat of the confirm click performed; one confirm delivered"
+  ],
+  "budget": {
+    "actions_used": 2,
+    "max_actions": 12,
+    "elapsed_ms_approx": 119000,
+    "max_ms": 180000
+  }
+}

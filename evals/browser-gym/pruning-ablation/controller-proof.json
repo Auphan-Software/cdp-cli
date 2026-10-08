@@ -1,0 +1,595 @@
+{
+  "fixtureHash": "2d6cc6b06784cc5293fb74dc9717c8a85fc2764e178aac4cc51ff99dd68cafd9",
+  "arms": {
+    "unfocused": {
+      "summary": {
+        "arm": "unfocused",
+        "browserCalls": 5,
+        "expansions": 1,
+        "screenshots": 3,
+        "processedTokens": 181286,
+        "estimatedUsd": 0.00974421,
+        "peakInput": 32184,
+        "compactions": 0,
+        "providerStatuses": {
+          "unused": 4
+        },
+        "providerReasons": {
+          "disabled": 4
+        },
+        "models": {
+          "claude-haiku-5-5": 9
+        }
+      },
+      "exactlyOneAcceptedSave": true,
+      "views": [
+        {
+          "provider": "unused",
+          "reason": "disabled",
+          "buttonCount": 2
+        },
+        {
+          "provider": "unused",
+          "reason": "disabled",
+          "scope": {
+            "query": "Notes|Saved notes|Waiting|fixture note 01|Save|Confirm",
+            "matched": 3,
+            "excludedElements": 32,
+            "excludedChanges": 0,
+            "instruction": "Scoped read; excluded business facts are not verified. Query needed labels, observe without query for broader context, or expand historical evidence."
+          },
+          "buttonCount": 0
+        },
+        {
+          "provider": "unused",
+          "reason": "disabled",
+          "buttonCount": 2
+        },
+        {
+          "provider": "unused",
+          "reason": "disabled",
+          "scope": {
+            "query": "Saved notes|Notes|Waiting|fixture note 01|Saved|Saving|Error",
+            "matched": 3,
+            "excludedElements": 31,
+            "excludedChanges": 0,
+            "instruction": "Scoped read; excluded business facts are not verified. Query needed labels, observe without query for broader context, or expand historical evidence."
+          },
+          "buttonCount": 1
+        }
+      ],
+      "screenshotResults": [
+        {
+          "available": true,
+          "path": "C:\\Users\\wingz\\.cdp-cli\\state\\31e541860f6a45f3\\pruning-ablation-01\\B08848C64FBE8AC088214F0D90F48FDD\\evidence\\1eea86f0-dff1-40fa-ab44-de1cb07ffc0e.png",
+          "stable": true
+        },
+        {
+          "available": true,
+          "path": "C:\\Users\\wingz\\.cdp-cli\\state\\31e541860f6a45f3\\pruning-ablation-01\\B08848C64FBE8AC088214F0D90F48FDD\\evidence\\dcd95803-3e33-4f8a-a7ca-849f99ede709.png",
+          "stable": true
+        },
+        {
+          "available": true,
+          "path": "C:\\Users\\wingz\\.cdp-cli\\state\\31e541860f6a45f3\\pruning-ablation-01\\B08848C64FBE8AC088214F0D90F48FDD\\evidence\\5830431a-8281-4f27-bb40-9f31b40ffa31.png",
+          "stable": true
+        }
+      ]
+    },
+    "focused": {
+      "summary": {
+        "arm": "focused",
+        "browserCalls": 6,
+        "expansions": 1,
+        "screenshots": 3,
+        "processedTokens": 187021,
+        "estimatedUsd": 0.00903741,
+        "peakInput": 29536,
+        "compactions": 0,
+        "providerStatuses": {
+          "unused": 5
+        },
+        "providerReasons": {
+          "disabled": 5
+        },
+        "models": {
+          "claude-haiku-5-5": 10
+        }
+      },
+      "exactlyOneAcceptedSave": true,
+      "views": [
+        {
+          "provider": "unused",
+          "reason": "disabled",
+          "scope": {
+            "query": "Notes|Saved",
+            "matched": 2,
+            "excludedElements": 32,
+            "excludedChanges": 0,
+            "instruction": "Scoped read; excluded business facts are not verified. Query needed labels, observe without query for broader context, or expand historical evidence."
+          },
+          "buttonCount": 0
+        },
+        {
+          "provider": "unused",
+          "reason": "disabled",
+          "scope": {
+            "query": "Notes|Saved",
+            "matched": 2,
+            "excludedElements": 32,
+            "excludedChanges": 0,
+            "instruction": "Scoped read; excluded business facts are not verified. Query needed labels, observe without query for broader context, or expand historical evidence."
+          },
+          "buttonCount": 0
+        },
+        {
+          "provider": "unused",
+          "reason": "disabled",
+          "scope": {
+            "query": "Notes|Saved",
+            "matched": 2,
+            "excludedElements": 32,
+            "excludedChanges": 0,
+            "instruction": "Scoped read; excluded business facts are not verified. Query needed labels, observe without query for broader context, or expand historical evidence."
+          },
+          "buttonCount": 0
+        },
+        {
+          "provider": "unused",
+          "reason": "disabled",
+          "scope": {
+            "query": "Notes|Saved",
+            "matched": 3,
+            "excludedElements": 31,
+            "excludedChanges": 0,
+            "instruction": "Scoped read; excluded business facts are not verified. Query needed labels, observe without query for broader context, or expand historical evidence."
+          },
+          "buttonCount": 1
+        },
+        {
+          "provider": "unused",
+          "reason": "disabled",
+          "scope": {
+            "query": "Notes|Saved",
+            "matched": 3,
+            "excludedElements": 31,
+            "excludedChanges": 0,
+            "instruction": "Scoped read; excluded business facts are not verified. Query needed labels, observe without query for broader context, or expand historical evidence."
+          },
+          "buttonCount": 1
+        }
+      ],
+      "screenshotResults": [
+        {
+          "available": false,
+          "stable": false
+        },
+        {
+          "available": true,
+          "path": "C:\\Users\\wingz\\.cdp-cli\\state\\31e541860f6a45f3\\pruning-ablation-01\\F1AF20D75BD0D0B326C281A07AC49E70\\evidence\\982f31a4-55e9-4de1-bfb0-a3218aaf12bf.png",
+          "stable": true
+        },
+        {
+          "available": false,
+          "stable": false
+        }
+      ]
+    },
+    "ranked": {
+      "summary": {
+        "arm": "ranked",
+        "browserCalls": 6,
+        "expansions": 1,
+        "screenshots": 5,
+        "processedTokens": 204470,
+        "estimatedUsd": 0.010224140000000001,
+        "peakInput": 33930,
+        "compactions": 0,
+        "providerStatuses": {
+          "applied": 5
+        },
+        "providerReasons": {
+          "applied": 5
+        },
+        "models": {
+          "claude-haiku-5-5": 10
+        }
+      },
+      "exactlyOneAcceptedSave": true,
+      "views": [
+        {
+          "provider": "applied",
+          "reason": "applied",
+          "scope": {
+            "query": "Notes|Saved",
+            "matched": 2,
+            "excludedElements": 2,
+            "excludedChanges": 0,
+            "instruction": "Scoped read; excluded business facts are not verified. Query needed labels, observe without query for broader context, or expand historical evidence."
+          },
+          "buttonCount": 0
+        },
+        {
+          "provider": "applied",
+          "reason": "applied",
+          "scope": {
+            "query": "Notes|Saved",
+            "matched": 2,
+            "excludedElements": 2,
+            "excludedChanges": 0,
+            "instruction": "Scoped read; excluded business facts are not verified. Query needed labels, observe without query for broader context, or expand historical evidence."
+          },
+          "buttonCount": 0
+        },
+        {
+          "provider": "applied",
+          "reason": "applied",
+          "scope": {
+            "query": "Notes|Saved",
+            "matched": 2,
+            "excludedElements": 2,
+            "excludedChanges": 0,
+            "instruction": "Scoped read; excluded business facts are not verified. Query needed labels, observe without query for broader context, or expand historical evidence."
+          },
+          "buttonCount": 0
+        },
+        {
+          "provider": "applied",
+          "reason": "applied",
+          "scope": {
+            "query": "Notes|Saved",
+            "matched": 3,
+            "excludedElements": 1,
+            "excludedChanges": 0,
+            "instruction": "Scoped read; excluded business facts are not verified. Query needed labels, observe without query for broader context, or expand historical evidence."
+          },
+          "buttonCount": 1
+        },
+        {
+          "provider": "applied",
+          "reason": "applied",
+          "scope": {
+            "query": "Notes|Saved",
+            "matched": 3,
+            "excludedElements": 1,
+            "excludedChanges": 0,
+            "instruction": "Scoped read; excluded business facts are not verified. Query needed labels, observe without query for broader context, or expand historical evidence."
+          },
+          "buttonCount": 1
+        }
+      ],
+      "screenshotResults": [
+        {
+          "available": false,
+          "stable": false
+        },
+        {
+          "available": true,
+          "path": "C:\\Users\\wingz\\.cdp-cli\\state\\31e541860f6a45f3\\pruning-ablation-01\\5517A2AF91003A0121B72F8FD21AFE10\\evidence\\cd500d54-3e52-427b-9bcd-4e05067aefbc.png",
+          "stable": true
+        },
+        {
+          "available": true,
+          "path": "C:\\Users\\wingz\\.cdp-cli\\state\\31e541860f6a45f3\\pruning-ablation-01\\5517A2AF91003A0121B72F8FD21AFE10\\evidence\\3d508c07-45a8-45e2-b665-57f9b35a68f6.png",
+          "stable": true
+        },
+        {
+          "available": false,
+          "stable": false
+        },
+        {
+          "available": true,
+          "path": "C:\\Users\\wingz\\.cdp-cli\\state\\31e541860f6a45f3\\pruning-ablation-01\\5517A2AF91003A0121B72F8FD21AFE10\\evidence\\769662c1-362a-4596-a760-334d44a3ed03.png",
+          "stable": true
+        }
+      ]
+    },
+    "unfocused-fixed": {
+      "summary": {
+        "arm": "unfocused-fixed",
+        "browserCalls": 4,
+        "expansions": 1,
+        "screenshots": 3,
+        "processedTokens": 145756,
+        "estimatedUsd": 0.008298280000000002,
+        "peakInput": 28503,
+        "compactions": 0,
+        "providerStatuses": {
+          "unused": 3
+        },
+        "providerReasons": {
+          "disabled": 3
+        },
+        "models": {
+          "claude-haiku-5-5": 8
+        }
+      },
+      "exactlyOneAcceptedSave": true,
+      "views": [
+        {
+          "provider": "unused",
+          "reason": "disabled",
+          "buttonCount": 2
+        },
+        {
+          "provider": "unused",
+          "reason": "disabled",
+          "scope": {
+            "query": "Notes|Saved|Waiting|Confirm|Save|fixture",
+            "matched": 3,
+            "excludedElements": 30,
+            "excludedChanges": 0,
+            "editorControlsRetained": 2,
+            "editorGroupsLimited": 0,
+            "instruction": "Scoped read; excluded business facts are not verified. Query needed labels, observe without query for broader context, or expand historical evidence."
+          },
+          "buttonCount": 2
+        },
+        {
+          "provider": "unused",
+          "reason": "disabled",
+          "scope": {
+            "query": "Saved|Notes|Waiting|fixture|notes status",
+            "matched": 3,
+            "excludedElements": 30,
+            "excludedChanges": 0,
+            "editorControlsRetained": 2,
+            "editorGroupsLimited": 0,
+            "instruction": "Scoped read; excluded business facts are not verified. Query needed labels, observe without query for broader context, or expand historical evidence."
+          },
+          "buttonCount": 2
+        }
+      ],
+      "screenshotResults": [
+        {
+          "available": true,
+          "path": "C:\\Users\\wingz\\.cdp-cli\\state\\31e541860f6a45f3\\pruning-ablation-01\\29904049A676DBCCFB587CB2D60DEC1C\\evidence\\0e15b793-e585-4c91-94c4-ead61cc0b7eb.png",
+          "stable": true
+        },
+        {
+          "available": true,
+          "path": "C:\\Users\\wingz\\.cdp-cli\\state\\31e541860f6a45f3\\pruning-ablation-01\\29904049A676DBCCFB587CB2D60DEC1C\\evidence\\fb22479d-e28b-434e-916c-8774bd69daf0.png",
+          "stable": true
+        },
+        {
+          "available": true,
+          "path": "C:\\Users\\wingz\\.cdp-cli\\state\\31e541860f6a45f3\\pruning-ablation-01\\29904049A676DBCCFB587CB2D60DEC1C\\evidence\\e84b3de9-2b82-4c10-ab18-b5b8127b006d.png",
+          "stable": true
+        }
+      ]
+    },
+    "unfocused-final": {
+      "summary": {
+        "arm": "unfocused-final",
+        "browserCalls": 5,
+        "expansions": 1,
+        "screenshots": 2,
+        "processedTokens": 166389,
+        "estimatedUsd": 0.008779500000000003,
+        "peakInput": 29317,
+        "compactions": 0,
+        "providerStatuses": {
+          "unused": 4
+        },
+        "providerReasons": {
+          "disabled": 4
+        },
+        "models": {
+          "claude-haiku-5-5": 9
+        }
+      },
+      "exactlyOneAcceptedSave": true,
+      "views": [
+        {
+          "provider": "unused",
+          "reason": "disabled",
+          "buttonCount": 2
+        },
+        {
+          "provider": "unused",
+          "reason": "disabled",
+          "buttonCount": 2
+        },
+        {
+          "provider": "unused",
+          "reason": "disabled",
+          "buttonCount": 2
+        },
+        {
+          "provider": "unused",
+          "reason": "disabled",
+          "buttonCount": 2
+        }
+      ],
+      "screenshotResults": [
+        {
+          "available": true,
+          "path": "C:\\Users\\wingz\\.cdp-cli\\state\\31e541860f6a45f3\\pruning-ablation-01\\9C2454ACEA92DBA072889D7F1B66C76A\\evidence\\28526050-29ba-4489-b37d-45bc8dba3eef.png",
+          "stable": true
+        },
+        {
+          "available": true,
+          "path": "C:\\Users\\wingz\\.cdp-cli\\state\\31e541860f6a45f3\\pruning-ablation-01\\9C2454ACEA92DBA072889D7F1B66C76A\\evidence\\f9f9e16d-1180-459e-bee9-7ab486f19aa6.png",
+          "stable": true
+        }
+      ]
+    },
+    "focused-final": {
+      "summary": {
+        "arm": "focused-final",
+        "browserCalls": 5,
+        "expansions": 1,
+        "screenshots": 3,
+        "processedTokens": 166940,
+        "estimatedUsd": 0.0094038,
+        "peakInput": 29118,
+        "compactions": 0,
+        "providerStatuses": {
+          "unused": 3
+        },
+        "providerReasons": {
+          "disabled": 3
+        },
+        "models": {
+          "claude-haiku-5-5": 9
+        }
+      },
+      "exactlyOneAcceptedSave": true,
+      "views": [
+        {
+          "provider": "unused",
+          "reason": "disabled",
+          "scope": {
+            "query": "Notes|Saved",
+            "matched": 2,
+            "excludedElements": 30,
+            "excludedChanges": 0,
+            "editorControlsRetained": 2,
+            "editorGroupsLimited": 0,
+            "instruction": "Scoped read; excluded business facts are not verified. Query needed labels, observe without query for broader context, or expand historical evidence."
+          },
+          "buttonCount": 2
+        },
+        {
+          "provider": "unused",
+          "reason": "disabled",
+          "scope": {
+            "query": "Notes|Saved",
+            "matched": 2,
+            "excludedElements": 30,
+            "excludedChanges": 0,
+            "editorControlsRetained": 2,
+            "editorGroupsLimited": 0,
+            "instruction": "Scoped read; excluded business facts are not verified. Query needed labels, observe without query for broader context, or expand historical evidence."
+          },
+          "buttonCount": 2
+        },
+        {
+          "provider": "unused",
+          "reason": "disabled",
+          "scope": {
+            "query": "Notes|Saved",
+            "matched": 3,
+            "excludedElements": 30,
+            "excludedChanges": 0,
+            "editorControlsRetained": 2,
+            "editorGroupsLimited": 0,
+            "instruction": "Scoped read; excluded business facts are not verified. Query needed labels, observe without query for broader context, or expand historical evidence."
+          },
+          "buttonCount": 2
+        }
+      ],
+      "screenshotResults": [
+        {
+          "available": true,
+          "path": "C:\\Users\\wingz\\.cdp-cli\\state\\31e541860f6a45f3\\pruning-ablation-01\\F83700E26931BA4E2781C479D1DFF8E5\\evidence\\fa338d1f-d157-4a8b-8c50-b00d8536ad9b.png",
+          "stable": true
+        },
+        {
+          "available": true,
+          "path": "C:\\Users\\wingz\\.cdp-cli\\state\\31e541860f6a45f3\\pruning-ablation-01\\F83700E26931BA4E2781C479D1DFF8E5\\evidence\\a9ea1cc2-f003-4fc3-ab66-8249b5a122cf.png",
+          "stable": true
+        },
+        {
+          "available": true,
+          "path": "C:\\Users\\wingz\\.cdp-cli\\state\\31e541860f6a45f3\\pruning-ablation-01\\F83700E26931BA4E2781C479D1DFF8E5\\evidence\\f3169efc-ac8a-4108-8984-c4d08475da9d.png",
+          "stable": true
+        }
+      ]
+    },
+    "ranked-final": {
+      "summary": {
+        "arm": "ranked-final",
+        "browserCalls": 4,
+        "expansions": 1,
+        "screenshots": 3,
+        "processedTokens": 146061,
+        "estimatedUsd": 0.00874456,
+        "peakInput": 29634,
+        "compactions": 0,
+        "providerStatuses": {
+          "fallback": 1,
+          "applied": 2
+        },
+        "providerReasons": {
+          "request-failed": 1,
+          "applied": 2
+        },
+        "models": {
+          "claude-haiku-5-5": 8
+        }
+      },
+      "exactlyOneAcceptedSave": true,
+      "views": [
+        {
+          "provider": "fallback",
+          "reason": "request-failed",
+          "scope": {
+            "query": "Notes|Saved",
+            "matched": 2,
+            "excludedElements": 30,
+            "excludedChanges": 0,
+            "editorControlsRetained": 2,
+            "editorGroupsLimited": 0,
+            "instruction": "Scoped read; excluded business facts are not verified. Query needed labels, observe without query for broader context, or expand historical evidence."
+          },
+          "buttonCount": 2
+        },
+        {
+          "provider": "applied",
+          "reason": "applied",
+          "scope": {
+            "query": "Notes|Saved",
+            "matched": 2,
+            "excludedElements": 0,
+            "excludedChanges": 0,
+            "editorControlsRetained": 2,
+            "editorGroupsLimited": 0,
+            "instruction": "Scoped read; excluded business facts are not verified. Query needed labels, observe without query for broader context, or expand historical evidence."
+          },
+          "buttonCount": 2
+        },
+        {
+          "provider": "applied",
+          "reason": "applied",
+          "scope": {
+            "query": "Notes|Saved",
+            "matched": 3,
+            "excludedElements": 0,
+            "excludedChanges": 0,
+            "editorControlsRetained": 2,
+            "editorGroupsLimited": 0,
+            "instruction": "Scoped read; excluded business facts are not verified. Query needed labels, observe without query for broader context, or expand historical evidence."
+          },
+          "buttonCount": 2
+        }
+      ],
+      "screenshotResults": [
+        {
+          "available": true,
+          "path": "C:\\Users\\wingz\\.cdp-cli\\state\\31e541860f6a45f3\\pruning-ablation-01\\1992D17C7D7E0225538542054FD07F17\\evidence\\63f27dfa-89e7-447a-a6d0-33f0def06ef5.png",
+          "stable": true
+        },
+        {
+          "available": true,
+          "path": "C:\\Users\\wingz\\.cdp-cli\\state\\31e541860f6a45f3\\pruning-ablation-01\\1992D17C7D7E0225538542054FD07F17\\evidence\\12294928-9b3b-4ff6-80f9-172041f77176.png",
+          "stable": true
+        },
+        {
+          "available": true,
+          "path": "C:\\Users\\wingz\\.cdp-cli\\state\\31e541860f6a45f3\\pruning-ablation-01\\1992D17C7D7E0225538542054FD07F17\\evidence\\0c71edab-1cd7-440d-9a10-97fdb577a0a5.png",
+          "stable": true
+        }
+      ]
+    }
+  },
+  "visualReview": {
+    "controller": "Codex",
+    "finalArms": [
+      "unfocused-final",
+      "focused-final",
+      "ranked-final"
+    ],
+    "finding": "Actual final pixels show fixture note 01 and Saved notes: fixture note 01 in all three final arms."
+  }
+}

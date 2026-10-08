@@ -1,0 +1,1 @@
+Assigned tooling: cdp-workflow only. Omit query on every observe, act and screenshot. Set screenshotScale exactly0.5 on screenshots. Use initial screenshot, then rely on returned state. The owner assigned your page. No unrelated tabs.

@@ -1,0 +1,21 @@
+{
+  "arm": "ranked-final",
+  "browserCalls": 4,
+  "expansions": 1,
+  "screenshots": 3,
+  "processedTokens": 146061,
+  "estimatedUsd": 0.00874456,
+  "peakInput": 29634,
+  "compactions": 0,
+  "providerStatuses": {
+    "fallback": 1,
+    "applied": 2
+  },
+  "providerReasons": {
+    "request-failed": 1,
+    "applied": 2
+  },
+  "models": {
+    "claude-haiku-5-5": 8
+  }
+}

@@ -2,7 +2,7 @@
 import type { PageState, StateDiff, StateElement } from '../state/types.js';
 
 export type Granularity = 'node' | 'chunk' | 'region' | 'hybrid';
-export interface ElementHint { region?: string; parents?: string[]; context?: string[]; live?: boolean; editable?: boolean }
+export interface ElementHint { region?: string; controlGroup?: string; parents?: string[]; context?: string[]; live?: boolean; editable?: boolean }
 export interface Evidence {
   diff?: StateDiff;
   targets?: string[];

@@ -225,6 +225,7 @@ function capturePage(options: any): any {
   let focus;
   if (options.experimentalHints) {
     const keys = new Map(candidates.map((item: any, index: number) => [item.el, result[index].k]));
+    const controlGroups = new Map<any, number>();
     for (let i = 0; i < candidates.length; i++) {
       const el = candidates[i].el;
       const parents: string[] = [];
@@ -235,11 +236,17 @@ function capturePage(options: any): any {
       }
       const region = el.closest('nav,main,aside,footer,section,form,[role="dialog"],[role="navigation"],[role="region"]');
       const row = el.closest('[data-row-key],[data-key],[data-id],tr,li');
+      // A DOM-owned immediate group can connect an editable field to icon-only
+      // sibling controls without inventing their labels or crossing frame roots.
+      const controlParent = el.parentElement;
+      const grouped = controlParent && !/^(body|html)$/i.test(controlParent.tagName);
+      if (grouped && !controlGroups.has(controlParent)) controlGroups.set(controlParent, controlGroups.size + 1);
+      const controlGroup = grouped ? `${candidates[i].fp}|control-group:${controlGroups.get(controlParent)}` : undefined;
       // Context descriptors avoid form values and arbitrary container text.
       const context = [region, row].filter(Boolean).map((container: any) =>
         clean(container.getAttribute('aria-label') || container.getAttribute('data-row-key') ||
           container.getAttribute('data-key') || container.getAttribute('data-id') || container.id || container.tagName.toLowerCase()));
-      hints[result[i].k] = { parents, context, region: region ? `${candidates[i].fp}|${path(region)}` : undefined,
+      hints[result[i].k] = { parents, context, region: region ? `${candidates[i].fp}|${path(region)}` : undefined, controlGroup,
         live: !!el.closest('[aria-live]:not([aria-live="off"]),[role="status"],[role="alert"]'),
         editable: !!el.isContentEditable || /^(input|textarea|select)$/.test(el.tagName.toLowerCase()) };
       if (el === el.getRootNode().activeElement) focus = result[i].k;

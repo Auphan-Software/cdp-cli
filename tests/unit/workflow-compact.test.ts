@@ -18,6 +18,33 @@ const result = (s: any) => ({ success: true, value: { view: { source: { id: s.id
   diagnostics: { network: 'available', networkAtLimit: true } } });
 
 describe('compact transport contracts', () => {
+  it('keeps source-backed unlabeled editor controls without widening to unrelated or hidden controls', () => {
+    const view: any = { elements: [
+      { k: 'notes', role: 'textbox', name: 'Notes' },
+      { k: 'confirm', role: 'button' }, { k: 'cancel', role: 'button' },
+      { k: 'hidden', role: 'button', state: { vis: false } },
+      { k: 'other', role: 'button', name: 'Refund' }
+    ], omitted: { count: 0 } };
+    scopedWorkflowView(view, 'Notes', {
+      notes: { controlGroup: 'top|editor' }, confirm: { controlGroup: 'top|editor' },
+      cancel: { controlGroup: 'top|editor' }, hidden: { controlGroup: 'top|editor' },
+      other: { controlGroup: 'top/frame:other|editor' }
+    });
+    expect(view.elements.map((n: any) => n.k)).toEqual(['notes', 'confirm', 'cancel']);
+    expect(view.elements.find((n: any) => n.k === 'confirm')).not.toHaveProperty('name');
+    expect(view.scope.editorControlsRetained).toBe(2);
+  });
+  it('does not widen an oversized editor group or a static text query to sibling actions', () => {
+    const buttons = Array.from({ length: 13 }, (_, i) => ({ k: `b${i}`, role: 'button' }));
+    const view: any = { elements: [{ k: 'notes', role: 'textbox', name: 'Notes' }, ...buttons], omitted: { count: 0 } };
+    const hints: any = Object.fromEntries(view.elements.map((n: any) => [n.k, { controlGroup: 'top|big' }]));
+    scopedWorkflowView(view, 'Notes', hints);
+    expect(view.elements.map((n: any) => n.k)).toEqual(['notes']);
+    expect(view.scope.editorGroupsLimited).toBe(1);
+    const textView: any = { elements: [{ k: 'text', role: 'text', text: 'Notes' }, { k: 'b', role: 'button' }], omitted: { count: 0 } };
+    scopedWorkflowView(textView, 'Notes', { text: { controlGroup: 'top|x' }, b: { controlGroup: 'top|x' } });
+    expect(textView.elements.map((n: any) => n.k)).toEqual(['text']);
+  });
   it('retains a dispatched-but-unwitnessed click error through overflow without claiming safe retry', () => {
     const dir = root();
     try {

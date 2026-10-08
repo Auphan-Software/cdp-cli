@@ -1,0 +1,30 @@
+{
+  "job": "pruning-ablation-01/ranked-final",
+  "task": "save exactly 'fixture note 01' in Notes editor and confirm once via visible checkmark",
+  "result": "success",
+  "verified": {
+    "notesValueLength": 15,
+    "savedNotesStatus": "Saved notes: fixture note 01",
+    "finalScreenshotShowsSaved": true
+  },
+  "actions": [
+    {"step": 1, "tool": "observe", "query": "Notes|Saved", "screenshotScale": 0.5, "sourceId": "fc60dc28-56c7-4205-a8b2-404713c97271", "note": "initial state, Notes empty, status Waiting"},
+    {"step": 2, "tool": "act", "action": "fill", "targetKey": "r5b05b973b70b8c4a.2", "value": "fixture note 01", "sourceId": "fc60dc28-56c7-4205-a8b2-404713c97271", "resultSourceId": "75def5f5-1f48-46bb-87ee-ab905d24ee7d", "result": "applied, value len 15"},
+    {"step": 3, "tool": "expand", "section": "elements", "sourceId": "75def5f5-1f48-46bb-87ee-ab905d24ee7d", "note": "confirm button located at box x=536 (cancel at x=472); green checkmark"},
+    {"step": 4, "tool": "act", "action": "click", "targetKey": "r5499dda82b52c6af.4", "sourceId": "75def5f5-1f48-46bb-87ee-ab905d24ee7d", "resultSourceId": "70b0e6cb-8f39-4862-b06e-f4f32a72990e", "result": "mousedown witnessed at x=562 y=145 target matches; status changed Waiting -> Saved notes: fixture note 01"}
+  ],
+  "evidence": {
+    "initialScreenshot": "C:/Users/wingz/.cdp-cli/state/31e541860f6a45f3/pruning-ablation-01/1992D17C7D7E0225538542054FD07F17/evidence/63f27dfa-89e7-447a-a6d0-33f0def06ef5.png",
+    "postFillScreenshot": "C:/Users/wingz/.cdp-cli/state/31e541860f6a45f3/pruning-ablation-01/1992D17C7D7E0225538542054FD07F17/evidence/12294928-9b3b-4ff6-80f9-172041f77176.png",
+    "finalScreenshot": "C:/Users/wingz/.cdp-cli/state/31e541860f6a45f3/pruning-ablation-01/1992D17C7D7E0225538542054FD07F17/evidence/0c71edab-1cd7-440d-9a10-97fdb577a0a5.png"
+  },
+  "budget": {"actionsUsed": 2, "maxActions": 12, "approxElapsedSeconds": 36},
+  "recoveries": [
+    "none required; targetKeys rotate per source, latest-source keys used for each act"
+  ],
+  "unknowns": [
+    "confirm targetKey identified by element order and box position plus visual green checkmark; no accessible name on buttons, so mapping is inferred from observed evidence",
+    "expand canonical key for confirm was top|id:confirm; act used view-source key r5499dda82b52c6af.4 as the tool requires",
+    "single confirm click only; no repeat performed"
+  ]
+}

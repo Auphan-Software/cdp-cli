@@ -1,0 +1,18 @@
+{
+  "status": "ok",
+  "modelRevision": "18f099b292864fde542713d7c41aa4464860e11bc07b045b51543e9e59e6e7e7",
+  "runtimeRevision": "11fe02151f79c41d0d4af7da708755d73b9c0da6",
+  "capacity": {
+    "available": true,
+    "reason": "gpu-headroom",
+    "freeMiB": 5682,
+    "utilization": 0
+  },
+  "busy": false,
+  "counters": {
+    "accepted": 607,
+    "rejected": 16,
+    "failed": 54,
+    "cacheHits": 4692
+  }
+}

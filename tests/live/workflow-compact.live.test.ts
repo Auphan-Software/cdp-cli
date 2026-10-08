@@ -27,6 +27,29 @@ beforeAll(async () => {
 }, 30000);
 afterAll(async () => { await chrome?.close(); await app?.close(); if (root?.startsWith(tmpdir())) await rm(root, { recursive: true, force: true }); }, 30000);
 describe('compact live execution', () => {
+  it('retains DOM-owned icon-only sibling controls in a focused editor view and dispatches once', async () => {
+    const page = await chrome.createPage(app.baseUrl);
+    let socket = await CdpSession.connect(page.webSocketDebuggerUrl);
+    try {
+      const markup = `<div id="note-editor"><input placeholder="Notes"><button id="note-cancel"></button><button id="note-confirm" onclick="window.noteDispatches=(window.noteDispatches||0)+1;document.getElementById('result').textContent='Notes confirmed'"></button></div><div id="note-editor"><input placeholder="Customer"><button>Other editor</button></div>`;
+      const setup = await socket.command('Runtime.evaluate', { expression: `document.body.insertAdjacentHTML('beforeend', ${JSON.stringify(markup)})` });
+      expect(setup.exceptionDetails).toBeUndefined();
+      socket.close();
+      const seen = await call('observe', page.id, ['--query', 'Notes']);
+      expect(seen.success, JSON.stringify(seen)).toBe(true);
+      expect(seen.value.view.scope.editorControlsRetained).toBe(2);
+      const controls = seen.value.view.elements.filter((n: any) => n.role === 'button');
+      expect(controls).toHaveLength(2);
+      expect(controls.every((n: any) => !n.name)).toBe(true);
+      expect(seen.value.view.elements.some((n: any) => n.name === 'Cash')).toBe(false);
+      const confirmed = await call('act', page.id, ['--source', seen.value.view.source.id,
+        '--action', 'click', '--target-key', controls[1].k, '--query', 'Notes']);
+      expect(confirmed.value.action.commandSucceeded, JSON.stringify(confirmed)).toBe(true);
+      socket = await CdpSession.connect(page.webSocketDebuggerUrl);
+      expect((await socket.command('Runtime.evaluate', { expression: 'window.noteDispatches', returnByValue: true })).result.value).toBe(1);
+      expect((await socket.command('Runtime.evaluate', { expression: 'document.getElementById("result").textContent', returnByValue: true })).result.value).toBe('Notes confirmed');
+    } finally { socket.close(); }
+  });
   it('retains original same-capture pixels and CSS dimensions while transporting a scaled copy', async () => {
     const page = await chrome.createPage(app.baseUrl);
     const seen = await call('screenshot', page.id, ['--screenshot-scale', '0.25', '--query', 'Cash|Account']);

@@ -1,0 +1,35 @@
+{
+  "status": "success",
+  "task": "save exactly 'fixture note 01' in Notes editor via visible checkmark confirm",
+  "steps": [
+    "screenshot initial (scale 0.5): Notes textbox, cancel (gray X), confirm (green check), status Waiting",
+    "fill targetKey r63923c306d3f3a83.2 (Notes textbox) value 'fixture note 01' -> textbox len 15",
+    "expand elements (historical, source a869da32-7d47-4265-bc75-bfe3055479cf): identified top|id:confirm box [536,124,52,44] (green check) vs top|id:cancel box [472,124,52,44]",
+    "click targetKey top|id:confirm once -> mousedown witnessed trusted at x=562,y=145 (confirm center); status changed Waiting -> 'Saved notes: fixture note 01'",
+    "final screenshot (scale 0.5) -> Saved notes: fixture note 01, textbox shows 'fixture note 01'"
+  ],
+  "evidence": {
+    "initialScreenshot": "C:/Users/wingz/.cdp-cli/state/31e541860f6a45f3/pruning-ablation-01/9C2454ACEA92DBA072889D7F1B66C76A/evidence/28526050-29ba-4489-b37d-45bc8dba3eef.png",
+    "finalScreenshot": "C:/Users/wingz/.cdp-cli/state/31e541860f6a45f3/pruning-ablation-01/9C2454ACEA92DBA072889D7F1B66C76A/evidence/f9f9e16d-1180-459e-bee9-7ab486f19aa6.png",
+    "confirmClickSourceState": "C:/Users/wingz/.cdp-cli/state/31e541860f6a45f3/pruning-ablation-01/9C2454ACEA92DBA072889D7F1B66C76A/0315203e-0fba-4ebd-8bc9-b6b3a348f701.json",
+    "finalSourceState": "C:/Users/wingz/.cdp-cli/state/31e541860f6a45f3/pruning-ablation-01/9C2454ACEA92DBA072889D7F1B66C76A/d1d5d239-75dd-48b1-8a8b-60eaff61a627.json"
+  },
+  "verification": {
+    "notesValueLength": 15,
+    "savedStatus": "Saved notes: fixture note 01",
+    "confirmClickedOnce": true
+  },
+  "budget": {
+    "browserCallsApprox": 5,
+    "actionsUsed": 2,
+    "actionsMax": 12,
+    "elapsedMs": 36057,
+    "limitMs": 180000
+  },
+  "recoveries": [],
+  "unknowns": [
+    "confirm identity inferred from element id 'confirm' and geometry; button had no accessible name in observe output",
+    "no fill/click receipt evidence paths returned (evidenceOmitted); effect verified via state diff and final screenshot instead",
+    "Notes textbox value shows 'fixture note 01' in screenshot; exact text equality relies on len 15 and visible text"
+  ]
+}

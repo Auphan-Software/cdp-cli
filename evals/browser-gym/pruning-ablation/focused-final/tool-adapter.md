@@ -1,0 +1,1 @@
+Assigned tooling: cdp-workflow only. On every observe, act and screenshot set query exactly Notes|Saved. Do not change it or use full. expand remains available for omitted evidence. Set screenshotScale exactly0.5 on screenshots. Use initial screenshot, then rely on returned state. The owner assigned your page. No unrelated tabs.

@@ -1,0 +1,37 @@
+{
+  "unfocused": [
+    {
+      "note": "fixture note 01"
+    }
+  ],
+  "focused": [
+    {
+      "note": "fixture note 01"
+    }
+  ],
+  "ranked": [
+    {
+      "note": "fixture note 01"
+    }
+  ],
+  "unfocused-fixed": [
+    {
+      "note": "fixture note 01"
+    }
+  ],
+  "unfocused-final": [
+    {
+      "note": "fixture note 01"
+    }
+  ],
+  "focused-final": [
+    {
+      "note": "fixture note 01"
+    }
+  ],
+  "ranked-final": [
+    {
+      "note": "fixture note 01"
+    }
+  ]
+}
