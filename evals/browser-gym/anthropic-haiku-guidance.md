@@ -79,5 +79,7 @@ The gym auditor now counts compaction iterations, avoids adding top-level usage 
 to estimate cost when multi-phase/cache attribution is insufficient. Three regression tests cover
 zero top-level counters, multiple phases and unattributed cache usage. Native API and browser
 toolset integration and controlled compaction comparisons remain tracked implementation work.
-Source-bound target resolution, visible-action protection and execution budgets are implemented;
-the local cash fixture and independent payment/RQ/bill adapter are ready for a measured pilot.
+Source-bound target resolution, visible-action protection, execution budgets and an opt-in richer
+64k view are implemented. The local cash fixture passed one independently verified Haiku medium
+pilot; the 100k-window attempt stopped from compaction thrashing before browser actions. See
+README.md for usage scopes, native cost reports, retained failures and remaining comparison gaps.
