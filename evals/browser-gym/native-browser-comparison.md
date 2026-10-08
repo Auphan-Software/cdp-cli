@@ -17,7 +17,9 @@ Read, ToolSearch, `mcp__claude-in-chrome__tabs_context_mcp` and Write, with no C
 The official tool returned **Browser extension is not connected**, advising that the extension
 and CLI use the same account and that a post-install browser restart may be necessary. No
 tabs or business actions occurred. Henry reported authorization under another subscription;
-that is a possible cause, not a verified diagnosis. The worker exited after this single probe.
+that is a possible cause, not a verified diagnosis. The worker stopped model work after this
+single probe and remains idle; `/exit` was rejected because slash commands are disabled.
+The Jarvis record is failed with keep-alive off; no automatic retry is scheduled.
 Artifacts: `C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/native-chrome-probe-01/`.
 This is connection qualification, not performance evidence.
 
