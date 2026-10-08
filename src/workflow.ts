@@ -13,7 +13,7 @@ import { projectState, mustKeep } from './experimental/decision.js';
 import { DaemonClient } from './daemon/client.js';
 import { workflowProjectionProvider, workflowProjectionConfiguration, projectionReason } from './workflow-projection.js';
 import { boundWorkflowResult, workflowViewProfile } from './workflow-output.js';
-import { compactWorkflowResult, expandWorkflowEvidence, saveWorkflowArtifact } from './workflow-compact.js';
+import { compactWorkflowResult, expandWorkflowEvidence, saveWorkflowArtifact, workflowQueryTerms } from './workflow-compact.js';
 
 const execFileAsync = promisify(execFile);
 const exeMode = typeof CDP_CLI_EXE_MODE !== 'undefined' && CDP_CLI_EXE_MODE === true;
@@ -21,7 +21,7 @@ export interface WorkflowOptions {
   page: string; task: string; source?: string; frame?: string; maxElements?: number;
   stabilityMs?: number; full?: boolean; action?: string; selector?: string; targetKey?: string; value?: string;
   url?: string; key?: string; waitFor?: string; waitForText?: string; screenshot?: boolean;
-  offset?: number; limit?: number; section?: string; receiptId?: string;
+  offset?: number; limit?: number; section?: string; receiptId?: string; query?: string;
 }
 
 /** Opt-in site configuration; never infer harmlessness from time-shaped text. */
@@ -107,6 +107,10 @@ export function actionArgs(options: WorkflowOptions): string[] {
 
 export async function workflow(context: CDPContext, operation: string, options: WorkflowOptions): Promise<unknown> {
   const transport = workflowViewProfile();
+  if (options.query !== undefined) {
+    workflowQueryTerms(options.query);
+    if (options.full || transport.profile !== 'haiku-compact') throw new Error('WORKFLOW_QUERY_REQUIRES_COMPACT_PROFILE_WITHOUT_FULL');
+  }
   if (!options.task.trim() || options.task.length > 8000) throw new Error('WORKFLOW_INVALID_TASK');
   if (options.frame && /^\d+$/.test(options.frame) && options.frame !== '0') throw new Error('WORKFLOW_STABLE_FRAME_SELECTOR_REQUIRED');
   const page = await context.findPage(options.page);
@@ -279,6 +283,7 @@ export async function workflow(context: CDPContext, operation: string, options: 
     canonicalPath: join(store.dir, `${current.id}.json`), ...(screenshot ? { screenshot } : {}) } };
   const protectedKeys = mustKeep(options.task, current, { hints: current.hints, diff, errors, targets, protectVisibleActions: true });
   if (transport.profile === 'haiku-compact') return compactWorkflowResult(result, store, current.captureProfile, operation, protectedKeys, transport,
-    { full: options.full, task: options.task, hints: current.hints, targets });
+    { full: options.full, task: options.task, hints: current.hints, targets, query: options.query,
+      boxes: options.query ? Object.fromEntries(current.elements.filter(node => node.box).map(node => [node.k, node.box!])) : undefined });
   return boundWorkflowResult(result, join(store.dir, `${current.id}-workflow.json`), protectedKeys, transport);
 }

@@ -51,6 +51,7 @@ function budgetContent(budget: WorkflowExecutionBudget): Array<{ type: 'text'; t
 
 const properties = {
   task: { type: 'string', description: 'Current reproduction or evidence goal, not the full coding conversation.' },
+  query: { type: 'string', description: 'Compact-profile focused read of literal labels/text/context. Separate up to8 alternatives with |, e.g. Pepsi|Subtotal|TPS|TVQ|Total. Preserves global alerts/dialogs/invalid/selected state. On act this scopes the POST-action view; execution guards still use the full canonical source.' },
   source: { type: 'string', description: 'view.source.id from the latest observation or action result, including fresh state after a no-delivery stale rejection; required for act/expand.' },
   frame: { type: 'string', description: 'Stable same-origin iframe selector; cross-origin targets use the existing target tools.' },
   full: { type: 'boolean', description: 'Expand the observation without deterministic pruning.' },
@@ -69,10 +70,10 @@ const properties = {
   waitForText: { type: 'string', description: 'Text wait; prefer selectors for asynchronously replaced pages.' }
 };
 const optionsByTool: Record<string, string[]> = {
-  observe: ['task', 'source', 'frame', 'full', 'screenshot', 'maxElements', 'stabilityMs'],
-  act: ['task', 'source', 'frame', 'full', 'screenshot', 'stabilityMs', 'action', 'selector', 'targetKey', 'value', 'url', 'key', 'waitFor', 'waitForText'],
+  observe: ['task', 'query', 'source', 'frame', 'full', 'screenshot', 'maxElements', 'stabilityMs'],
+  act: ['task', 'query', 'source', 'frame', 'full', 'screenshot', 'stabilityMs', 'action', 'selector', 'targetKey', 'value', 'url', 'key', 'waitFor', 'waitForText'],
   expand: ['task', 'source', 'offset', 'limit', 'section', 'receiptId'],
-  screenshot: ['task', 'source', 'frame', 'full', 'maxElements', 'stabilityMs']
+  screenshot: ['task', 'query', 'source', 'frame', 'full', 'maxElements', 'stabilityMs']
 };
 const tools = Object.keys(optionsByTool).map(name => ({ name,
   description: name === 'act' ? 'Perform one bounded browser action and return fresh compact state, diff and diagnostic errors in the same call. Requires the last source ID. Never retry a possibly delivered action blindly.' :

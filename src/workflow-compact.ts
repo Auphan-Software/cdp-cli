@@ -14,8 +14,52 @@ export function saveWorkflowArtifact(path: string, result: unknown): boolean {
   } catch { return false; }
 }
 
+export function workflowQueryTerms(query: string): string[] {
+  const terms = query.normalize('NFC').split('|').map(term => term.trim().toLowerCase());
+  if (query.length > 1000 || terms.length > 8 || terms.some(term => !term || term.length > 120)) throw new Error('WORKFLOW_INVALID_QUERY');
+  return terms;
+}
+
+/** Explicit scoped read, never a relevance guess. Preserve global safety signals. */
+export function scopedWorkflowView(view: any, query: string, hints: PageState['hints'] = {}, targets: string[] = [], boxes: Record<string, number[]> = {}): void {
+  const terms = workflowQueryTerms(query);
+  const matched = new Set<string>(view.elements.filter((node: any) => terms.some(term =>
+    [node.name, node.text, ...(hints[node.k]?.context ?? [])].join(' ').normalize('NFC').toLowerCase().includes(term))).map((node: any) => node.k));
+  const included = new Set(matched);
+  // Keep nearby text on the same rendered row: a Total label alone is not its amount.
+  // This only broadens the read; it never infers a locator or changes action identity.
+  for (const key of matched) {
+    const box = boxes[key];
+    if (!box || box[2] > 800 || box[3] > 80) continue;
+    for (const node of view.elements) {
+      const other = boxes[node.k];
+      if (node.role !== 'text' || node.state?.vis === false || !other || other[3] > 80) continue;
+      if (Math.abs((box[1] + box[3] / 2) - (other[1] + other[3] / 2)) <= Math.max(4, Math.min(box[3], other[3]) / 2) &&
+        Math.abs(box[0] - other[0]) <= 600) included.add(node.k);
+    }
+  }
+  // A labeled clickable tile may contain a separate child button that actually creates a record.
+  for (const node of view.elements) if (matched.has(hints[node.k]?.parents?.[0] ?? '')) included.add(node.k);
+  for (const node of view.elements) if (/^(alert|status|log|dialog|alertdialog)$/.test(node.role) || hints[node.k]?.live ||
+    node.state?.invalid === true || node.state?.busy === true || node.state?.selected === true || node.state?.checked === true || node.state?.ariaChecked === true ||
+    node.k === view.focus || targets.includes(node.k)) included.add(node.k);
+  for (const key of [...included]) for (const parent of hints[key]?.parents ?? []) included.add(parent);
+  const excludedElements = view.elements.filter((node: any) => !included.has(node.k)).length;
+  view.elements = view.elements.filter((node: any) => included.has(node.k));
+  let excludedChanges = 0;
+  if (view.diff) view.diff.changes = view.diff.changes.filter((change: any) => {
+    const keep = included.has(change.key) || ['navigation', 'text-unmodelled', 'dialog'].includes(change.kind) ||
+      /^(alert|status|log|dialog|alertdialog)$/.test(change.from?.role ?? change.to?.role ?? '');
+    if (!keep) excludedChanges++;
+    return keep;
+  });
+  view.scope = { query, matched: matched.size, excludedElements, excludedChanges,
+    instruction: 'Scoped read; excluded business facts are not verified. Query needed labels, observe without query for broader context, or expand historical evidence.' };
+  view.omitted.count += excludedElements;
+}
+
 export function compactWorkflowResult(result: any, store: StateStore, captureProfile: string, operation: string,
-  protectedKeys: Set<string>, profile: WorkflowViewProfile, context: { full?: boolean; task?: string; hints?: PageState['hints']; targets?: string[] } = {}): any {
+  protectedKeys: Set<string>, profile: WorkflowViewProfile, context: { full?: boolean; task?: string; hints?: PageState['hints']; targets?: string[]; query?: string; boxes?: Record<string, number[]> } = {}): any {
   const original = structuredClone(result);
   const view = original.value.view;
   const path = join(store.dir, `${view.source.id}-workflow.json`);
@@ -23,6 +67,7 @@ export function compactWorkflowResult(result: any, store: StateStore, capturePro
   // Do not intentionally exclude evidence when its recovery artifact is unavailable.
   if (!available) return boundWorkflowResult(original, path, protectedKeys, profile);
   const compact = structuredClone(original), value = compact.value, current = value.view;
+  if (context.query) scopedWorkflowView(current, context.query, context.hints, context.targets, context.boxes);
   const keys = new Set<string>(current.elements.map((n: any) => n.k));
   if (current.focus) keys.add(current.focus);
   for (const change of current.diff?.changes ?? []) if (change.key) keys.add(change.key);
@@ -41,7 +86,7 @@ export function compactWorkflowResult(result: any, store: StateStore, capturePro
   current.elements = current.elements.filter((node: any) => {
     if (context.full) return true;
     // Keep a self-contained action surface plus changes and global status. Full observe restores context.
-    if (operation === 'act' && !changed.has(node.k) && !protectedKeys.has(node.k) &&
+    if (!context.query && operation === 'act' && !changed.has(node.k) && !protectedKeys.has(node.k) &&
       !/^(alert|status|log|dialog|alertdialog)$/.test(node.role)) { omitted.unchangedText++; return false; }
     return true;
   });

@@ -27,6 +27,36 @@ beforeAll(async () => {
 }, 30000);
 afterAll(async () => { await chrome?.close(); await app?.close(); if (root?.startsWith(tmpdir())) await rm(root, { recursive: true, force: true }); }, 30000);
 describe('compact live execution', () => {
+  it('finds the actual nested child action and scopes post-action state without relaxing canonical freshness', async () => {
+    const page = await chrome.createPage(app.baseUrl);
+    const evaluate = async (expression: string) => {
+      const socket = await CdpSession.connect(page.webSocketDebuggerUrl);
+      try {
+        const result = await socket.command('Runtime.evaluate', { expression, returnByValue: true });
+        if (result.exceptionDetails) throw new Error(JSON.stringify(result.exceptionDetails));
+        return result.result.value;
+      } finally { socket.close(); }
+    };
+    const markup = `<div id="counter" role="button">COUNTER <button id="add" onclick="window.dispatches=(window.dispatches||0)+1;document.getElementById('result').textContent='Added'">+</button></div>`;
+    await evaluate(`document.body.insertAdjacentHTML('beforeend',${JSON.stringify(markup)})`);
+    const seen = await call('observe', page.id, ['--query', 'Counter']);
+    expect(seen.success, JSON.stringify(seen)).toBe(true);
+    const plus = seen.value.view.elements.find((n: any) => n.name === '+');
+    expect(plus).toBeDefined();
+    expect(seen.value.view.elements.some((n: any) => n.name === 'Card')).toBe(false);
+    expect(seen.value.view.elements.some((n: any) => n.name === 'Account frozen')).toBe(true);
+    expect(seen.value.view.scope.excludedElements).toBeGreaterThan(0);
+    const added = await call('act', page.id, ['--source', seen.value.view.source.id, '--action', 'click', '--target-key', plus.k, '--query', 'Added|Cash']);
+    expect(added.value.action.commandSucceeded, JSON.stringify(added)).toBe(true);
+    expect(added.value.view.elements.some((n: any) => n.text === 'Added')).toBe(true);
+    expect(await evaluate('window.dispatches')).toBe(1);
+    // A change outside the requested scope still blocks an action.
+    await evaluate(`document.querySelector('#card').textContent='Different account'`);
+    const cash = added.value.view.elements.find((n: any) => n.name === 'Cash');
+    const refused = await call('act', page.id, ['--source', added.value.view.source.id, '--action', 'click', '--target-key', cash.k, '--query', 'Paid']);
+    expect(refused.value.action.actionDelivered).toBe(false);
+    expect(await evaluate('window.dispatches')).toBe(1);
+  }, 30000);
   it('uses short refs after clock tick, recovers receipts and refuses removed targets without another dispatch', async () => {
     const page = await chrome.createPage(app.baseUrl);
     const evaluate = async (expression: string) => {

@@ -159,7 +159,7 @@ export function auditNative(text, { path = null, persistedResults = [], read = r
         parsed.value?.rejection?.code === 'WORKFLOW_MISSING_ARGUMENTS' &&
         parsed.value.rejection.stage === 'input-validation' && parsed.value.rejection.commandDispatched === false &&
         !parsed.value.view && !parsed.value.action &&
-        ['current-24k', 'rich-64k'].includes(parsed.value.output?.profile)) receipts.push(parsed);
+        ['current-24k', 'rich-64k', 'haiku-compact'].includes(parsed.value.output?.profile)) receipts.push(parsed);
       else if (receiptTypes.has(parsed?.type) && parsed.value && typeof parsed.value === 'object' &&
         (parsed.value.view?.source?.id || parsed.value.action || parsed.type === 'workflow-expand')) receipts.push(parsed);
     }
@@ -286,7 +286,7 @@ export function scoreRun(run, catalog, read = readFileSync, artifactExists = exi
   const proofMatches = run.proof?.candidate === run.candidate && run.proof?.fixtureFingerprint === run.fixtureFingerprint;
   const workerWorkflows = audits.filter(a => a.role === 'worker').flatMap(a => a.workflow);
   const profileMatches = run.transportProfile === undefined ||
-    (['current-24k', 'rich-64k'].includes(run.transportProfile) && workerWorkflows.length > 0 &&
+    (['current-24k', 'rich-64k', 'haiku-compact'].includes(run.transportProfile) && workerWorkflows.length > 0 &&
       workerWorkflows.every(step => step.omissions?.profile === run.transportProfile));
   const verified = identityMatches && profileMatches && proofMatches && verifiedOutcome(contract, run.proof, artifactExists);
   return { model: run.model, profile: run.profile, caseId: run.caseId, candidate: run.candidate,

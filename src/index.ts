@@ -671,6 +671,7 @@ cli.command('workflow <operation> <page>', 'Observe, act with fresh state, expan
   yargs => yargs.positional('operation', { type: 'string', choices: ['observe', 'act', 'expand', 'screenshot'] })
     .positional('page', { type: 'string', demandOption: true })
     .option('task', { type: 'string', demandOption: true })
+    .option('query', { type: 'string', description: 'Compact-profile literal post-observation label alternatives separated by |' })
     .option('source', { type: 'string', description: 'Previous source ID; required for act/expand' })
     .option('frame', { type: 'string' }).option('max-elements', { type: 'number', description: 'Canonical capture cap; acts inherit omitted settings from their source' })
     .option('offset', { type: 'number' }).option('limit', { type: 'number' })
@@ -686,7 +687,7 @@ cli.command('workflow <operation> <page>', 'Observe, act with fresh state, expan
     const context = new CDPContext(argv['cdp-url'] as string);
     try {
       const result = await workflow(context, argv.operation as string, { page: argv.page as string, task: argv.task as string,
-        source: argv.source as string | undefined, frame: argv.frame as string | undefined,
+        source: argv.source as string | undefined, frame: argv.frame as string | undefined, query: argv.query as string | undefined,
         offset: argv.offset as number | undefined, limit: argv.limit as number | undefined, section: argv.section as string | undefined, receiptId: argv['receipt-id'] as string | undefined,
         maxElements: argv['max-elements'] as number, stabilityMs: argv['stability-ms'] as number,
         full: argv.full as boolean, screenshot: argv.screenshot as boolean, action: argv.action as string | undefined,
