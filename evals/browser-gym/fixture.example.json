@@ -1,0 +1,22 @@
+{
+  "candidate": "<pinned Mako2 SHA>",
+  "fixtureFingerprint": "<snapshot ID and seed recipe hash>",
+  "model": "claude-haiku-5-5",
+  "toolCommit": "6b1223e30f9514c6fd769af798212ce2a36b815c",
+  "caseId": "cash-pepsi",
+  "profileImplemented": true,
+  "profile": "current-24k",
+  "fixtureReady": false,
+  "loginProven": false,
+  "cashierRoleProven": false,
+  "spaBootProven": false,
+  "rqDevProven": false,
+  "receiptCaptureProven": false,
+  "exclusiveBrowserProven": false,
+  "verifierReady": false,
+  "stopBudgetEnforced": false,
+  "skill": {
+    "canonical": "Q:/apps/cdp-cli-token-fixes/skills/cdp-cli-workflow/SKILL.md",
+    "installed": "C:/Users/wingz/.claude/skills/cdp-cli-workflow/SKILL.md"
+  }
+}
