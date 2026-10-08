@@ -371,3 +371,25 @@ structured pre-dispatch validation/refusal receipts with explicit no-delivery, a
 and profile metadata; preserve strict treatment of unknown/ambiguous failures. Raw proof, native
 transcript and compaction-retention observations are in
 Q:/apps/jarvis/logs/investigations/haiku-websrm-gym/zero-netting-current-01/.
+
+## Auditable pre-dispatch recovery on source fc8b0cb
+
+Hidden or disabled canonical targets now return workflow-target-rejection with fresh captured
+state, an explicit false delivery/command-success witness and the actual transport profile.
+No action command is dispatched. The MCP bridge returns this narrowly recognized refusal as
+normal success:false text, preserving JSON through Claude's host error handling. Unknown,
+ambiguous and unsupported failures retain their error behavior.
+Missing required MCP arguments return workflow-input-rejection with profile, repair instructions,
+explicit no-dispatch and unchanged execution-budget metadata. No browser call or act admission
+occurs. The auditor accepts only a genuinely incomplete request with the exact validation code
+and no contradictory action/view evidence; it retains the existing source rather than inventing
+an observation. A critic found the contradictory-receipt bypass and missing budget metadata;
+negative controls cover both. Earlier tests expecting thrown missing-input errors were updated
+for the explicit refusal contract without weakening ownership/unknown-option assertions.
+
+Clean pinned build: fc8b0cb1f668bfaf4af2049073426b2237db98e1. Typecheck/build pass,
+498unit tests pass/9skipped,55gym/evidence tests pass,7real Chrome target/budget controls pass.
+Line coverage60.79% remains below80%. Raw logs validation-rejection-*.log are retained in the
+gym investigation directory. Re-auditing the old zero-netting transcript still yields
+verifiedfalse/profileMatchesfalse/2unavailable receipts: no retrospective metadata is invented.
+Next measurement is the clean packing cash pair from comparison-plan.md; no global CLI install.
