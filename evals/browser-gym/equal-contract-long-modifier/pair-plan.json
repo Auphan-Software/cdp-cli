@@ -17,5 +17,6 @@
   "product": "e7197b53d508068efabf28a45156697b1f21d048",
   "initialLedgerHash": "082e8d643beb207b34095f698b721f6fa67e246daadcbe7e9e75f2ead16ba376",
   "operatorPromptHash": "b89522c45ba909cd23c172ca4b87ad9152b712d4c26b0022f3522374165329da",
-  "cliVersion": "2.1.295"
+  "cliVersion": "2.1.295",
+  "modifierNoteHash": "ba0d0f61026acfb1adc74f4abbaf3ef41111e0541f2dee6ba7272bde922008f7"
 }
