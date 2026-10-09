@@ -1,0 +1,2668 @@
+{
+  "native": {
+    "turns": [
+      {
+        "turn": 1,
+        "input": 9717,
+        "delta": 9717,
+        "output": 156,
+        "tools": [],
+        "resultBytes": 0,
+        "images": 0,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 8001,
+          "cache_read_input_tokens": 1714,
+          "output_tokens": 156,
+          "output_tokens_details": {
+            "thinking_tokens": 54
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 8001,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 156,
+              "cache_read_input_tokens": 1714,
+              "cache_creation_input_tokens": 8001,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 8001
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 2,
+        "input": 10066,
+        "delta": 349,
+        "output": 485,
+        "tools": [
+          "Read"
+        ],
+        "resultBytes": 200,
+        "images": 0,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 349,
+          "cache_read_input_tokens": 9715,
+          "output_tokens": 485,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 349,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 485,
+              "cache_read_input_tokens": 9715,
+              "cache_creation_input_tokens": 349,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 349
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 3,
+        "input": 13844,
+        "delta": 3778,
+        "output": 795,
+        "tools": [
+          "Read",
+          "Read",
+          "Read",
+          "Read",
+          "Read"
+        ],
+        "resultBytes": 6918,
+        "images": 0,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 3778,
+          "cache_read_input_tokens": 10064,
+          "output_tokens": 795,
+          "output_tokens_details": {
+            "thinking_tokens": 493
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 3778,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 795,
+              "cache_read_input_tokens": 10064,
+              "cache_creation_input_tokens": 3778,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 3778
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 4,
+        "input": 21029,
+        "delta": 7185,
+        "output": 130,
+        "tools": [
+          "ToolSearch"
+        ],
+        "resultBytes": 0,
+        "images": 0,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 17765,
+          "cache_read_input_tokens": 3262,
+          "output_tokens": 130,
+          "output_tokens_details": {
+            "thinking_tokens": 57
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 17765,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 130,
+              "cache_read_input_tokens": 3262,
+              "cache_creation_input_tokens": 17765,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 17765
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 5,
+        "input": 21379,
+        "delta": 350,
+        "output": 134,
+        "tools": [
+          "mcp__claude-in-chrome__tabs_context_mcp"
+        ],
+        "resultBytes": 441,
+        "images": 0,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 350,
+          "cache_read_input_tokens": 21027,
+          "output_tokens": 134,
+          "output_tokens_details": {
+            "thinking_tokens": 88
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 350,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 134,
+              "cache_read_input_tokens": 21027,
+              "cache_creation_input_tokens": 350,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 350
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 6,
+        "input": 21726,
+        "delta": 347,
+        "output": 275,
+        "tools": [
+          "mcp__claude-in-chrome__tabs_create_mcp"
+        ],
+        "resultBytes": 437,
+        "images": 0,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 347,
+          "cache_read_input_tokens": 21377,
+          "output_tokens": 275,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 347,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 275,
+              "cache_read_input_tokens": 21377,
+              "cache_creation_input_tokens": 347,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 347
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 7,
+        "input": 22636,
+        "delta": 910,
+        "output": 113,
+        "tools": [
+          "mcp__claude-in-chrome__navigate",
+          "mcp__claude-in-chrome__resize_window"
+        ],
+        "resultBytes": 1200,
+        "images": 0,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 910,
+          "cache_read_input_tokens": 21724,
+          "output_tokens": 113,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 910,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 113,
+              "cache_read_input_tokens": 21724,
+              "cache_creation_input_tokens": 910,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 910
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 8,
+        "input": 24337,
+        "delta": 1701,
+        "output": 358,
+        "tools": [
+          "mcp__claude-in-chrome__computer"
+        ],
+        "resultBytes": 729,
+        "images": 1,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 1701,
+          "cache_read_input_tokens": 22634,
+          "output_tokens": 358,
+          "output_tokens_details": {
+            "thinking_tokens": 174
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 1701,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 358,
+              "cache_read_input_tokens": 22634,
+              "cache_creation_input_tokens": 1701,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 1701
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 9,
+        "input": 25197,
+        "delta": 860,
+        "output": 401,
+        "tools": [
+          "mcp__claude-in-chrome__javascript_tool"
+        ],
+        "resultBytes": 777,
+        "images": 0,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 860,
+          "cache_read_input_tokens": 24335,
+          "output_tokens": 401,
+          "output_tokens_details": {
+            "thinking_tokens": 249
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 860,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 401,
+              "cache_read_input_tokens": 24335,
+              "cache_creation_input_tokens": 860,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 860
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 10,
+        "input": 25975,
+        "delta": 778,
+        "output": 87,
+        "tools": [
+          "mcp__claude-in-chrome__computer"
+        ],
+        "resultBytes": 731,
+        "images": 0,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 778,
+          "cache_read_input_tokens": 25195,
+          "output_tokens": 87,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 778,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 87,
+              "cache_read_input_tokens": 25195,
+              "cache_creation_input_tokens": 778,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 778
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 11,
+        "input": 27615,
+        "delta": 1640,
+        "output": 229,
+        "tools": [
+          "mcp__claude-in-chrome__computer"
+        ],
+        "resultBytes": 651,
+        "images": 1,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 1640,
+          "cache_read_input_tokens": 25973,
+          "output_tokens": 229,
+          "output_tokens_details": {
+            "thinking_tokens": 82
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 1640,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 229,
+              "cache_read_input_tokens": 25973,
+              "cache_creation_input_tokens": 1640,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 1640
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 12,
+        "input": 28287,
+        "delta": 672,
+        "output": 87,
+        "tools": [
+          "mcp__claude-in-chrome__computer"
+        ],
+        "resultBytes": 853,
+        "images": 0,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 672,
+          "cache_read_input_tokens": 27613,
+          "output_tokens": 87,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 672,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 87,
+              "cache_read_input_tokens": 27613,
+              "cache_creation_input_tokens": 672,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 672
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 13,
+        "input": 29925,
+        "delta": 1638,
+        "output": 179,
+        "tools": [
+          "mcp__claude-in-chrome__computer"
+        ],
+        "resultBytes": 651,
+        "images": 1,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 1638,
+          "cache_read_input_tokens": 28285,
+          "output_tokens": 179,
+          "output_tokens_details": {
+            "thinking_tokens": 25
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 1638,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 179,
+              "cache_read_input_tokens": 28285,
+              "cache_creation_input_tokens": 1638,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 1638
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 14,
+        "input": 30548,
+        "delta": 623,
+        "output": 87,
+        "tools": [
+          "mcp__claude-in-chrome__computer"
+        ],
+        "resultBytes": 854,
+        "images": 0,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 623,
+          "cache_read_input_tokens": 29923,
+          "output_tokens": 87,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 623,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 87,
+              "cache_read_input_tokens": 29923,
+              "cache_creation_input_tokens": 623,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 623
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 15,
+        "input": 32186,
+        "delta": 1638,
+        "output": 178,
+        "tools": [
+          "mcp__claude-in-chrome__computer"
+        ],
+        "resultBytes": 651,
+        "images": 1,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 1638,
+          "cache_read_input_tokens": 30546,
+          "output_tokens": 178,
+          "output_tokens_details": {
+            "thinking_tokens": 28
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 1638,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 178,
+              "cache_read_input_tokens": 30546,
+              "cache_creation_input_tokens": 1638,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 1638
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 16,
+        "input": 32807,
+        "delta": 621,
+        "output": 150,
+        "tools": [
+          "mcp__claude-in-chrome__computer"
+        ],
+        "resultBytes": 853,
+        "images": 0,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 621,
+          "cache_read_input_tokens": 32184,
+          "output_tokens": 150,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 621,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 150,
+              "cache_read_input_tokens": 32184,
+              "cache_creation_input_tokens": 621,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 621
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 17,
+        "input": 33400,
+        "delta": 593,
+        "output": 87,
+        "tools": [
+          "mcp__claude-in-chrome__computer"
+        ],
+        "resultBytes": 852,
+        "images": 0,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 593,
+          "cache_read_input_tokens": 32805,
+          "output_tokens": 87,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 593,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 87,
+              "cache_read_input_tokens": 32805,
+              "cache_creation_input_tokens": 593,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 593
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 18,
+        "input": 35038,
+        "delta": 1638,
+        "output": 1449,
+        "tools": [
+          "mcp__claude-in-chrome__computer"
+        ],
+        "resultBytes": 651,
+        "images": 1,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 1638,
+          "cache_read_input_tokens": 33398,
+          "output_tokens": 1449,
+          "output_tokens_details": {
+            "thinking_tokens": 1301
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 1638,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 1449,
+              "cache_read_input_tokens": 33398,
+              "cache_creation_input_tokens": 1638,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 1638
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 19,
+        "input": 36930,
+        "delta": 1892,
+        "output": 316,
+        "tools": [
+          "mcp__claude-in-chrome__computer"
+        ],
+        "resultBytes": 852,
+        "images": 0,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 1892,
+          "cache_read_input_tokens": 35036,
+          "output_tokens": 316,
+          "output_tokens_details": {
+            "thinking_tokens": 52
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 1892,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 316,
+              "cache_read_input_tokens": 35036,
+              "cache_creation_input_tokens": 1892,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 1892
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 20,
+        "input": 37805,
+        "delta": 875,
+        "output": 87,
+        "tools": [
+          "mcp__claude-in-chrome__computer"
+        ],
+        "resultBytes": 974,
+        "images": 0,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 875,
+          "cache_read_input_tokens": 36928,
+          "output_tokens": 87,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 875,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 87,
+              "cache_read_input_tokens": 36928,
+              "cache_creation_input_tokens": 875,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 875
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 21,
+        "input": 39445,
+        "delta": 1640,
+        "output": 203,
+        "tools": [
+          "mcp__claude-in-chrome__computer"
+        ],
+        "resultBytes": 651,
+        "images": 1,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 1640,
+          "cache_read_input_tokens": 37803,
+          "output_tokens": 203,
+          "output_tokens_details": {
+            "thinking_tokens": 50
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 1640,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 203,
+              "cache_read_input_tokens": 37803,
+              "cache_creation_input_tokens": 1640,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 1640
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 22,
+        "input": 40092,
+        "delta": 647,
+        "output": 87,
+        "tools": [
+          "mcp__claude-in-chrome__computer"
+        ],
+        "resultBytes": 853,
+        "images": 0,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 647,
+          "cache_read_input_tokens": 39443,
+          "output_tokens": 87,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 647,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 87,
+              "cache_read_input_tokens": 39443,
+              "cache_creation_input_tokens": 647,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 647
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 23,
+        "input": 41730,
+        "delta": 1638,
+        "output": 238,
+        "tools": [
+          "mcp__claude-in-chrome__computer"
+        ],
+        "resultBytes": 651,
+        "images": 1,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 1638,
+          "cache_read_input_tokens": 40090,
+          "output_tokens": 238,
+          "output_tokens_details": {
+            "thinking_tokens": 91
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 1638,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 238,
+              "cache_read_input_tokens": 40090,
+              "cache_creation_input_tokens": 1638,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 1638
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 24,
+        "input": 42411,
+        "delta": 681,
+        "output": 87,
+        "tools": [
+          "mcp__claude-in-chrome__computer"
+        ],
+        "resultBytes": 852,
+        "images": 0,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 681,
+          "cache_read_input_tokens": 41728,
+          "output_tokens": 87,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 681,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 87,
+              "cache_read_input_tokens": 41728,
+              "cache_creation_input_tokens": 681,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 681
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 25,
+        "input": 44051,
+        "delta": 1640,
+        "output": 179,
+        "tools": [
+          "mcp__claude-in-chrome__computer"
+        ],
+        "resultBytes": 651,
+        "images": 1,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 1640,
+          "cache_read_input_tokens": 42409,
+          "output_tokens": 179,
+          "output_tokens_details": {
+            "thinking_tokens": 25
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 1640,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 179,
+              "cache_read_input_tokens": 42409,
+              "cache_creation_input_tokens": 1640,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 1640
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 26,
+        "input": 44674,
+        "delta": 623,
+        "output": 87,
+        "tools": [
+          "mcp__claude-in-chrome__computer"
+        ],
+        "resultBytes": 854,
+        "images": 0,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 623,
+          "cache_read_input_tokens": 44049,
+          "output_tokens": 87,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 623,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 87,
+              "cache_read_input_tokens": 44049,
+              "cache_creation_input_tokens": 623,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 623
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 27,
+        "input": 46313,
+        "delta": 1639,
+        "output": 236,
+        "tools": [
+          "mcp__claude-in-chrome__computer"
+        ],
+        "resultBytes": 651,
+        "images": 1,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 1639,
+          "cache_read_input_tokens": 44672,
+          "output_tokens": 236,
+          "output_tokens_details": {
+            "thinking_tokens": 89
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 1639,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 236,
+              "cache_read_input_tokens": 44672,
+              "cache_creation_input_tokens": 1639,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 1639
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 28,
+        "input": 48202,
+        "delta": 1889,
+        "output": 2361,
+        "tools": [
+          "mcp__claude-in-chrome__computer"
+        ],
+        "resultBytes": 851,
+        "images": 1,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 1889,
+          "cache_read_input_tokens": 46311,
+          "output_tokens": 2361,
+          "output_tokens_details": {
+            "thinking_tokens": 781
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 1889,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 2361,
+              "cache_read_input_tokens": 46311,
+              "cache_creation_input_tokens": 1889,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 1889
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 29,
+        "input": 50754,
+        "delta": 2552,
+        "output": 1526,
+        "tools": [
+          "Write"
+        ],
+        "resultBytes": 195,
+        "images": 0,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 2552,
+          "cache_read_input_tokens": 48200,
+          "output_tokens": 1526,
+          "output_tokens_details": {
+            "thinking_tokens": 73
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 2552,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 1526,
+              "cache_read_input_tokens": 48200,
+              "cache_creation_input_tokens": 2552,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 2552
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 30,
+        "input": 52477,
+        "delta": 1723,
+        "output": 477,
+        "tools": [
+          "Write"
+        ],
+        "resultBytes": 203,
+        "images": 0,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 1723,
+          "cache_read_input_tokens": 50752,
+          "output_tokens": 477,
+          "output_tokens_details": {
+            "thinking_tokens": 79
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 1723,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 477,
+              "cache_read_input_tokens": 50752,
+              "cache_creation_input_tokens": 1723,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 1723
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      }
+    ],
+    "perTool": {
+      "Read": {
+        "calls": 6,
+        "bytes": 7118,
+        "images": 0
+      },
+      "ToolSearch": {
+        "calls": 1,
+        "bytes": 0,
+        "images": 0
+      },
+      "mcp__claude-in-chrome__tabs_context_mcp": {
+        "calls": 1,
+        "bytes": 441,
+        "images": 0
+      },
+      "mcp__claude-in-chrome__tabs_create_mcp": {
+        "calls": 1,
+        "bytes": 437,
+        "images": 0
+      },
+      "mcp__claude-in-chrome__navigate": {
+        "calls": 1,
+        "bytes": 880,
+        "images": 0
+      },
+      "mcp__claude-in-chrome__resize_window": {
+        "calls": 1,
+        "bytes": 320,
+        "images": 0
+      },
+      "mcp__claude-in-chrome__computer": {
+        "calls": 20,
+        "bytes": 15316,
+        "images": 10
+      },
+      "mcp__claude-in-chrome__javascript_tool": {
+        "calls": 1,
+        "bytes": 777,
+        "images": 0
+      },
+      "Write": {
+        "calls": 2,
+        "bytes": 398,
+        "images": 0
+      }
+    },
+    "totalInput": 970596,
+    "avgInput": 32353.2
+  },
+  "cdp": {
+    "turns": [
+      {
+        "turn": 1,
+        "input": 7518,
+        "delta": 7518,
+        "output": 138,
+        "tools": [],
+        "resultBytes": 0,
+        "images": 0,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 5802,
+          "cache_read_input_tokens": 1714,
+          "output_tokens": 138,
+          "output_tokens_details": {
+            "thinking_tokens": 39
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 5802,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 138,
+              "cache_read_input_tokens": 1714,
+              "cache_creation_input_tokens": 5802,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 5802
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 2,
+        "input": 7994,
+        "delta": 476,
+        "output": 470,
+        "tools": [
+          "Read"
+        ],
+        "resultBytes": 200,
+        "images": 0,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 476,
+          "cache_read_input_tokens": 7516,
+          "output_tokens": 470,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 476,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 470,
+              "cache_read_input_tokens": 7516,
+              "cache_creation_input_tokens": 476,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 476
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 3,
+        "input": 11854,
+        "delta": 3860,
+        "output": 422,
+        "tools": [
+          "Read",
+          "Read",
+          "Read",
+          "Read",
+          "Read"
+        ],
+        "resultBytes": 7068,
+        "images": 0,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 3860,
+          "cache_read_input_tokens": 7992,
+          "output_tokens": 422,
+          "output_tokens_details": {
+            "thinking_tokens": 287
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 3860,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 422,
+              "cache_read_input_tokens": 7992,
+              "cache_creation_input_tokens": 3860,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 3860
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 4,
+        "input": 14636,
+        "delta": 2782,
+        "output": 189,
+        "tools": [
+          "ToolSearch"
+        ],
+        "resultBytes": 0,
+        "images": 0,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 2782,
+          "cache_read_input_tokens": 11852,
+          "output_tokens": 189,
+          "output_tokens_details": {
+            "thinking_tokens": 30
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 2782,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 189,
+              "cache_read_input_tokens": 11852,
+              "cache_creation_input_tokens": 2782,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 2782
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 5,
+        "input": 19647,
+        "delta": 5011,
+        "output": 691,
+        "tools": [
+          "mcp__cdp-workflow__observe"
+        ],
+        "resultBytes": 8356,
+        "images": 1,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 5011,
+          "cache_read_input_tokens": 14634,
+          "output_tokens": 691,
+          "output_tokens_details": {
+            "thinking_tokens": 440
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 5011,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 691,
+              "cache_read_input_tokens": 14634,
+              "cache_creation_input_tokens": 5011,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 5011
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 6,
+        "input": 25103,
+        "delta": 5456,
+        "output": 337,
+        "tools": [
+          "mcp__cdp-workflow__act"
+        ],
+        "resultBytes": 8311,
+        "images": 1,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 5456,
+          "cache_read_input_tokens": 19645,
+          "output_tokens": 337,
+          "output_tokens_details": {
+            "thinking_tokens": 206
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 5456,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 337,
+              "cache_read_input_tokens": 19645,
+              "cache_creation_input_tokens": 5456,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 5456
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 7,
+        "input": 29858,
+        "delta": 4755,
+        "output": 279,
+        "tools": [
+          "mcp__cdp-workflow__observe"
+        ],
+        "resultBytes": 8099,
+        "images": 0,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 4755,
+          "cache_read_input_tokens": 25101,
+          "output_tokens": 279,
+          "output_tokens_details": {
+            "thinking_tokens": 104
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 4755,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 279,
+              "cache_read_input_tokens": 25101,
+              "cache_creation_input_tokens": 4755,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 4755
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 8,
+        "input": 34293,
+        "delta": 4435,
+        "output": 348,
+        "tools": [
+          "mcp__cdp-workflow__act"
+        ],
+        "resultBytes": 8094,
+        "images": 0,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 4435,
+          "cache_read_input_tokens": 29856,
+          "output_tokens": 348,
+          "output_tokens_details": {
+            "thinking_tokens": 98
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 4435,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 348,
+              "cache_read_input_tokens": 29856,
+              "cache_creation_input_tokens": 4435,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 4435
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 9,
+        "input": 39306,
+        "delta": 5013,
+        "output": 407,
+        "tools": [
+          "mcp__cdp-workflow__act"
+        ],
+        "resultBytes": 8316,
+        "images": 1,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 5013,
+          "cache_read_input_tokens": 34291,
+          "output_tokens": 407,
+          "output_tokens_details": {
+            "thinking_tokens": 254
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 5013,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 407,
+              "cache_read_input_tokens": 34291,
+              "cache_creation_input_tokens": 5013,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 5013
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 10,
+        "input": 44004,
+        "delta": 4698,
+        "output": 331,
+        "tools": [
+          "mcp__cdp-workflow__observe"
+        ],
+        "resultBytes": 8085,
+        "images": 0,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 4698,
+          "cache_read_input_tokens": 39304,
+          "output_tokens": 331,
+          "output_tokens_details": {
+            "thinking_tokens": 87
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 4698,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 331,
+              "cache_read_input_tokens": 39304,
+              "cache_creation_input_tokens": 4698,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 4698
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 11,
+        "input": 48990,
+        "delta": 4986,
+        "output": 338,
+        "tools": [
+          "mcp__cdp-workflow__act"
+        ],
+        "resultBytes": 8357,
+        "images": 1,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 4986,
+          "cache_read_input_tokens": 44002,
+          "output_tokens": 338,
+          "output_tokens_details": {
+            "thinking_tokens": 102
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 4986,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 338,
+              "cache_read_input_tokens": 44002,
+              "cache_creation_input_tokens": 4986,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 4986
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 12,
+        "input": 53949,
+        "delta": 4959,
+        "output": 516,
+        "tools": [
+          "mcp__cdp-workflow__act"
+        ],
+        "resultBytes": 8315,
+        "images": 1,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 4959,
+          "cache_read_input_tokens": 48988,
+          "output_tokens": 516,
+          "output_tokens_details": {
+            "thinking_tokens": 343
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 4959,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 516,
+              "cache_read_input_tokens": 48988,
+              "cache_creation_input_tokens": 4959,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 4959
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 13,
+        "input": 58649,
+        "delta": 4700,
+        "output": 454,
+        "tools": [
+          "mcp__cdp-workflow__expand"
+        ],
+        "resultBytes": 8072,
+        "images": 0,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 4700,
+          "cache_read_input_tokens": 53947,
+          "output_tokens": 454,
+          "output_tokens_details": {
+            "thinking_tokens": 259
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 4700,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 454,
+              "cache_read_input_tokens": 53947,
+              "cache_creation_input_tokens": 4700,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 4700
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 14,
+        "input": 63663,
+        "delta": 5014,
+        "output": 1198,
+        "tools": [
+          "mcp__cdp-workflow__expand"
+        ],
+        "resultBytes": 8151,
+        "images": 0,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 5014,
+          "cache_read_input_tokens": 58647,
+          "output_tokens": 1198,
+          "output_tokens_details": {
+            "thinking_tokens": 792
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 5014,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 1198,
+              "cache_read_input_tokens": 58647,
+              "cache_creation_input_tokens": 5014,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 5014
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 15,
+        "input": 69517,
+        "delta": 5854,
+        "output": 575,
+        "tools": [
+          "mcp__cdp-workflow__act"
+        ],
+        "resultBytes": 8343,
+        "images": 1,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 5854,
+          "cache_read_input_tokens": 63661,
+          "output_tokens": 575,
+          "output_tokens_details": {
+            "thinking_tokens": 383
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 5854,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 575,
+              "cache_read_input_tokens": 63661,
+              "cache_creation_input_tokens": 5854,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 5854
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 16,
+        "input": 74388,
+        "delta": 4871,
+        "output": 385,
+        "tools": [
+          "mcp__cdp-workflow__expand"
+        ],
+        "resultBytes": 8082,
+        "images": 0,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 4871,
+          "cache_read_input_tokens": 69515,
+          "output_tokens": 385,
+          "output_tokens_details": {
+            "thinking_tokens": 233
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 4871,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 385,
+              "cache_read_input_tokens": 69515,
+              "cache_creation_input_tokens": 4871,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 4871
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 17,
+        "input": 79178,
+        "delta": 4790,
+        "output": 447,
+        "tools": [
+          "mcp__cdp-workflow__observe"
+        ],
+        "resultBytes": 8120,
+        "images": 0,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 4790,
+          "cache_read_input_tokens": 74386,
+          "output_tokens": 447,
+          "output_tokens_details": {
+            "thinking_tokens": 199
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 4790,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 447,
+              "cache_read_input_tokens": 74386,
+              "cache_creation_input_tokens": 4790,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 4790
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 18,
+        "input": 84110,
+        "delta": 4932,
+        "output": 460,
+        "tools": [
+          "mcp__cdp-workflow__act"
+        ],
+        "resultBytes": 8311,
+        "images": 1,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 4932,
+          "cache_read_input_tokens": 79176,
+          "output_tokens": 460,
+          "output_tokens_details": {
+            "thinking_tokens": 225
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 4932,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 460,
+              "cache_read_input_tokens": 79176,
+              "cache_creation_input_tokens": 4932,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 4932
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 19,
+        "input": 89374,
+        "delta": 5264,
+        "output": 330,
+        "tools": [
+          "mcp__cdp-workflow__act"
+        ],
+        "resultBytes": 8340,
+        "images": 1,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 5264,
+          "cache_read_input_tokens": 84108,
+          "output_tokens": 330,
+          "output_tokens_details": {
+            "thinking_tokens": 94
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 5264,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 330,
+              "cache_read_input_tokens": 84108,
+              "cache_creation_input_tokens": 5264,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 5264
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 20,
+        "input": 94253,
+        "delta": 4879,
+        "output": 342,
+        "tools": [
+          "mcp__cdp-workflow__act"
+        ],
+        "resultBytes": 8357,
+        "images": 1,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 4879,
+          "cache_read_input_tokens": 89372,
+          "output_tokens": 342,
+          "output_tokens_details": {
+            "thinking_tokens": 193
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 4879,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 342,
+              "cache_read_input_tokens": 89372,
+              "cache_creation_input_tokens": 4879,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 4879
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 21,
+        "input": 98804,
+        "delta": 4551,
+        "output": 410,
+        "tools": [
+          "mcp__cdp-workflow__observe"
+        ],
+        "resultBytes": 8138,
+        "images": 0,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 4551,
+          "cache_read_input_tokens": 94251,
+          "output_tokens": 410,
+          "output_tokens_details": {
+            "thinking_tokens": 164
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 4551,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 410,
+              "cache_read_input_tokens": 94251,
+              "cache_creation_input_tokens": 4551,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 4551
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 22,
+        "input": 103894,
+        "delta": 5090,
+        "output": 499,
+        "tools": [
+          "mcp__cdp-workflow__act"
+        ],
+        "resultBytes": 8315,
+        "images": 1,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 5090,
+          "cache_read_input_tokens": 98802,
+          "output_tokens": 499,
+          "output_tokens_details": {
+            "thinking_tokens": 301
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 5090,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 499,
+              "cache_read_input_tokens": 98802,
+              "cache_creation_input_tokens": 5090,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 5090
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 23,
+        "input": 108551,
+        "delta": 4657,
+        "output": 365,
+        "tools": [
+          "mcp__cdp-workflow__observe"
+        ],
+        "resultBytes": 8139,
+        "images": 0,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 4657,
+          "cache_read_input_tokens": 103892,
+          "output_tokens": 365,
+          "output_tokens_details": {
+            "thinking_tokens": 187
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 4657,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 365,
+              "cache_read_input_tokens": 103892,
+              "cache_creation_input_tokens": 4657,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 4657
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 24,
+        "input": 113609,
+        "delta": 5058,
+        "output": 751,
+        "tools": [
+          "mcp__cdp-workflow__screenshot"
+        ],
+        "resultBytes": 8304,
+        "images": 1,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 5058,
+          "cache_read_input_tokens": 108549,
+          "output_tokens": 751,
+          "output_tokens_details": {
+            "thinking_tokens": 584
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 5058,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 751,
+              "cache_read_input_tokens": 108549,
+              "cache_creation_input_tokens": 5058,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 5058
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 25,
+        "input": 121702,
+        "delta": 8093,
+        "output": 4980,
+        "tools": [
+          "mcp__cdp-workflow__screenshot"
+        ],
+        "resultBytes": 8387,
+        "images": 1,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 8093,
+          "cache_read_input_tokens": 113607,
+          "output_tokens": 4980,
+          "output_tokens_details": {
+            "thinking_tokens": 2432
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 8093,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 4980,
+              "cache_read_input_tokens": 113607,
+              "cache_creation_input_tokens": 8093,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 8093
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 26,
+        "input": 126870,
+        "delta": 5168,
+        "output": 1762,
+        "tools": [
+          "Write"
+        ],
+        "resultBytes": 182,
+        "images": 0,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 5168,
+          "cache_read_input_tokens": 121700,
+          "output_tokens": 1762,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 5168,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 1762,
+              "cache_read_input_tokens": 121700,
+              "cache_creation_input_tokens": 5168,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 5168
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      },
+      {
+        "turn": 27,
+        "input": 128826,
+        "delta": 1956,
+        "output": 229,
+        "tools": [
+          "Write"
+        ],
+        "resultBytes": 190,
+        "images": 0,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 1956,
+          "cache_read_input_tokens": 126868,
+          "output_tokens": 229,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0
+          },
+          "service_tier": "standard",
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 1956,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "inference_geo": "global",
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 229,
+              "cache_read_input_tokens": 126868,
+              "cache_creation_input_tokens": 1956,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 1956
+              },
+              "type": "message"
+            }
+          ],
+          "speed": "standard",
+          "fallback_credit": null
+        }
+      }
+    ],
+    "perTool": {
+      "Read": {
+        "calls": 6,
+        "bytes": 7268,
+        "images": 0
+      },
+      "ToolSearch": {
+        "calls": 1,
+        "bytes": 0,
+        "images": 0
+      },
+      "mcp__cdp-workflow__observe": {
+        "calls": 6,
+        "bytes": 48937,
+        "images": 1
+      },
+      "mcp__cdp-workflow__act": {
+        "calls": 10,
+        "bytes": 83059,
+        "images": 9
+      },
+      "mcp__cdp-workflow__expand": {
+        "calls": 3,
+        "bytes": 24305,
+        "images": 0
+      },
+      "mcp__cdp-workflow__screenshot": {
+        "calls": 2,
+        "bytes": 16691,
+        "images": 2
+      },
+      "Write": {
+        "calls": 2,
+        "bytes": 372,
+        "images": 0
+      }
+    },
+    "totalInput": 1752540,
+    "avgInput": 64908.88888888889
+  }
+}
