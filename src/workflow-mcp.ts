@@ -162,6 +162,9 @@ export async function callWorkflowTool(name: string, args: Record<string, unknow
 }
 
 export async function serveWorkflowMcp(): Promise<void> {
+  // Agent bridges use the measured compact transport unless the owner explicitly
+  // selects another profile. Keep the composable CLI's default unchanged.
+  process.env.CDP_WORKFLOW_VIEW_PROFILE ??= 'haiku-compact';
   const budget = createWorkflowBudget();
   const input = createInterface({ input: process.stdin, crlfDelay: Infinity });
   // Serializing requests preserves browser ownership and action/observation order.

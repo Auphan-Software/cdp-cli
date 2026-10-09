@@ -2,6 +2,8 @@
 
 Henry requested dropping query filtering and workflow reranking, reaching native token parity and stopping further tuning. The workflow now rejects retired query arguments before dispatch, omits query from MCP schemas, and never loads or invokes its reranker provider. The office service and experimental non-workflow consumers are separate. Deterministic protected state, bounded output, source-bound action guards and canonical recovery remain. Unnamed visible top-document controls get finite captured CSS viewport boxes, with explicit coordinate-space guidance; iframe-local boxes are withheld rather than guessed into screenshot space. Removed query-only DOM grouping and query helper/tests. Installed Claude/Codex workflow and browser-QA skills were updated to omit query and use captured geometry.
 
+The agent MCP bridge now defaults to the measured haiku-compact transport when the owner supplies no profile. Explicit profiles still work; the composable CLI retains its current24k default.
+
 | Recorded whole attempt | Native extension | Simplified CDP |
 | --- | ---: | ---: |
 | Independently verified exact save once / final pixels | pass | pass |
