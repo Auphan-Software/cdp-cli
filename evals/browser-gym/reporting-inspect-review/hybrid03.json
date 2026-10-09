@@ -1,0 +1,69 @@
+{
+  "scope": "Actor usage only; phases split at first and last supported browser-tool requests. Flags require review, not automatic rejection of justified recovery.",
+  "phases": {
+    "setup": {
+      "requests": 3,
+      "usage": {
+        "input_tokens": 6,
+        "cache_creation_input_tokens": 10889,
+        "cache_read_input_tokens": 17308,
+        "output_tokens": 1283
+      },
+      "processedTokens": 29486,
+      "estimatedApiUsd": 0.00299298
+    },
+    "browser": {
+      "requests": 17,
+      "usage": {
+        "input_tokens": 34,
+        "cache_creation_input_tokens": 34635,
+        "cache_read_input_tokens": 494071,
+        "output_tokens": 6064
+      },
+      "processedTokens": 534804,
+      "estimatedApiUsd": 0.014903109999999999
+    },
+    "reporting": {
+      "requests": 5,
+      "usage": {
+        "input_tokens": 10,
+        "cache_creation_input_tokens": 12605,
+        "cache_read_input_tokens": 264803,
+        "output_tokens": 8019
+      },
+      "processedTokens": 285437,
+      "estimatedApiUsd": 0.00917953
+    }
+  },
+  "artifacts": [
+    {
+      "name": "result.json",
+      "writes": 2,
+      "readsAfterWrite": 1,
+      "writeBytes": [
+        3549,
+        3480
+      ],
+      "requests": [
+        21,
+        23
+      ]
+    },
+    {
+      "name": "job.qa.md",
+      "writes": 1,
+      "readsAfterWrite": 0,
+      "writeBytes": [
+        3754
+      ],
+      "requests": [
+        24
+      ]
+    }
+  ],
+  "flags": [
+    "result.json: expected one final write, observed 2",
+    "result.json: read after write; inspect recovery justification"
+  ],
+  "total": 849727
+}

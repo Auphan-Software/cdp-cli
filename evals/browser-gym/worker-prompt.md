@@ -30,7 +30,7 @@ Distinguish a discount preset from its separate required reason: in the zero-net
 100% Proprio is the preset; select the existing Customer Unhappy reason afterward. Do not
 invent a reason with the preset's name or change fixture configuration to create one.
 
-At each verified milestone, persist a compact checkpoint: candidate/fixture, cashier ID, invoice/txn
+For journeys requiring renewal checkpoints, persist a compact checkpoint at each verified milestone: candidate/fixture, cashier ID, invoice/txn
 IDs, delivered actions, expected totals, pending checks, temporary mutations and cleanup. After
 renewal, read that checkpoint, confirm browser/fixture identity and reacquire current state.
 Keep candidate Git commits separate from browser source IDs. After an actual handoff completes,
@@ -47,3 +47,10 @@ controller separately enforces time/action limits and can cancel this task.
 When all assigned checks are done, stop. Return case/candidate/fixture IDs, observed result,
 created identifiers, artifact paths, remaining evidence gaps and cleanup state. Do not declare fiscal
 correctness solely from UI text; the verifier checks database, RQ and bill parity independently.
+
+For bounded single-session paired trials, use reporting-contract.md identically
+in both arms: write compact result.json and job.qa.md once each after browser
+work, then a short final answer. Do not read back or rewrite successful reports
+without an actual storage failure or discovered correctness issue. Required
+renewal checkpoints and material uncertainty remain mandatory. The controller
+must replace contradictory per-row reporting instructions before hashing inputs.

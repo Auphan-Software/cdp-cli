@@ -1,0 +1,42 @@
+{
+  "scope": "Sequential read-only current-page format probe; byte measurements are not model tokens or E2E cost. No actions, navigation, payment or fixture changes. CLI ax values redacted; text is body.innerText and has no selector/redaction contract. Raw artifacts remain local.",
+  "session": "native-pair-cdp-cash-headed-01",
+  "page": "DB1997850A7F9A2D80D04195A88AAC78",
+  "measurements": [
+    {
+      "name": "ax",
+      "transportBytes": 2400,
+      "rows": 25,
+      "actionableSelectors": true,
+      "sha256": "3e7267c3559789cce8a747580814f92bbd51fdd39e5042e695c7c6d570c81e05"
+    },
+    {
+      "name": "ax-json",
+      "transportBytes": 2559,
+      "rows": 25,
+      "actionableSelectors": true,
+      "sha256": "cb09c9de86fb10a17a8c38c10046ea701c203da0056bf2963dfd8f8f71fd8664"
+    },
+    {
+      "name": "text",
+      "transportBytes": 247,
+      "rows": 27,
+      "actionableSelectors": false,
+      "sha256": "3bf4a4ef6616761d52130869d4b7ec8dce4130739c7813764562c53da266c87c"
+    },
+    {
+      "name": "mcp-snapshot",
+      "transportBytes": 2997,
+      "textBytes": 2768,
+      "images": 0,
+      "sha256": "55ee3d389d67ce132fead695dd9fc312523dd3c199dd72c9ec016abbc48f8512"
+    },
+    {
+      "name": "mcp-observe",
+      "transportBytes": 6859,
+      "textBytes": 5756,
+      "images": 0,
+      "sha256": "034d8b5e8482dda222959aa7fc8954508fbc0549c49950680b68daf831c0a0f7"
+    }
+  ]
+}

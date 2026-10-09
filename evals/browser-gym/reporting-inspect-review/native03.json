@@ -1,0 +1,64 @@
+{
+  "scope": "Actor usage only; phases split at first and last supported browser-tool requests. Flags require review, not automatic rejection of justified recovery.",
+  "phases": {
+    "setup": {
+      "requests": 3,
+      "usage": {
+        "input_tokens": 6,
+        "cache_creation_input_tokens": 13222,
+        "cache_read_input_tokens": 21618,
+        "output_tokens": 1864
+      },
+      "processedTokens": 36710,
+      "estimatedApiUsd": 0.00379318
+    },
+    "browser": {
+      "requests": 17,
+      "usage": {
+        "input_tokens": 34,
+        "cache_creation_input_tokens": 39285,
+        "cache_read_input_tokens": 489194,
+        "output_tokens": 6767
+      },
+      "processedTokens": 535280,
+      "estimatedApiUsd": 0.01613584
+    },
+    "reporting": {
+      "requests": 3,
+      "usage": {
+        "input_tokens": 6,
+        "cache_creation_input_tokens": 5906,
+        "cache_read_input_tokens": 134233,
+        "output_tokens": 3957
+      },
+      "processedTokens": 144102,
+      "estimatedApiUsd": 0.0045026300000000005
+    }
+  },
+  "artifacts": [
+    {
+      "name": "result.json",
+      "writes": 1,
+      "readsAfterWrite": 0,
+      "writeBytes": [
+        3277
+      ],
+      "requests": [
+        21
+      ]
+    },
+    {
+      "name": "job.qa.md",
+      "writes": 1,
+      "readsAfterWrite": 0,
+      "writeBytes": [
+        3049
+      ],
+      "requests": [
+        22
+      ]
+    }
+  ],
+  "flags": [],
+  "total": 716092
+}

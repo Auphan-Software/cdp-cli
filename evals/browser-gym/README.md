@@ -9,6 +9,11 @@ native API-equivalent cost in that pair. Model, startup and compaction savings r
 Per-run build identities and failed attempts are retained below; one pair is not a general savings guarantee.
 Tracked by `cdp-cli-8n1`. The accounting commands do not launch a model or mutate a Mako2 database.
 
+See [compact reporting optimization and inspection formats](reporting-and-inspect-results.md)
+for request-phase accounting, the write-once reporting contract, preparation helper
+and read-only format probe. The new reporting policy has not yet been measured in
+a fresh model trial; follow-up is tracked in `cdp-cli-2gw`.
+
 See [official Anthropic research and its implementation implications](anthropic-haiku-guidance.md)
 for browser tool contracts, effort, steering, compaction and cache behavior.
 See [the clean packing comparison](clean-packing-results.md) for both cost scopes, matching
