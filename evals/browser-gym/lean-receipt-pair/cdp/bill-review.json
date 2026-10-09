@@ -1,0 +1,31 @@
+{
+  "reviewer": "controller-pixels",
+  "caseId": "long-modifier",
+  "path": "C:/autoprint/20261008191744.png",
+  "sha256": "62f14ee4aa78e379d54810dc671780aa1af1a0300709e2f01d730a7417e1393f",
+  "invoiceId": 150396,
+  "txnId": 35,
+  "transaction": "042Z-044M-01XM-018M",
+  "boot": {
+    "path": "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/boot.json",
+    "sha256": "677f5005d9eed606f9eee901345e6b92cd172c65a7062c62b0d4b586ae91e207"
+  },
+  "amounts": {
+    "avantTax": 359,
+    "TPS": 18,
+    "TVQ": 36,
+    "apresTax": 413
+  },
+  "items": [
+    {
+      "description": "Pepsi",
+      "quantity": 1,
+      "priceCents": 359,
+      "tax": "FP",
+      "precisions": [
+        "Note: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa b"
+      ]
+    }
+  ],
+  "text": "Independent printed pixels: invoice150396, one Pepsi3.59FP; Note: ten rows of twelve a glyphs, then b. ARGENT COMPTANT and PAIEMENT RECU. TPS.18 TVQ.36 total4.13. Transaction042Z-044M-01XM-018M."
+}

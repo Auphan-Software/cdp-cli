@@ -1,0 +1,18 @@
+{
+  "arm": "cdp",
+  "contractHash": "cd3e7321d3756308186142eb65a8dd753e3478d56a68289f1833f7cca9477864",
+  "noteHash": "ba0d0f61026acfb1adc74f4abbaf3ef41111e0541f2dee6ba7272bde922008f7",
+  "operatorHash": "b89522c45ba909cd23c172ca4b87ad9152b712d4c26b0022f3522374165329da",
+  "adapterHash": "2649a4de955ec01bfb3a10909fc7df2bf6a4e7653ed7e8eaeb03ca8430f7c827",
+  "model": "claude-haiku-5-5",
+  "effort": "medium",
+  "trackedWorkItem": 8508,
+  "trackedSession": 2067,
+  "product": "e7197b53d508068efabf28a45156697b1f21d048",
+  "build": {
+    "version": "2.2.3",
+    "commit": "01591444297d9ac5cba83aa2641649d12fc90337",
+    "dirty": false,
+    "built": "2026-10-09T02:03:44Z"
+  }
+}

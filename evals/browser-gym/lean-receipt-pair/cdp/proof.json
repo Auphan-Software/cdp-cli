@@ -1,0 +1,112 @@
+{
+  "verifier": "independent",
+  "caseId": "long-modifier",
+  "candidate": "e7197b53d508068efabf28a45156697b1f21d048",
+  "fixtureFingerprint": "7c51863674c0b9acc58608c2f83a95a18672b7871d64436ac5294e0543486f25",
+  "checks": [
+    {
+      "id": "boot-role",
+      "passed": true,
+      "artifacts": [
+        "C:\\Users\\wingz\\OneDrive\\Documents\\ChatGPT\\Work\\lean-receipt-pair-01\\cdp\\hard-evidence.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/before.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/after.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/cleanup.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/bill-review.json",
+        "C:/autoprint/20261008191744.png",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/boot.json"
+      ]
+    },
+    {
+      "id": "bill-image",
+      "passed": true,
+      "artifacts": [
+        "C:\\Users\\wingz\\OneDrive\\Documents\\ChatGPT\\Work\\lean-receipt-pair-01\\cdp\\hard-evidence.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/before.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/after.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/cleanup.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/bill-review.json",
+        "C:/autoprint/20261008191744.png",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/boot.json"
+      ]
+    },
+    {
+      "id": "fixture-cleanup",
+      "passed": true,
+      "artifacts": [
+        "C:\\Users\\wingz\\OneDrive\\Documents\\ChatGPT\\Work\\lean-receipt-pair-01\\cdp\\hard-evidence.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/before.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/after.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/cleanup.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/bill-review.json",
+        "C:/autoprint/20261008191744.png",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/boot.json"
+      ]
+    },
+    {
+      "id": "modifier-boundary-fixture",
+      "passed": false,
+      "artifacts": [
+        "C:\\Users\\wingz\\OneDrive\\Documents\\ChatGPT\\Work\\lean-receipt-pair-01\\cdp\\hard-evidence.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/before.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/after.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/cleanup.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/bill-review.json",
+        "C:/autoprint/20261008191744.png",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/boot.json"
+      ]
+    },
+    {
+      "id": "rq-description-no-trailing-space",
+      "passed": false,
+      "artifacts": [
+        "C:\\Users\\wingz\\OneDrive\\Documents\\ChatGPT\\Work\\lean-receipt-pair-01\\cdp\\hard-evidence.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/before.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/after.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/cleanup.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/bill-review.json",
+        "C:/autoprint/20261008191744.png",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/boot.json"
+      ]
+    },
+    {
+      "id": "rq-accepted-arg",
+      "passed": true,
+      "artifacts": [
+        "C:\\Users\\wingz\\OneDrive\\Documents\\ChatGPT\\Work\\lean-receipt-pair-01\\cdp\\hard-evidence.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/before.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/after.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/cleanup.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/bill-review.json",
+        "C:/autoprint/20261008191744.png",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/boot.json"
+      ]
+    },
+    {
+      "id": "invoice-payment-totals",
+      "passed": true,
+      "artifacts": [
+        "C:\\Users\\wingz\\OneDrive\\Documents\\ChatGPT\\Work\\lean-receipt-pair-01\\cdp\\hard-evidence.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/before.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/after.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/cleanup.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/bill-review.json",
+        "C:/autoprint/20261008191744.png",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/boot.json"
+      ]
+    },
+    {
+      "id": "bill-payload-parity",
+      "passed": true,
+      "artifacts": [
+        "C:\\Users\\wingz\\OneDrive\\Documents\\ChatGPT\\Work\\lean-receipt-pair-01\\cdp\\hard-evidence.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/before.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/after.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/cleanup.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/bill-review.json",
+        "C:/autoprint/20261008191744.png",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/boot.json"
+      ]
+    }
+  ]
+}

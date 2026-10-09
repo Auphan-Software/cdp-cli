@@ -1,0 +1,16 @@
+{
+  "processedTokens": 444831,
+  "estimatedUsd": 0.019162030000000007,
+  "peakInput": 43232,
+  "compactions": 0,
+  "elapsed": 105.941,
+  "browserCalls": 15,
+  "expansions": 0,
+  "screenshots": 0,
+  "queryCalls": 0,
+  "models": {
+    "claude-haiku-5-5": 16
+  },
+  "typed": [],
+  "views": []
+}

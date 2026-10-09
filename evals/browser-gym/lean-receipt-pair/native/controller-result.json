@@ -1,0 +1,102 @@
+{
+  "outcome": "BLOCKED",
+  "passed": 1,
+  "total": 8,
+  "checks": [
+    {
+      "id": "boot-role",
+      "passed": false,
+      "artifacts": [
+        "C:\\Users\\wingz\\OneDrive\\Documents\\ChatGPT\\Work\\lean-receipt-pair-01\\native\\hard-evidence.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/before.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/after.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/cleanup.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/bill-review.json"
+      ]
+    },
+    {
+      "id": "bill-image",
+      "passed": false,
+      "artifacts": [
+        "C:\\Users\\wingz\\OneDrive\\Documents\\ChatGPT\\Work\\lean-receipt-pair-01\\native\\hard-evidence.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/before.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/after.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/cleanup.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/bill-review.json"
+      ]
+    },
+    {
+      "id": "fixture-cleanup",
+      "passed": true,
+      "artifacts": [
+        "C:\\Users\\wingz\\OneDrive\\Documents\\ChatGPT\\Work\\lean-receipt-pair-01\\native\\hard-evidence.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/before.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/after.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/cleanup.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/bill-review.json"
+      ]
+    },
+    {
+      "id": "modifier-boundary-fixture",
+      "passed": false,
+      "artifacts": [
+        "C:\\Users\\wingz\\OneDrive\\Documents\\ChatGPT\\Work\\lean-receipt-pair-01\\native\\hard-evidence.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/before.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/after.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/cleanup.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/bill-review.json"
+      ]
+    },
+    {
+      "id": "rq-description-no-trailing-space",
+      "passed": false,
+      "artifacts": [
+        "C:\\Users\\wingz\\OneDrive\\Documents\\ChatGPT\\Work\\lean-receipt-pair-01\\native\\hard-evidence.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/before.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/after.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/cleanup.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/bill-review.json"
+      ]
+    },
+    {
+      "id": "rq-accepted-arg",
+      "passed": false,
+      "artifacts": [
+        "C:\\Users\\wingz\\OneDrive\\Documents\\ChatGPT\\Work\\lean-receipt-pair-01\\native\\hard-evidence.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/before.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/after.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/cleanup.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/bill-review.json"
+      ]
+    },
+    {
+      "id": "invoice-payment-totals",
+      "passed": false,
+      "artifacts": [
+        "C:\\Users\\wingz\\OneDrive\\Documents\\ChatGPT\\Work\\lean-receipt-pair-01\\native\\hard-evidence.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/before.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/after.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/cleanup.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/bill-review.json"
+      ]
+    },
+    {
+      "id": "bill-payload-parity",
+      "passed": false,
+      "artifacts": [
+        "C:\\Users\\wingz\\OneDrive\\Documents\\ChatGPT\\Work\\lean-receipt-pair-01\\native\\hard-evidence.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/before.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/after.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/cleanup.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/bill-review.json"
+      ]
+    }
+  ],
+  "invoiceId": 150397,
+  "storedNoteLength": 0,
+  "storedExact": false,
+  "invoiceStatus": 1,
+  "paymentCount": 0,
+  "reason": "modifier-note.txt content could not be reproduced with certainty: the note is a long repeated-'a' string plus 'boundary tail', and the file's first line begins with a 'Note:' prefix. No character-count or byte-level tool is available to verify exact length/prefix. Typing an unverified note would invalidate the boundary-truncation check, so the Notes field was left empty and no save was attempted.",
+  "gradingLimit": "Completed-invoice verifier cannot qualify boot/RQ/bill checks on an open unpaid invoice. Only fixture preservation qualified."
+}

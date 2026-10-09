@@ -1,0 +1,124 @@
+{
+  "outcome": "FAIL",
+  "passed": 6,
+  "total": 8,
+  "checks": [
+    {
+      "id": "boot-role",
+      "passed": true,
+      "artifacts": [
+        "C:\\Users\\wingz\\OneDrive\\Documents\\ChatGPT\\Work\\lean-receipt-pair-01\\cdp\\hard-evidence.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/before.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/after.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/cleanup.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/bill-review.json",
+        "C:/autoprint/20261008191744.png",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/boot.json"
+      ]
+    },
+    {
+      "id": "bill-image",
+      "passed": true,
+      "artifacts": [
+        "C:\\Users\\wingz\\OneDrive\\Documents\\ChatGPT\\Work\\lean-receipt-pair-01\\cdp\\hard-evidence.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/before.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/after.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/cleanup.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/bill-review.json",
+        "C:/autoprint/20261008191744.png",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/boot.json"
+      ]
+    },
+    {
+      "id": "fixture-cleanup",
+      "passed": true,
+      "artifacts": [
+        "C:\\Users\\wingz\\OneDrive\\Documents\\ChatGPT\\Work\\lean-receipt-pair-01\\cdp\\hard-evidence.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/before.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/after.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/cleanup.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/bill-review.json",
+        "C:/autoprint/20261008191744.png",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/boot.json"
+      ]
+    },
+    {
+      "id": "modifier-boundary-fixture",
+      "passed": false,
+      "artifacts": [
+        "C:\\Users\\wingz\\OneDrive\\Documents\\ChatGPT\\Work\\lean-receipt-pair-01\\cdp\\hard-evidence.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/before.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/after.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/cleanup.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/bill-review.json",
+        "C:/autoprint/20261008191744.png",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/boot.json"
+      ]
+    },
+    {
+      "id": "rq-description-no-trailing-space",
+      "passed": false,
+      "artifacts": [
+        "C:\\Users\\wingz\\OneDrive\\Documents\\ChatGPT\\Work\\lean-receipt-pair-01\\cdp\\hard-evidence.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/before.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/after.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/cleanup.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/bill-review.json",
+        "C:/autoprint/20261008191744.png",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/boot.json"
+      ]
+    },
+    {
+      "id": "rq-accepted-arg",
+      "passed": true,
+      "artifacts": [
+        "C:\\Users\\wingz\\OneDrive\\Documents\\ChatGPT\\Work\\lean-receipt-pair-01\\cdp\\hard-evidence.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/before.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/after.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/cleanup.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/bill-review.json",
+        "C:/autoprint/20261008191744.png",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/boot.json"
+      ]
+    },
+    {
+      "id": "invoice-payment-totals",
+      "passed": true,
+      "artifacts": [
+        "C:\\Users\\wingz\\OneDrive\\Documents\\ChatGPT\\Work\\lean-receipt-pair-01\\cdp\\hard-evidence.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/before.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/after.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/cleanup.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/bill-review.json",
+        "C:/autoprint/20261008191744.png",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/boot.json"
+      ]
+    },
+    {
+      "id": "bill-payload-parity",
+      "passed": true,
+      "artifacts": [
+        "C:\\Users\\wingz\\OneDrive\\Documents\\ChatGPT\\Work\\lean-receipt-pair-01\\cdp\\hard-evidence.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/before.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/after.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/cleanup.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/bill-review.json",
+        "C:/autoprint/20261008191744.png",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/cdp/boot.json"
+      ]
+    }
+  ],
+  "invoiceId": 150396,
+  "expectedNoteLength": 141,
+  "storedNoteLength": 140,
+  "storedExact": false,
+  "fillArguments": [
+    {
+      "tool": "mcp__cdp-workflow__act",
+      "length": 140,
+      "exact": false
+    }
+  ],
+  "billHash": "62f14ee4aa78e379d54810dc671780aa1af1a0300709e2f01d730a7417e1393f",
+  "fillMatchesDatabase": true
+}

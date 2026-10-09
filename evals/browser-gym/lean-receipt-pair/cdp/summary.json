@@ -1,0 +1,82 @@
+{
+  "processedTokens": 1267101,
+  "estimatedUsd": 0.03560651,
+  "peakInput": 73130,
+  "compactions": 0,
+  "elapsed": 229.696,
+  "browserCalls": 22,
+  "expansions": 0,
+  "screenshots": 13,
+  "queryCalls": 0,
+  "models": {
+    "claude-haiku-5-5": 31
+  },
+  "typed": [
+    {
+      "length": 140,
+      "exactNote": false
+    }
+  ],
+  "views": [
+    {
+      "boxes": 0,
+      "screenshotAvailable": true
+    },
+    {
+      "screenshotAvailable": true
+    },
+    {
+      "boxes": 1
+    },
+    {},
+    {
+      "boxes": 5,
+      "screenshotAvailable": true
+    },
+    {
+      "screenshotAvailable": true
+    },
+    {
+      "boxes": 5
+    },
+    {},
+    {
+      "boxes": 5,
+      "screenshotAvailable": true
+    },
+    {
+      "screenshotAvailable": true
+    },
+    {
+      "boxes": 3
+    },
+    {
+      "screenshotAvailable": true
+    },
+    {
+      "boxes": 3
+    },
+    {
+      "screenshotAvailable": true
+    },
+    {
+      "boxes": 5
+    },
+    {
+      "screenshotAvailable": true
+    },
+    {
+      "boxes": 6
+    },
+    {
+      "screenshotAvailable": true
+    },
+    {
+      "boxes": 4,
+      "screenshotAvailable": true
+    },
+    {
+      "screenshotAvailable": true
+    }
+  ]
+}

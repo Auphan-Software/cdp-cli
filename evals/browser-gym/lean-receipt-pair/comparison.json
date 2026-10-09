@@ -1,0 +1,138 @@
+{
+  "kind": "fresh-sequential-pair",
+  "model": "claude-haiku-5-5",
+  "effort": "medium",
+  "arms": {
+    "cdp": {
+      "outcome": "FAIL",
+      "passed": 6,
+      "total": 8,
+      "invoiceId": 150396,
+      "noteLength": 140,
+      "noteExact": false,
+      "processedTokens": 1267101,
+      "usage": {
+        "input_tokens": 62,
+        "cache_creation_input_tokens": 73128,
+        "cache_read_input_tokens": 1175471,
+        "output_tokens": 18440
+      },
+      "estimatedApiUsd": 0.03560651,
+      "peakInput": 73130,
+      "longContextRequests": 0,
+      "modelRequests": 31,
+      "allToolCalls": 34,
+      "browserCalls": 22,
+      "textBytes": 57783,
+      "imageBlocks": 12,
+      "perTool": {
+        "mcp__cdp-workflow__observe": {
+          "calls": 10,
+          "bytes": 46643,
+          "images": 4
+        },
+        "mcp__cdp-workflow__act": {
+          "calls": 11,
+          "bytes": 10119,
+          "images": 7
+        },
+        "mcp__cdp-workflow__screenshot": {
+          "calls": 1,
+          "bytes": 1021,
+          "images": 1
+        }
+      },
+      "compactions": 0,
+      "elapsedSeconds": 229.696,
+      "usageScope": "recorded assistant usage",
+      "warnings": []
+    },
+    "native": {
+      "outcome": "BLOCKED",
+      "passed": 1,
+      "total": 8,
+      "invoiceId": 150397,
+      "noteLength": 0,
+      "noteExact": false,
+      "processedTokens": 444831,
+      "usage": {
+        "input_tokens": 32,
+        "cache_creation_input_tokens": 52077,
+        "cache_read_input_tokens": 382893,
+        "output_tokens": 9829
+      },
+      "estimatedApiUsd": 0.019162030000000007,
+      "peakInput": 43232,
+      "longContextRequests": 0,
+      "modelRequests": 16,
+      "allToolCalls": 24,
+      "browserCalls": 15,
+      "textBytes": 10884,
+      "imageBlocks": 6,
+      "perTool": {
+        "mcp__claude-in-chrome__tabs_context_mcp": {
+          "calls": 1,
+          "bytes": 440,
+          "images": 0
+        },
+        "mcp__claude-in-chrome__tabs_create_mcp": {
+          "calls": 1,
+          "bytes": 435,
+          "images": 0
+        },
+        "mcp__claude-in-chrome__navigate": {
+          "calls": 1,
+          "bytes": 875,
+          "images": 0
+        },
+        "mcp__claude-in-chrome__computer": {
+          "calls": 12,
+          "bytes": 9134,
+          "images": 6
+        }
+      },
+      "compactions": 0,
+      "elapsedSeconds": 105.941,
+      "usageScope": "recorded assistant usage",
+      "warnings": []
+    }
+  },
+  "limits": [
+    "Single attempt per arm, not randomized or statistical evidence.",
+    "CDP controller preboots an owned Chrome page; native agent performs fresh-tab Edge setup. Controller costs excluded.",
+    "Native and CDP image encoding/resolution/tool schema differ.",
+    "Estimated API-equivalent cost is not a measured subscription charge.",
+    "Fresh native stopped before note/payment: its token/cost ratio is not a completed-journey efficiency comparison."
+  ],
+  "contractMatched": true,
+  "noteMatched": true,
+  "ratios": null,
+  "retainedCompletedNative": {
+    "processedTokens": 981860,
+    "estimatedApiUsd": 0.02699815,
+    "browserCalls": 25,
+    "textBytes": 18171,
+    "passed": 6,
+    "total": 8,
+    "invoiceId": 150393
+  },
+  "ratiosVsRetainedCompletedNative": {
+    "tokens": 1.2905108671297334,
+    "cost": 1.3188499952774544,
+    "bytes": 3.179957074459303,
+    "browserCalls": 0.88
+  },
+  "previousCdp": {
+    "processedTokens": 1770193,
+    "estimatedApiUsd": 0.11863878,
+    "browserCalls": 21,
+    "textBytes": 172959,
+    "passed": 6,
+    "total": 8
+  },
+  "changeVsPreviousCdp": {
+    "tokenReductionPercent": 28.420177912803858,
+    "costReductionPercent": 69.98746109830192,
+    "textReductionPercent": 66.59150434496037
+  }
+}

@@ -1,0 +1,96 @@
+{
+  "verifier": "independent",
+  "caseId": "long-modifier",
+  "candidate": "e7197b53d508068efabf28a45156697b1f21d048",
+  "fixtureFingerprint": "7c51863674c0b9acc58608c2f83a95a18672b7871d64436ac5294e0543486f25",
+  "checks": [
+    {
+      "id": "boot-role",
+      "passed": false,
+      "artifacts": [
+        "C:\\Users\\wingz\\OneDrive\\Documents\\ChatGPT\\Work\\lean-receipt-pair-01\\native\\hard-evidence.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/before.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/after.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/cleanup.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/bill-review.json"
+      ]
+    },
+    {
+      "id": "bill-image",
+      "passed": false,
+      "artifacts": [
+        "C:\\Users\\wingz\\OneDrive\\Documents\\ChatGPT\\Work\\lean-receipt-pair-01\\native\\hard-evidence.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/before.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/after.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/cleanup.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/bill-review.json"
+      ]
+    },
+    {
+      "id": "fixture-cleanup",
+      "passed": true,
+      "artifacts": [
+        "C:\\Users\\wingz\\OneDrive\\Documents\\ChatGPT\\Work\\lean-receipt-pair-01\\native\\hard-evidence.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/before.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/after.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/cleanup.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/bill-review.json"
+      ]
+    },
+    {
+      "id": "modifier-boundary-fixture",
+      "passed": false,
+      "artifacts": [
+        "C:\\Users\\wingz\\OneDrive\\Documents\\ChatGPT\\Work\\lean-receipt-pair-01\\native\\hard-evidence.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/before.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/after.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/cleanup.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/bill-review.json"
+      ]
+    },
+    {
+      "id": "rq-description-no-trailing-space",
+      "passed": false,
+      "artifacts": [
+        "C:\\Users\\wingz\\OneDrive\\Documents\\ChatGPT\\Work\\lean-receipt-pair-01\\native\\hard-evidence.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/before.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/after.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/cleanup.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/bill-review.json"
+      ]
+    },
+    {
+      "id": "rq-accepted-arg",
+      "passed": false,
+      "artifacts": [
+        "C:\\Users\\wingz\\OneDrive\\Documents\\ChatGPT\\Work\\lean-receipt-pair-01\\native\\hard-evidence.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/before.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/after.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/cleanup.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/bill-review.json"
+      ]
+    },
+    {
+      "id": "invoice-payment-totals",
+      "passed": false,
+      "artifacts": [
+        "C:\\Users\\wingz\\OneDrive\\Documents\\ChatGPT\\Work\\lean-receipt-pair-01\\native\\hard-evidence.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/before.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/after.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/cleanup.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/bill-review.json"
+      ]
+    },
+    {
+      "id": "bill-payload-parity",
+      "passed": false,
+      "artifacts": [
+        "C:\\Users\\wingz\\OneDrive\\Documents\\ChatGPT\\Work\\lean-receipt-pair-01\\native\\hard-evidence.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/before.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/after.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/cleanup.json",
+        "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/lean-receipt-pair-01/native/bill-review.json"
+      ]
+    }
+  ]
+}
