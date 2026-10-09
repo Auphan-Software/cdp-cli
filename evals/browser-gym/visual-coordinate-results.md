@@ -55,10 +55,48 @@ new invoice without repeating the action. No observe or expand was used.
 Hybrid03 used68.46% fewer processed tokens than Visual02, with18.66% more than
 the completed Native03 baseline and10.82% higher recorded estimated cost.
 It made39.29% fewer browser calls than native, but had two extra model requests
-and a larger peak context. These successful runs again demonstrate why calls
-alone are a poor objective. Native elapsed156.68seconds versus Hybrid252.06seconds.
+and a larger peak context. Subsequent request-level accounting locates the two
+extra requests in reporting, not browser execution. Both used17 browser-phase
+model requests: native grouped multiple tool calls in some responses, while CDP
+issued its17 browser calls individually. Browser-phase processed tokens were
+535280 native versus534804 CDP, effectively tied. Calls alone therefore do not
+identify request count or complete workflow cost.
+Native elapsed156.68seconds versus Hybrid252.06seconds.
 The bundle comparison with Visual02 includes corrected setup and prompt changes;
 it is not a causal estimate for the pointer guard alone.
+
+### Request-level accounting correction
+
+Requests are unique assistant message IDs, ordered by their earliest transcript
+timestamp; usage comes from the final recorded block for each message. Setup
+is requests1–3, browser execution4–20, and reporting21 onward in both runs.
+Reporting includes Write/Read of the result artifacts and the final answer;
+independent controller verification remains excluded.
+
+| Phase | Native requests / tokens | Hybrid requests / tokens | Hybrid minus native |
+|---|---:|---:|---:|
+| Setup / instruction and tool loading | 3 / 36710 | 3 / 29486 | -7224 |
+| Browser execution | 17 / 535280 | 17 / 534804 | -476 |
+| Reporting | 3 / 144102 | 5 / 285437 | +141335 |
+| Total | 23 / 716092 | 25 / 849727 | +133635 |
+
+The total difference decomposes into fresh input+4, cache creation-284,
+cache reads+131137, and output+2778. Reporting alone adds130570 cache-read
+tokens. Native wrote result.json and job.qa.md once each. Hybrid wrote its
+result, read it back, rewrote it, then wrote job.qa.md. These two additional
+requests replayed roughly50–60k of accumulated input each. Reporting produced
+8019 output tokens versus3957 native. This is an observed agent reporting
+behavior, not proof that the CDP tool requires that work.
+
+Hybrid context was initially smaller: first browser request16735 versus22292
+native. By the final browser request it was47405 versus42617 (+4788). Greater
+image delivery, snapshot/receipt text and conversation content are plausible
+contributors to this faster growth, but the logs do not expose exact image/text
+token attribution. The final peak gap11487 also includes reporting. Under the
+retained price assumptions browser-phase estimated cost was0.01490311 USD
+hybrid versus0.01613584 native; whole-run cost still favors native. These phase
+figures diagnose overhead; they do not replace the original whole-task score
+or establish parity from a single trial.
 
 Hybrid04 also independently passed8/8: exact141 note, one cash payment,
 accepted txn39, no pending request, actual viewed printed receipt
