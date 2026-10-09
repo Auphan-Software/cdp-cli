@@ -1,0 +1,14 @@
+{
+  "runtime": "d3f178a6a744",
+  "mutationsAllowed": 0,
+  "observeTextBytes": 4402,
+  "screenshotTextBytes": 1505,
+  "screenshotHasImage": true,
+  "screenshotHasElements": false,
+  "screenshotHasDiff": false,
+  "screenshotAvailable": true,
+  "semanticStable": false,
+  "richHasDiff": true,
+  "richTextBytes": 8081,
+  "queryAdvertised": false
+}

@@ -40,6 +40,14 @@ Compact live cases still verify icon geometry/source binding/refusals. Overall
 line coverage61.77% remains below80%, tracked by existing cdp-cli-yr7; new receipt
 formatter has100% line coverage.
 
+Installed runtime d3f178a6a744 is clean and matches the exe/npm/PowerShell/Git Bash/
+PHP callers. Windows held the prior46cbcdf executable open; it was retained as
+cdp-cli.previous-46cbcdf.exe and fresh launches resolve the new image. Existing
+agents were not interrupted. Read-only installed WebSRM smoke: observe4402text
+bytes, screenshot1505bytes with pixels/no elements/no diff, explicit rich observe
+8081bytes. semanticStable:false remained visible; no alignment/visual-pass claim.
+Artifact JSONs are retained under evals/browser-gym/websrm-simplified-hard.
+
 Historical hard WebSRM payload replay:172,959→77,040text bytes (55.5% reduction).
 Actions83,040→20,117; screenshots16,687→3,545; explicit observations48,930→29,076;
 three explicit expansions remain24,302. Replay uses actual tool names, deduplicates

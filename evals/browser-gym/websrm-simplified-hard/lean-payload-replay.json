@@ -1,0 +1,30 @@
+{
+  "kind": "historical-payload-replay",
+  "modelTokensMeasured": false,
+  "beforeBytes": 172959,
+  "afterBytes": 77040,
+  "calls": 21,
+  "operations": {
+    "observe": {
+      "calls": 6,
+      "beforeBytes": 48930,
+      "afterBytes": 29076
+    },
+    "act": {
+      "calls": 10,
+      "beforeBytes": 83040,
+      "afterBytes": 20117
+    },
+    "expand": {
+      "calls": 3,
+      "beforeBytes": 24302,
+      "afterBytes": 24302
+    },
+    "screenshot": {
+      "calls": 2,
+      "beforeBytes": 16687,
+      "afterBytes": 3545
+    }
+  },
+  "reductionPercent": 55.45765181343556
+}
