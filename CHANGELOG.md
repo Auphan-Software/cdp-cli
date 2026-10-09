@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Restore lean model-facing MCP receipts: actions expose delivery/witness and fresh
+  source; screenshots expose pixels/alignment without unsolicited state/diff dumps.
+  Explicit observe, full:true and historical expand retain rich evidence. A failed
+  canonical save retains the richer response. Execution and composable CLI unchanged.
+
 ## 2.2.3
 
 - Bound workflow text to 24KB independently of canonical capture; preserve full

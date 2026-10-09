@@ -1,4 +1,17 @@
-# Browser evidence workflow (2.2.1)
+# Browser evidence workflow
+
+## Current agent presentation
+
+MCP actions return short delivery/witness receipts and fresh `value.view.source.id`.
+Screenshots return pixels and alignment metadata without page-state dumps.
+Observe explicitly discovers controls; full:true requests rich bounded output;
+expand retrieves paginated historical evidence. Chain known stable CSS selectors;
+source keys belong to their exact observed source. Query/reranking are retired.
+Canonical state, delivery/freshness checks, iframe execution, original pixels,
+budgets and composable CLI envelopes remain intact. See [lean receipts](lean-workflow-receipts.md).
+
+The descriptions below preserve the historical2.2.1 deployment and structured
+CLI/canonical output; they do not describe default MCP text or current reranking.
 
 This deployment uses action-plus-state results, deterministic pruning and the
 existing agent fallback. Qwen relevance projection is optional through the

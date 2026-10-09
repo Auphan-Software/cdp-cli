@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { performance } from 'node:perf_hooks';
 import { runCli } from './workflow.js';
 import { workflowViewProfile } from './workflow-output.js';
+import { workflowReceipt } from './workflow-receipt.js';
 import { version } from './version.js';
 
 export interface WorkflowExecutionBudget {
@@ -54,7 +55,7 @@ const properties = {
   screenshotScale: { type: 'number', minimum: 0.1, maximum: 1, description: 'Raster pixel scale only (default1). Original same-capture pixels are retained. Reduced text may require scale1 evidence; viewport/action coordinates do not change.' },
   source: { type: 'string', description: 'view.source.id from the latest observation or action result, including fresh state after a no-delivery stale rejection; required for act/expand.' },
   frame: { type: 'string', description: 'Stable same-origin iframe selector; cross-origin targets use the existing target tools.' },
-  full: { type: 'boolean', description: 'Expand the observation without deterministic pruning.' },
+  full: { type: 'boolean', description: 'Explicit rich state/diff/diagnostic result. Default actions and screenshots return short receipts. Use expand for complete historical evidence.' },
   screenshot: { type: 'boolean', description: 'Also return screenshot pixels; use only when visual evidence is needed.' },
   maxElements: { type: 'integer', minimum: 1, maximum: 10000, description: 'Canonical capture cap, not an output budget. Acts inherit their source cap.' },
   stabilityMs: { type: 'integer', minimum: 0, maximum: 5000 },
@@ -76,9 +77,9 @@ const optionsByTool: Record<string, string[]> = {
   screenshot: ['task', 'source', 'frame', 'full', 'screenshotScale', 'maxElements', 'stabilityMs']
 };
 const tools = Object.keys(optionsByTool).map(name => ({ name,
-  description: name === 'act' ? 'Perform one bounded browser action and return fresh compact state, diff and diagnostic errors in the same call. Requires the last source ID. Never retry a possibly delivered action blindly.' :
+  description: name === 'act' ? 'Perform one bounded action; return a short delivery/witness receipt and fresh view.source.id. No unsolicited state dump. Observe for controls, expand for historical errors/changes/receipt, full:true for rich output. Command success is not task proof; never retry uncertain delivery.' :
     name === 'expand' ? 'Read source-bound historical elements or receipt/errors/changes/coverage evidence. It is not a fresh observation. Use for required omitted evidence.' :
-    name === 'screenshot' ? 'Capture owned-page screenshot pixels and compact state together. Use for visual evidence, not every step.' :
+    name === 'screenshot' ? 'Return owned-page pixels and alignment metadata without a state dump. Use view.source.id next. Full evidence remains available through expand; semanticStable:false is uncertain alignment.' :
     'Observe the owned page. Unnamed controls include captured CSS viewport boxes for matching pixels; use their source-bound keys to act.',
   inputSchema: { type: 'object', properties: Object.fromEntries(optionsByTool[name].map(key => [key, properties[key as keyof typeof properties]])), required: name === 'act' ? ['task', 'source', 'action'] : name === 'expand' ? ['task', 'source'] : ['task'], additionalProperties: false }
 }));
@@ -137,7 +138,7 @@ export async function callWorkflowTool(name: string, args: Record<string, unknow
       instruction: name === 'act' ? 'Command transport failed after admission; delivery may be unknown. Observe to recover evidence; do not repeat the action blindly.' : 'Recover observation evidence without repeating an action.'
     } }) }, ...budgetContent(budget)] };
   }
-  const content: unknown[] = result.rows.map(row => ({ type: 'text', text: JSON.stringify(row) }));
+  const content: unknown[] = result.rows.map(row => ({ type: 'text', text: JSON.stringify(workflowReceipt(row, name, args.full === true)) }));
   const shot = result.rows[result.rows.length - 1]?.value?.screenshot;
   if (shot?.available && shot.path) {
     try {

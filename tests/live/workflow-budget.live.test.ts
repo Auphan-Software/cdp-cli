@@ -64,7 +64,7 @@ describe('execution budget enforcement in the real stdio bridge', () => {
       const invalid = await request('tools/call', { name: 'observe', arguments: {} });
       expect(invalid.isError).not.toBe(true);
       expect(first(invalid)).toMatchObject({ success: false, type: 'workflow-input-rejection', value: {
-        rejection: { commandDispatched: false }, output: { profile: 'current-24k' }
+        rejection: { commandDispatched: false }, output: { profile: 'haiku-compact' }
       } });
       expect(budget(invalid).actionsUsed).toBe(0);
       const observed = await request('tools/call', { name: 'observe', arguments: { task: 'increment once', stabilityMs: 20 } });
@@ -72,12 +72,25 @@ describe('execution budget enforcement in the real stdio bridge', () => {
       expect(budget(observed)).toMatchObject({ actionsUsed: 0, maxActions: Number(policy.actions), deadlineMs: Number(policy.deadline) });
       let source = first(observed).value.view.source.id;
       if (policy.expected === 1) {
-        const completed = await request('tools/call', { name: 'act', arguments: { task: 'increment once', source, action: 'click', targetKey: 'top|id:increment', stabilityMs: 20 } });
+        const targetKey = first(observed).value.view.elements.find((element: any) => element.role === 'button' && element.name === '0').k;
+        const completed = await request('tools/call', { name: 'act', arguments: { task: 'increment once', source, action: 'click', targetKey, stabilityMs: 20 } });
         expect(completed.isError, JSON.stringify(completed)).not.toBe(true);
         expect(first(completed).value.action.commandSucceeded).toBe(true);
-        expect(first(completed).value.action.evidence[0].data.clickDelivered).toBe(true);
+        expect(first(completed).value.action.witness.some((w: any) => w.clickDelivered === true)).toBe(true);
+        expect(first(completed).value.view).not.toHaveProperty('elements');
+        expect(first(completed).value.view).not.toHaveProperty('diff');
+        expect(Buffer.byteLength(completed.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join(''))).toBeLessThan(2000);
         expect(budget(completed).actionsUsed).toBe(1);
         source = first(completed).value.view.source.id;
+        const historical = await request('tools/call', { name: 'expand', arguments: { task: 'verify delivered action', source, section: 'receipt' } });
+        expect(first(historical).value.records[0].action.commandSucceeded).toBe(true);
+        const shot = await request('tools/call', { name: 'screenshot', arguments: { task: 'verify count pixels', source, screenshotScale: .5 } });
+        expect(shot.content.some((b: any) => b.type === 'image')).toBe(true);
+        expect(first(shot).value.screenshot.available).toBe(true);
+        expect(first(shot).value.view).not.toHaveProperty('elements');
+        expect(first(shot).value.view).not.toHaveProperty('diff');
+        expect(Buffer.byteLength(shot.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join(''))).toBeLessThan(2500);
+        source = first(shot).value.view.source.id;
       }
       const denied = await request('tools/call', { name: 'act', arguments: { task: 'increment again', source, action: 'click', targetKey: 'top|id:increment' } });
       expect(denied.isError).not.toBe(true);
@@ -85,7 +98,7 @@ describe('execution budget enforcement in the real stdio bridge', () => {
       expect(budget(denied)).toMatchObject({ exhausted: true, actionsUsed: policy.expected });
       const recovered = await request('tools/call', { name: 'observe', arguments: { task: 'recover evidence', stabilityMs: 20 } });
       expect(recovered.isError).not.toBe(true);
-      expect(first(recovered).value.view.elements.find((element: any) => element.k === 'top|id:increment').name).toBe(String(policy.expected));
+      expect(first(recovered).value.view.elements.find((element: any) => element.role === 'button').name).toBe(String(policy.expected));
       expect(budget(recovered).actionsUsed).toBe(policy.expected);
       const expanded = await request('tools/call', { name: 'expand', arguments: { task: 'inspect evidence', source: first(recovered).value.view.source.id } });
       expect(expanded.isError).not.toBe(true);
