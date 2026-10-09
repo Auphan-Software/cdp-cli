@@ -55,7 +55,8 @@ factor; never specify both. Prefer screenshot (no control dump) when pixels alon
 identify the next action. act action:click with x/y uses pixels of the image
 delivered with that exact source, mapped internally. Refresh the screenshot after
 layout changes. Coordinate alignment requires a supported full viewport and an
-unchanged DOM/scroll/viewport guard; a refusal means recover pixels, not retry.
+source semantic/layout, overlapping-surface and scroll/viewport guards; a refusal
+means recover pixels, not retry. Pointer movement is rechecked before pressing.
 Canvas/video and cross-origin-frame coordinate guards are unsupported; use the
 existing browser/frame path. Semantic alignment and event delivery are not proof
 of the intended business effect.

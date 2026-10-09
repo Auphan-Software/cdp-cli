@@ -132,8 +132,8 @@ cdp-cli daemon start
 # Create a new page (auto-registers with daemon for logging)
 cdp-cli new-page "https://example.com"
 
-# Take a screenshot at 50% scale (token friendly)
-cdp-cli screenshot "example" --output screenshot.png --scale 0.5
+# Take a screenshot at half the CSS viewport size, independent of desktop DPR
+cdp-cli screenshot "example" --output screenshot.png --viewport-scale 0.5
 
 # Query the last 20 console messages
 cdp-cli logs console "example" --last 20
@@ -574,7 +574,8 @@ concise actionable discovery, with raw field values excluded, explicit alignment
 and omissions. Routine MCP images support `screenshotViewportScale:0.5`, measured
 against the CSS viewport rather than device pixels. Coordinate workflow clicks
 accept `x`/`y` in the screenshot delivered with the exact current source; the tool
-maps pixels internally and refuses changed DOM/scroll/viewport or missing mapping.
+maps pixels internally and refuses changed overlapping surfaces, source semantics,
+layout, scroll/viewport or missing mapping. It rechecks after pointer movement.
 Refresh after layout changes. Canvas/video and cross-origin-frame guards are
 unsupported. Event delivery still requires independent effect verification.
 

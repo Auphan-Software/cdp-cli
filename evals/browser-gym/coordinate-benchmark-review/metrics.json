@@ -1,0 +1,581 @@
+{
+  "scope": "Recorded actor usage; controller boot, monitoring, verification and reviews excluded. Failed attempts retained separately. One sequential successful pair plus prompt-policy candidate; not statistical or amortized workflow proof.",
+  "native03Images": "Independent inspection of extracted JPEGs: nine617x338, one1234x676.",
+  "runs": [
+    {
+      "name": "native01",
+      "evidenceDirectory": "C:\\Users\\wingz\\OneDrive\\Documents\\ChatGPT\\Work\\visual-coordinate-bench-01\\native",
+      "actorOnly": true,
+      "identity": {
+        "model": "claude-haiku-5-5",
+        "effort": "medium",
+        "autocompact": "250k",
+        "toolCommit": "native",
+        "productCommit": "e7197b53d508068efabf28a45156697b1f21d048",
+        "contractHash": "1aad5f7a9736fea35dbe01a19116a31f0e7e443f6aac3de9bbd9c2904036e57a",
+        "noteHash": "ba0d0f61026acfb1adc74f4abbaf3ef41111e0541f2dee6ba7272bde922008f7"
+      },
+      "accounting": {
+        "usage": {
+          "input_tokens": 22,
+          "cache_creation_input_tokens": 41772,
+          "cache_read_input_tokens": 191322,
+          "output_tokens": 7743
+        },
+        "processedTokens": 240859,
+        "models": {
+          "claude-haiku-5-5": 11
+        },
+        "estimatedApiUsd": 0.014141320000000002,
+        "compactionCostComplete": true,
+        "usageScope": "recorded assistant usage",
+        "pricingAsOf": "2026-10-07",
+        "peakInputTokens": 31353,
+        "compactionBoundaries": 0,
+        "elapsedSeconds": 79.335,
+        "toolCalls": 18,
+        "toolNames": {
+          "Read": 6,
+          "ToolSearch": 1,
+          "mcp__claude-in-chrome__tabs_context_mcp": 1,
+          "mcp__claude-in-chrome__tabs_create_mcp": 1,
+          "mcp__claude-in-chrome__navigate": 2,
+          "mcp__claude-in-chrome__javascript_tool": 1,
+          "mcp__claude-in-chrome__computer": 3,
+          "mcp__claude-in-chrome__tabs_close_mcp": 1,
+          "Write": 2
+        },
+        "toolErrors": 0
+      },
+      "browser": {
+        "browserCalls": 9,
+        "deliveredImages": 2,
+        "browserTextBytes": 7334,
+        "coordinateClicks": 1,
+        "snapshots": 0,
+        "typed": []
+      },
+      "controller": {
+        "outcome": "blocked; no eligible new-invoice baseline"
+      },
+      "evidenceSha256": {
+        "accounting.json": "6a858d724f985b12ed3253999fffd1a4a185369e8145f9938f87d73c7c252443",
+        "summary.json": "cdbead5666392e2b7c41d8236c63780562458425e8ff5b164fe58376558100c8",
+        "identity.json": "422c58fa41359603ff57325b1666ae0ec209fd036c89dd41376ccf704a2be72f"
+      },
+      "rawTranscript": {
+        "path": "C:/Users/wingz/.claude/projects/C--Users-wingz-OneDrive-Documents-ChatGPT-Work-visual-coordinate-bench-01-native/338ab536-2a10-48c2-a3d0-acb9b9ee90a5.jsonl",
+        "sha256": "bb40215104aaf8e7f5ac1fb5361ce9ec0a33c24e827e8f1ecc5afae2a01c1654"
+      }
+    },
+    {
+      "name": "native02",
+      "evidenceDirectory": "C:\\Users\\wingz\\OneDrive\\Documents\\ChatGPT\\Work\\visual-coordinate-bench-02\\native",
+      "actorOnly": true,
+      "identity": {
+        "model": "claude-haiku-5-5",
+        "effort": "medium",
+        "autocompact": "250k",
+        "toolCommit": "native",
+        "productCommit": "e7197b53d508068efabf28a45156697b1f21d048",
+        "contractHash": "fe5e2ac4dbd65646582bb48bad873445aa6b609f027254556aaf1692b733231d",
+        "noteHash": "ba0d0f61026acfb1adc74f4abbaf3ef41111e0541f2dee6ba7272bde922008f7",
+        "adapterHash": "f10708f53a0dadfbbe689edb7e2e10e03044b0efb384c508b51e40602afe536f"
+      },
+      "accounting": {
+        "usage": {
+          "input_tokens": 36,
+          "cache_creation_input_tokens": 47576,
+          "cache_read_input_tokens": 434519,
+          "output_tokens": 9406
+        },
+        "processedTokens": 491537,
+        "models": {
+          "claude-haiku-5-5": 18
+        },
+        "estimatedApiUsd": 0.018566990000000002,
+        "compactionCostComplete": true,
+        "usageScope": "recorded assistant usage",
+        "pricingAsOf": "2026-10-07",
+        "peakInputTokens": 40127,
+        "compactionBoundaries": 0,
+        "elapsedSeconds": 112.702,
+        "toolCalls": 30,
+        "toolNames": {
+          "Read": 6,
+          "ToolSearch": 1,
+          "mcp__claude-in-chrome__tabs_context_mcp": 1,
+          "mcp__claude-in-chrome__tabs_create_mcp": 1,
+          "mcp__claude-in-chrome__navigate": 1,
+          "mcp__claude-in-chrome__resize_window": 1,
+          "mcp__claude-in-chrome__javascript_tool": 1,
+          "mcp__claude-in-chrome__computer": 14,
+          "mcp__claude-in-chrome__find": 1,
+          "Write": 2,
+          "mcp__claude-in-chrome__tabs_close_mcp": 1
+        },
+        "toolErrors": 0
+      },
+      "browser": {
+        "browserCalls": 21,
+        "deliveredImages": 7,
+        "browserTextBytes": 14419,
+        "coordinateClicks": 6,
+        "snapshots": 0,
+        "typed": []
+      },
+      "controller": {
+        "outcome": "FAIL",
+        "passed": 1,
+        "total": 8,
+        "invoiceId": 150398,
+        "expectedNoteLength": 141,
+        "storedNoteLength": 0,
+        "storedExact": false,
+        "billHash": null
+      },
+      "evidenceSha256": {
+        "accounting.json": "68b117a378b3a16021095d703dd44c3e76a46b56c082810cf439d9b14f3600f9",
+        "summary.json": "d0d2ab1b103fcb59188d445a8e35ef8fe79735218668f244d84e2f16afbbc520",
+        "identity.json": "444cb6f410e680a188910e19ef97baa1cde37ab060809cb3156285bccad137eb",
+        "controller-result.json": "ab5657b3c0ae4f45861c7ee4c72a4eb582b271a7b2ae31c27904b87d4b3ba5e9",
+        "before.json": "1b7e56596d5c55cddf8141401a4f89c2cc6cc90f02145ec3d67c5491557f29a8",
+        "after.json": "917a352cc7e6d9b81f48b14cef818f9b9463fc6aea44bd12af4c3c8d44777b07",
+        "cleanup.json": "cd7ecc381818f3bba6039fc5dc6fea90f756eb667097863cf1eff514b17cd375",
+        "bill-review.json": "19c07bab7086206c591cf0efbd8614047e7754ed62f92b465e89e9abf713c296"
+      },
+      "rawTranscript": {
+        "path": "C:/Users/wingz/.claude/projects/C--Users-wingz-OneDrive-Documents-ChatGPT-Work-visual-coordinate-bench-02-native/dfd078ff-10b1-4a91-a01c-6667da39f4ad.jsonl",
+        "sha256": "e423e52bd7ff1d5bfe5bb329dd0988f7ab54d3764a43389523ca9b1e9506c3c9"
+      }
+    },
+    {
+      "name": "visual02",
+      "evidenceDirectory": "C:\\Users\\wingz\\OneDrive\\Documents\\ChatGPT\\Work\\visual-coordinate-bench-02\\visual",
+      "actorOnly": true,
+      "identity": {
+        "model": "claude-haiku-5-5",
+        "effort": "medium",
+        "autocompact": "250k",
+        "toolCommit": "b032a888e58f90ea0e14fea75571bd3b09a3b5ef",
+        "productCommit": "e7197b53d508068efabf28a45156697b1f21d048",
+        "contractHash": "fe5e2ac4dbd65646582bb48bad873445aa6b609f027254556aaf1692b733231d",
+        "noteHash": "ba0d0f61026acfb1adc74f4abbaf3ef41111e0541f2dee6ba7272bde922008f7",
+        "adapterHash": "8eddbfa084c97e00349cf0f577476ee56711b24d732925aeddcb3cf31913f906"
+      },
+      "accounting": {
+        "usage": {
+          "input_tokens": 98,
+          "cache_creation_input_tokens": 104974,
+          "cache_read_input_tokens": 2559207,
+          "output_tokens": 29860
+        },
+        "processedTokens": 2694139,
+        "models": {
+          "claude-haiku-5-5": 49
+        },
+        "estimatedApiUsd": 0.08516727,
+        "compactionCostComplete": true,
+        "usageScope": "recorded assistant usage",
+        "pricingAsOf": "2026-10-07",
+        "peakInputTokens": 106690,
+        "compactionBoundaries": 0,
+        "elapsedSeconds": 473.578,
+        "toolCalls": 53,
+        "toolNames": {
+          "Read": 8,
+          "ToolSearch": 1,
+          "Write": 4,
+          "mcp__cdp-workflow__observe": 17,
+          "mcp__cdp-workflow__act": 21,
+          "mcp__cdp-workflow__screenshot": 1,
+          "mcp__cdp-workflow__snapshot": 1
+        },
+        "toolErrors": 9
+      },
+      "browser": {
+        "browserCalls": 40,
+        "deliveredImages": 29,
+        "browserTextBytes": 90214,
+        "coordinateClicks": 18,
+        "snapshots": 1,
+        "typed": [
+          {
+            "tool": "mcp__cdp-workflow__act",
+            "length": 141,
+            "exact": true
+          }
+        ]
+      },
+      "imageMetadata": {
+        "dimensions": {
+          "617x338": 28,
+          "1234x676": 1
+        },
+        "coordinateUnaligned": 4
+      },
+      "controller": {
+        "outcome": "PASS",
+        "passed": 8,
+        "total": 8,
+        "invoiceId": 150399,
+        "expectedNoteLength": 141,
+        "storedNoteLength": 141,
+        "storedExact": true,
+        "billHash": "6e11a54026c36152e6c3f4abcee9a271f877b8aa61803584e09bd807028a40c6"
+      },
+      "evidenceSha256": {
+        "accounting.json": "5ce65f9706554f03f86cb8f5c229bff95871aae490457bb7122c4da7c7cb6238",
+        "summary.json": "7da62496833b3be883423604d94435195ececfaee7dc81dc38ea416dad048f0c",
+        "identity.json": "09314955ca54f06f07b2a01757c53cc26faf06c9a83f26b70b74fd568643a3b2",
+        "controller-result.json": "e5d352a40f5272ebc9672d2a47900c1097970c0af6415b0ccdba44e73c59c427",
+        "before.json": "0d060f4717424b73439077e21c5235c4a1fa416d102e53df81ea7776047055c6",
+        "after.json": "04625aac8c95d87aefe393c496a28150218cfd8d2726dad16075261a0b76520c",
+        "cleanup.json": "1e0f5372db8ff0a1c43f70b77ae019ba1a78a140591dbf843fe31a5d01a74be6",
+        "boot.json": "931cd3c3b9dd86f63b5c3b1ffd970abe9548609b908c07bc779f2545fa80b0c2",
+        "bill-review.json": "9cc42d8cd54a717b3b326d16efe30ca90ebc7627c5019710aa2587d35832366a"
+      },
+      "rawTranscript": {
+        "path": "C:/Users/wingz/.claude/projects/C--Users-wingz-OneDrive-Documents-ChatGPT-Work-visual-coordinate-bench-02-visual/a480bc42-448d-4a19-bbd1-086d734b58e1.jsonl",
+        "sha256": "5136acc1bd43cf68399b73d63cc1d75df12d5df8c75b38724e1769c243c1b3e8"
+      }
+    },
+    {
+      "name": "hybrid02",
+      "evidenceDirectory": "C:\\Users\\wingz\\OneDrive\\Documents\\ChatGPT\\Work\\visual-coordinate-bench-02\\hybrid",
+      "actorOnly": true,
+      "identity": {
+        "model": "claude-haiku-5-5",
+        "effort": "medium",
+        "autocompact": "250k",
+        "toolCommit": "8efb331d0cebcc08769267dc8e5a17930cc99f50",
+        "productCommit": "e7197b53d508068efabf28a45156697b1f21d048",
+        "contractHash": "fe5e2ac4dbd65646582bb48bad873445aa6b609f027254556aaf1692b733231d",
+        "noteHash": "ba0d0f61026acfb1adc74f4abbaf3ef41111e0541f2dee6ba7272bde922008f7",
+        "adapterHash": "057610def4f2f79504fb138ae239054297b32c4936b543a81cdbc80cc5b117d5"
+      },
+      "accounting": {
+        "usage": {
+          "input_tokens": 32,
+          "cache_creation_input_tokens": 37924,
+          "cache_read_input_tokens": 337566,
+          "output_tokens": 7821
+        },
+        "processedTokens": 383343,
+        "models": {
+          "claude-haiku-5-5": 16
+        },
+        "estimatedApiUsd": 0.014874159999999999,
+        "compactionCostComplete": true,
+        "usageScope": "recorded assistant usage",
+        "pricingAsOf": "2026-10-07",
+        "peakInputTokens": 39640,
+        "compactionBoundaries": 0,
+        "elapsedSeconds": 126.76,
+        "toolCalls": 20,
+        "toolNames": {
+          "Read": 6,
+          "ToolSearch": 1,
+          "mcp__cdp-workflow__screenshot": 2,
+          "mcp__cdp-workflow__snapshot": 1,
+          "mcp__cdp-workflow__observe": 3,
+          "mcp__cdp-workflow__act": 5,
+          "Write": 2
+        },
+        "toolErrors": 1
+      },
+      "browser": {
+        "browserCalls": 11,
+        "deliveredImages": 8,
+        "browserTextBytes": 26366,
+        "coordinateClicks": 3,
+        "snapshots": 1,
+        "typed": []
+      },
+      "imageMetadata": {
+        "dimensions": {
+          "617x338": 8
+        },
+        "coordinateUnaligned": 1
+      },
+      "controller": {
+        "outcome": "blocked; no eligible new-invoice baseline"
+      },
+      "evidenceSha256": {
+        "accounting.json": "c19667e0d4b240fb85bd564339a79c72cab0728b466753ad3211df2aec9ca776",
+        "summary.json": "d3bf57d611c06ce3942ab0407f8be631681cd043fcd38db10318d21a156ea162",
+        "identity.json": "da45c6071a2ae994b2c16f5c6112beff93863d243714220fda5fb864c26d3953"
+      },
+      "rawTranscript": {
+        "path": "C:/Users/wingz/.claude/projects/C--Users-wingz-OneDrive-Documents-ChatGPT-Work-visual-coordinate-bench-02-hybrid/5f1941b1-ec0b-4aed-a4a7-4a3f8991c99a.jsonl",
+        "sha256": "0e2a0dc63989a12ad34d6dea0813eae8854808360d9968bfe305845bc8d5b7bc"
+      }
+    },
+    {
+      "name": "native03",
+      "evidenceDirectory": "C:\\Users\\wingz\\OneDrive\\Documents\\ChatGPT\\Work\\visual-coordinate-bench-03\\native",
+      "actorOnly": true,
+      "identity": {
+        "model": "claude-haiku-5-5",
+        "effort": "medium",
+        "autocompact": "250k",
+        "toolCommit": "native",
+        "productCommit": "e7197b53d508068efabf28a45156697b1f21d048",
+        "contractHash": "3c7181816bb96eed9e953d9b8f8f88991062261e71bf90b1f0ec05943815c0ab",
+        "noteHash": "ba0d0f61026acfb1adc74f4abbaf3ef41111e0541f2dee6ba7272bde922008f7",
+        "adapterHash": "834a3a0a388e0ad8304cd3d8c7b24b71e9a71f8dca7a8144b2e7c376b4f63630"
+      },
+      "accounting": {
+        "usage": {
+          "input_tokens": 46,
+          "cache_creation_input_tokens": 58413,
+          "cache_read_input_tokens": 645045,
+          "output_tokens": 12588
+        },
+        "processedTokens": 716092,
+        "models": {
+          "claude-haiku-5-5": 23
+        },
+        "estimatedApiUsd": 0.024431650000000006,
+        "compactionCostComplete": true,
+        "usageScope": "recorded assistant usage",
+        "pricingAsOf": "2026-10-07",
+        "peakInputTokens": 48523,
+        "compactionBoundaries": 0,
+        "elapsedSeconds": 156.677,
+        "toolCalls": 37,
+        "toolNames": {
+          "Read": 6,
+          "ToolSearch": 1,
+          "mcp__claude-in-chrome__tabs_create_mcp": 1,
+          "mcp__claude-in-chrome__tabs_context_mcp": 1,
+          "mcp__claude-in-chrome__navigate": 1,
+          "mcp__claude-in-chrome__resize_window": 1,
+          "mcp__claude-in-chrome__javascript_tool": 2,
+          "mcp__claude-in-chrome__computer": 20,
+          "mcp__claude-in-chrome__find": 2,
+          "Write": 2
+        },
+        "toolErrors": 1
+      },
+      "browser": {
+        "browserCalls": 28,
+        "deliveredImages": 10,
+        "browserTextBytes": 20648,
+        "coordinateClicks": 8,
+        "snapshots": 0,
+        "typed": [
+          {
+            "tool": "mcp__claude-in-chrome__computer",
+            "length": 141,
+            "exact": true
+          }
+        ]
+      },
+      "controller": {
+        "outcome": "PASS",
+        "passed": 8,
+        "total": 8,
+        "invoiceId": 150400,
+        "expectedNoteLength": 141,
+        "storedNoteLength": 141,
+        "storedExact": true,
+        "billHash": "1a4add831da7a4d31018875cd950aa97459e6662251c54f3c2d489de58dc7f40"
+      },
+      "evidenceSha256": {
+        "accounting.json": "6a1f0fe08dd3b916551b73695e7d31879b319769f05a35d4d2fe4cbdd5edac5b",
+        "summary.json": "b7e8571a44a31bf20133a6a9336b552df1a1ec89725b4f184f18a628fa729dab",
+        "identity.json": "06e03441b504f3ff7ce92a31c0b039a4dccbc97b1bd25e47c72a00b06e159b08",
+        "controller-result.json": "056424679420a41e667f98bab514e09b3669e3cc67f878cede9acc72964564ab",
+        "before.json": "d7a8d809b3d242d650bda24914c47ae42d96356c5b9f89b6af17a9dd3f39ca8a",
+        "after.json": "0a81748d00676ffcfa954dba494dbfc2c25c0eef396c9b90e7ec6c7817e599c4",
+        "cleanup.json": "7f680a33b0673615fcff8864749b7d38d19bdac7ae29ecfb9dee8965fcce46ad",
+        "boot.json": "3b1f9c43176de54e4de8377b23106f5aee1eaed3eb3cd94869e1827d47867a77",
+        "bill-review.json": "46a76af707eb2a333866f978a4d3af3dfd2b614096aa1655db0fe60ca38f1def"
+      },
+      "rawTranscript": {
+        "path": "C:/Users/wingz/.claude/projects/C--Users-wingz-OneDrive-Documents-ChatGPT-Work-visual-coordinate-bench-03-native/fd5dc8a1-28af-49c3-ac2c-bc8ef9ef94da.jsonl",
+        "sha256": "8b5504699d7c33a23a54062854bae5904d260a274a1d788d494a3b09c8eaebf1"
+      }
+    },
+    {
+      "name": "hybrid03",
+      "evidenceDirectory": "C:\\Users\\wingz\\OneDrive\\Documents\\ChatGPT\\Work\\visual-coordinate-bench-03\\hybrid",
+      "actorOnly": true,
+      "identity": {
+        "model": "claude-haiku-5-5",
+        "effort": "medium",
+        "autocompact": "250k",
+        "toolCommit": "8efb331d0cebcc08769267dc8e5a17930cc99f50",
+        "productCommit": "e7197b53d508068efabf28a45156697b1f21d048",
+        "contractHash": "3c7181816bb96eed9e953d9b8f8f88991062261e71bf90b1f0ec05943815c0ab",
+        "noteHash": "ba0d0f61026acfb1adc74f4abbaf3ef41111e0541f2dee6ba7272bde922008f7",
+        "adapterHash": "a7b6082ca4067b2d96b1244d2b6b2ba30af10843845c4e41df17957890f51405"
+      },
+      "accounting": {
+        "usage": {
+          "input_tokens": 50,
+          "cache_creation_input_tokens": 58129,
+          "cache_read_input_tokens": 776182,
+          "output_tokens": 15366
+        },
+        "processedTokens": 849727,
+        "models": {
+          "claude-haiku-5-5": 25
+        },
+        "estimatedApiUsd": 0.02707562,
+        "compactionCostComplete": true,
+        "usageScope": "recorded assistant usage",
+        "pricingAsOf": "2026-10-07",
+        "peakInputTokens": 60010,
+        "compactionBoundaries": 0,
+        "elapsedSeconds": 252.063,
+        "toolCalls": 28,
+        "toolNames": {
+          "Read": 7,
+          "ToolSearch": 1,
+          "mcp__cdp-workflow__screenshot": 3,
+          "mcp__cdp-workflow__snapshot": 4,
+          "mcp__cdp-workflow__act": 10,
+          "Write": 3
+        },
+        "toolErrors": 0
+      },
+      "browser": {
+        "browserCalls": 17,
+        "deliveredImages": 13,
+        "browserTextBytes": 31316,
+        "coordinateClicks": 2,
+        "snapshots": 4,
+        "typed": [
+          {
+            "tool": "mcp__cdp-workflow__act",
+            "length": 141,
+            "exact": true
+          }
+        ]
+      },
+      "imageMetadata": {
+        "dimensions": {
+          "617x338": 6,
+          "1234x676": 7
+        },
+        "coordinateUnaligned": 4
+      },
+      "controller": {
+        "outcome": "PASS",
+        "passed": 8,
+        "total": 8,
+        "invoiceId": 150401,
+        "expectedNoteLength": 141,
+        "storedNoteLength": 141,
+        "storedExact": true,
+        "billHash": "26a9f51726df75ab47f65f816272e505c4bf4b30fbe1a34ef7619bd36628c3b7"
+      },
+      "evidenceSha256": {
+        "accounting.json": "82ab18245dabcdc8cbb9c12662771e6fecfcf4a31931393bb30d9bfa6c1393a7",
+        "summary.json": "4c49932a0e33885464451b6ec4a4e940c684ed2b610e67ed013832149afb1698",
+        "identity.json": "9ceb3387e643abf59e0e648f606f419e413cbd6b638ee89b04e7499db87de776",
+        "controller-result.json": "e261fc28fc2f59af45a7e504bdc0bc3199a4377563d9d58a26663d3e6cad1bae",
+        "before.json": "aaa72a9bf137c861a76adddd8e4320e1c6a854097ca4b6259908ed0222fed6c9",
+        "after.json": "7a6d0d26d62ea4d30b645e8374842b6ead8d34be1870f1a439214f2ccf996f90",
+        "cleanup.json": "66dc7e6349f5feaf1799bceefe5ad9b2dc2e7c3d7fd079186e4b7b1cbca7a9e3",
+        "boot.json": "ead604628689ff02582e9e91a6a0eaab6a3c55cd29e32e89c85d018f407324a2",
+        "bill-review.json": "9247f57fac51b029766f1e80edf935f7830d7476189e14f93f4cb9a81e2ea4c2"
+      },
+      "rawTranscript": {
+        "path": "C:/Users/wingz/.claude/projects/C--Users-wingz-OneDrive-Documents-ChatGPT-Work-visual-coordinate-bench-03-hybrid/e934512d-a1b9-40ef-bb88-155ea22ff0fe.jsonl",
+        "sha256": "cf3a9cbc28fda94154dd0dbb3fe95296b4087ab1c423113a48ee924228bb5b14"
+      }
+    },
+    {
+      "name": "hybrid04",
+      "evidenceDirectory": "C:\\Users\\wingz\\OneDrive\\Documents\\ChatGPT\\Work\\visual-coordinate-bench-04\\hybrid",
+      "actorOnly": true,
+      "identity": {
+        "model": "claude-haiku-5-5",
+        "effort": "medium",
+        "autocompact": "250k",
+        "toolCommit": "8efb331d0cebcc08769267dc8e5a17930cc99f50",
+        "productCommit": "e7197b53d508068efabf28a45156697b1f21d048",
+        "contractHash": "3c7181816bb96eed9e953d9b8f8f88991062261e71bf90b1f0ec05943815c0ab",
+        "noteHash": "ba0d0f61026acfb1adc74f4abbaf3ef41111e0541f2dee6ba7272bde922008f7",
+        "adapterHash": "5e963452924cd1c7aa8c13fe9bd3470fde4064e061f75ce783b05a461fb68af6"
+      },
+      "accounting": {
+        "usage": {
+          "input_tokens": 62,
+          "cache_creation_input_tokens": 52279,
+          "cache_read_input_tokens": 915209,
+          "output_tokens": 13680
+        },
+        "processedTokens": 981230,
+        "models": {
+          "claude-haiku-5-5": 31
+        },
+        "estimatedApiUsd": 0.026454090000000003,
+        "compactionCostComplete": true,
+        "usageScope": "recorded assistant usage",
+        "pricingAsOf": "2026-10-07",
+        "peakInputTokens": 54160,
+        "compactionBoundaries": 0,
+        "elapsedSeconds": 241.617,
+        "toolCalls": 34,
+        "toolNames": {
+          "Read": 6,
+          "ToolSearch": 1,
+          "mcp__cdp-workflow__screenshot": 8,
+          "mcp__cdp-workflow__act": 11,
+          "mcp__cdp-workflow__snapshot": 6,
+          "Write": 2
+        },
+        "toolErrors": 1
+      },
+      "browser": {
+        "browserCalls": 25,
+        "deliveredImages": 8,
+        "browserTextBytes": 41344,
+        "coordinateClicks": 2,
+        "snapshots": 6,
+        "typed": [
+          {
+            "tool": "mcp__cdp-workflow__act",
+            "length": 141,
+            "exact": true
+          }
+        ]
+      },
+      "imageMetadata": {
+        "dimensions": {
+          "617x338": 8
+        },
+        "coordinateUnaligned": 0
+      },
+      "controller": {
+        "outcome": "PASS",
+        "passed": 8,
+        "total": 8,
+        "invoiceId": 150402,
+        "expectedNoteLength": 141,
+        "storedNoteLength": 141,
+        "storedExact": true,
+        "billHash": "87b9ed74edf6f2f447a3755f3983f80cd3b5a02e5313b9cd894a856638ceddd7"
+      },
+      "evidenceSha256": {
+        "accounting.json": "ca2201487105eba0359f698a06d79f090a60f834184a37fe3c11875674f1e7ac",
+        "summary.json": "698f1bccc143c584f4e9e0497bd134ca35c7f8de1f19a379f01033aa1a454929",
+        "identity.json": "d641d368a606e5ccbc880bf028be4cc9372db40d2f8eeb31b9cb09d6fbd0f88c",
+        "controller-result.json": "2ab5430284f77c76131cb564252c5b749b891a9de86f1cec93dc9c7e651dd6f6",
+        "before.json": "505791174256bae1682fbda7403da131b05c09ec1c436a68d9b9ec094100af44",
+        "after.json": "62a0b6d23f2b891bdd6e0a6ae730c0fea25d5c3b59a9de068ea42ed60b4bbbf6",
+        "cleanup.json": "dd54ecc7ecf94721da4c1fe8d2538358492bc7c816de2e23709440739ab9e6a7",
+        "boot.json": "d9b6ec119c56a28053e283bf668827d28868d49e905110ea501fc52dcaf18054",
+        "bill-review.json": "265ad393a86bce2c6f23687f40ef545d59f4c0207a61d0f61f0ddc55ed849ca4"
+      },
+      "rawTranscript": {
+        "path": "C:\\Users\\wingz\\.claude\\projects\\C--Users-wingz-OneDrive-Documents-ChatGPT-Work-visual-coordinate-bench-04-hybrid\\8a8947cd-f1c1-4e7f-aa78-eaf461e0d87d.jsonl",
+        "sha256": "9c8cdccd08ffd6ca2dede6c8bd0180a584d5a2cd5558f75b9b00535b0362c682"
+      }
+    }
+  ]
+}
