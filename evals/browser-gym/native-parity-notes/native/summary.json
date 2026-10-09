@@ -1,0 +1,23 @@
+{
+  "arm": "native",
+  "processedTokens": 262101,
+  "estimatedUsd": 0.01024671,
+  "peakInput": 24712,
+  "compactions": 0,
+  "browserCalls": 11,
+  "expansions": 0,
+  "toolCounts": {
+    "Read": 2,
+    "ToolSearch": 1,
+    "mcp__claude-in-chrome__tabs_create_mcp": 1,
+    "mcp__claude-in-chrome__tabs_context_mcp": 1,
+    "mcp__claude-in-chrome__navigate": 1,
+    "mcp__claude-in-chrome__resize_window": 1,
+    "mcp__claude-in-chrome__computer": 6,
+    "mcp__claude-in-chrome__tabs_close_mcp": 1,
+    "Write": 1
+  },
+  "models": {
+    "claude-haiku-5-5": 14
+  }
+}

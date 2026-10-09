@@ -1,0 +1,1 @@
+Use only Claude-in-Chrome native browser tools. Create one owned tab and navigate to http://127.0.0.1:59094/?arm=native. Resize to 1280x720 viewport before initial pixels; record actual size. Count setup calls. Use native references or current screenshot coordinates. Inspect actual images and preserve final screenshot evidence with native save_to_disk if needed. No JavaScript.

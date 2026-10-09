@@ -5,7 +5,7 @@ vi.mock('node:fs', () => ({ readFileSync: mocks.read }));
 import { callWorkflowTool, createWorkflowBudget } from '../../src/workflow-mcp.js';
 
 describe('readable expected refusals', () => {
-  it('rejects malformed queries/scales before dispatch and admission, preserving current-source recovery', async () => {
+  it('rejects retired queries and malformed scales before dispatch or budget admission', async () => {
     vi.stubEnv('CDP_PAGE', 'owned-page'); vi.stubEnv('CDP_SESSION', 'owned-session');
     vi.stubEnv('CDP_WORKFLOW_VIEW_PROFILE', 'haiku-compact'); mocks.run.mockClear();
     const budget = createWorkflowBudget({ CDP_WORKFLOW_MAX_ACTIONS: '1' });
@@ -20,7 +20,7 @@ describe('readable expected refusals', () => {
       }
       expect(mocks.run).not.toHaveBeenCalled(); expect(budget.snapshot().actionsUsed).toBe(0);
       mocks.run.mockResolvedValue({ ok: true, rows: [{ success: true }] });
-      await callWorkflowTool('act', { task: 'click once', source: 'current', action: 'click', query: 'x', screenshotScale: 0.25 }, budget);
+      await callWorkflowTool('act', { task: 'click once', source: 'current', action: 'click', screenshotScale: 0.25 }, budget);
       expect(budget.snapshot().actionsUsed).toBe(1);
       expect(mocks.run.mock.calls[0][0]).toContain('--screenshot-scale');
     } finally { vi.unstubAllEnvs(); }

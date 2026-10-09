@@ -1,0 +1,130 @@
+{
+  "usage": {
+    "input_tokens": 14,
+    "cache_creation_input_tokens": 26014,
+    "cache_read_input_tokens": 93588,
+    "output_tokens": 3229
+  },
+  "processedTokens": 122845,
+  "models": {
+    "claude-haiku-5-5": 7
+  },
+  "estimatedApiUsd": 0.0077545800000000005,
+  "assistantEstimatedApiUsd": 0.0077545800000000005,
+  "compactionCostComplete": true,
+  "usageScope": "recorded assistant usage",
+  "zeroUsageSyntheticMessages": 0,
+  "nativeCostState": null,
+  "rawTranscriptPath": "C:\\Users\\wingz\\.claude\\projects\\C--Users-wingz-OneDrive-Documents-ChatGPT-Work-native-parity-notes-01-cdp\\35d9a046-28b6-4d19-97e2-42003d8fd707.jsonl",
+  "pricingAsOf": "2026-10-07",
+  "warnings": [],
+  "peakInputTokens": 27854,
+  "longContextRequests": 0,
+  "compactionBoundaries": 0,
+  "compactionIterations": 0,
+  "elapsedSeconds": 40.132,
+  "toolCalls": 7,
+  "toolNames": {
+    "Read": 2,
+    "ToolSearch": 1,
+    "mcp__cdp-workflow__screenshot": 1,
+    "mcp__cdp-workflow__act": 2,
+    "Write": 1
+  },
+  "toolErrors": 0,
+  "chainMismatches": 0,
+  "chainUnavailable": 0,
+  "capOverrides": 0,
+  "offloadedResults": 0,
+  "truncatedResults": 0,
+  "unavailableReceipts": 0,
+  "workflow": [
+    {
+      "kind": "screenshot",
+      "returnedSource": "cb2cdb20-16df-42d9-be46-0e5b2d5880bf",
+      "textBytes": 8458,
+      "inlineBytes": 8458,
+      "inputRejected": false,
+      "omissions": {
+        "bounded": false,
+        "profile": "haiku-compact",
+        "maxBytes": 8000,
+        "fullArtifactAvailable": true
+      },
+      "executionBudgets": [
+        {
+          "enabled": true,
+          "maxActions": 12,
+          "actionsUsed": 0,
+          "actionsRemaining": 12,
+          "deadlineMs": 180000,
+          "elapsedMs": 11345,
+          "remainingMs": 168655,
+          "exhausted": false,
+          "counting": "admitted-act-requests",
+          "enforcement": "before-action-command"
+        }
+      ]
+    },
+    {
+      "kind": "act",
+      "inputSource": "cb2cdb20-16df-42d9-be46-0e5b2d5880bf",
+      "returnedSource": "6017ba93-b513-41c8-a785-5c5d7280ffc8",
+      "textBytes": 3203,
+      "inlineBytes": 3203,
+      "inputRejected": false,
+      "commandSucceeded": true,
+      "deliveryUnknown": false,
+      "omissions": {
+        "bounded": false,
+        "profile": "haiku-compact",
+        "maxBytes": 8000,
+        "fullArtifactAvailable": true
+      },
+      "executionBudgets": [
+        {
+          "enabled": true,
+          "maxActions": 12,
+          "actionsUsed": 1,
+          "actionsRemaining": 11,
+          "deadlineMs": 180000,
+          "elapsedMs": 19791,
+          "remainingMs": 160209,
+          "exhausted": false,
+          "counting": "admitted-act-requests",
+          "enforcement": "before-action-command"
+        }
+      ]
+    },
+    {
+      "kind": "act",
+      "inputSource": "6017ba93-b513-41c8-a785-5c5d7280ffc8",
+      "returnedSource": "c586661c-ff8b-4c24-88f7-e8329f3a9432",
+      "textBytes": 4974,
+      "inlineBytes": 4974,
+      "inputRejected": false,
+      "commandSucceeded": true,
+      "deliveryUnknown": false,
+      "omissions": {
+        "bounded": false,
+        "profile": "haiku-compact",
+        "maxBytes": 8000,
+        "fullArtifactAvailable": true
+      },
+      "executionBudgets": [
+        {
+          "enabled": true,
+          "maxActions": 12,
+          "actionsUsed": 2,
+          "actionsRemaining": 10,
+          "deadlineMs": 180000,
+          "elapsedMs": 29913,
+          "remainingMs": 150087,
+          "exhausted": false,
+          "counting": "admitted-act-requests",
+          "enforcement": "before-action-command"
+        }
+      ]
+    }
+  ]
+}

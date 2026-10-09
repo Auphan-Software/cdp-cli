@@ -11,9 +11,8 @@ import { diffStates } from './state/diff.js';
 import type { PageState } from './state/types.js';
 import { projectState, mustKeep } from './experimental/decision.js';
 import { DaemonClient } from './daemon/client.js';
-import { workflowProjectionProvider, workflowProjectionConfiguration, projectionReason } from './workflow-projection.js';
 import { boundWorkflowResult, workflowViewProfile } from './workflow-output.js';
-import { compactWorkflowResult, expandWorkflowEvidence, saveWorkflowArtifact, workflowQueryTerms } from './workflow-compact.js';
+import { compactWorkflowResult, expandWorkflowEvidence, saveWorkflowArtifact } from './workflow-compact.js';
 
 const execFileAsync = promisify(execFile);
 const exeMode = typeof CDP_CLI_EXE_MODE !== 'undefined' && CDP_CLI_EXE_MODE === true;
@@ -110,8 +109,7 @@ export async function workflow(context: CDPContext, operation: string, options: 
   if (options.screenshotScale !== undefined && (!Number.isFinite(options.screenshotScale) || options.screenshotScale < 0.1 || options.screenshotScale > 1))
     throw new Error('WORKFLOW_INVALID_SCREENSHOT_SCALE: expected 0.1..1; no action dispatched');
   if (options.query !== undefined) {
-    workflowQueryTerms(options.query);
-    if (options.full || transport.profile !== 'haiku-compact') throw new Error('WORKFLOW_QUERY_REQUIRES_COMPACT_PROFILE_WITHOUT_FULL');
+    throw new Error('WORKFLOW_QUERY_RETIRED: omit query; no action dispatched');
   }
   if (!options.task.trim() || options.task.length > 8000) throw new Error('WORKFLOW_INVALID_TASK');
   if (options.frame && /^\d+$/.test(options.frame) && options.frame !== '0') throw new Error('WORKFLOW_STABLE_FRAME_SELECTOR_REQUIRED');
@@ -254,18 +252,9 @@ export async function workflow(context: CDPContext, operation: string, options: 
       diagnostics.network = 'available'; diagnostics.networkAtLimit = logs.length >= 100;
     } catch { /* Never interpret unavailable logs as a clean page. */ }
   }
-  const projectionBlocked = options.full ? 'full-view' : historyUnavailable ? 'history-unavailable' :
-    (observedBefore && observedBefore.captureProfile !== current.captureProfile) ? 'profile-mismatch' :
-      current.coverage.unstable || current.coverage.truncated || current.coverage.unreachableFrames.length ||
-      current.coverage.dialogProbeUnavailable || current.coverage.blockedByDialog || diff?.coverage.unstable || diff?.coverage.truncated ||
-      diff?.coverage.unreachableFrames.length || diff?.coverage.dialogProbeUnavailable ||
-      diff?.changes.some(change => change.kind === 'text-unmodelled') ? 'unsafe-coverage' : undefined;
-  const projection = workflowProjectionConfiguration();
-  const provider = projectionBlocked ? undefined : workflowProjectionProvider();
   const targets = options.targetKey ? [options.targetKey] : [];
-  const view = await projectState(options.task, current, { prune: !options.full, hints: current.hints, diff, errors, provider, targets, protectVisibleActions: true });
-  Object.assign(view, { providerReason: projectionReason(projectionBlocked, projection.reason, view.providerStatus) });
-  diagnostics.projectionConfig = { reason: projection.reason, path: projection.path };
+  const view = await projectState(options.task, current, { prune: !options.full, hints: current.hints, diff, errors, targets, protectVisibleActions: true });
+  Object.assign(view, { providerReason: 'retired' });
   let screenshot: unknown;
   let retainedOriginal: string | undefined;
   if (operation === 'screenshot' || options.screenshot) {
@@ -296,7 +285,7 @@ export async function workflow(context: CDPContext, operation: string, options: 
     canonicalPath: join(store.dir, `${current.id}.json`), ...(screenshot ? { screenshot } : {}) } };
   const protectedKeys = mustKeep(options.task, current, { hints: current.hints, diff, errors, targets, protectVisibleActions: true });
   if (transport.profile === 'haiku-compact') return compactWorkflowResult(result, store, current.captureProfile, operation, protectedKeys, transport,
-    { full: options.full, task: options.task, hints: current.hints, targets, query: options.query,
-      boxes: options.query ? Object.fromEntries(current.elements.filter(node => node.box).map(node => [node.k, node.box!])) : undefined });
+    { full: options.full, task: options.task, hints: current.hints, targets,
+      boxes: Object.fromEntries(current.elements.filter(node => node.box && node.k.startsWith('top|')).map(node => [node.k, node.box!])) });
   return boundWorkflowResult(result, join(store.dir, `${current.id}-workflow.json`), protectedKeys, transport);
 }

@@ -27,7 +27,7 @@ beforeAll(async () => {
 }, 30000);
 afterAll(async () => { await chrome?.close(); await app?.close(); if (root?.startsWith(tmpdir())) await rm(root, { recursive: true, force: true }); }, 30000);
 describe('compact live execution', () => {
-  it('retains DOM-owned icon-only sibling controls in a focused editor view and dispatches once', async () => {
+  it('exposes captured icon geometry without query and dispatches the source-bound control once', async () => {
     const page = await chrome.createPage(app.baseUrl);
     let socket = await CdpSession.connect(page.webSocketDebuggerUrl);
     try {
@@ -35,15 +35,16 @@ describe('compact live execution', () => {
       const setup = await socket.command('Runtime.evaluate', { expression: `document.body.insertAdjacentHTML('beforeend', ${JSON.stringify(markup)})` });
       expect(setup.exceptionDetails).toBeUndefined();
       socket.close();
-      const seen = await call('observe', page.id, ['--query', 'Notes']);
+      const seen = await call('observe', page.id, []);
       expect(seen.success, JSON.stringify(seen)).toBe(true);
-      expect(seen.value.view.scope.editorControlsRetained).toBe(2);
-      const controls = seen.value.view.elements.filter((n: any) => n.role === 'button');
+
+      const controls = seen.value.view.elements.filter((n: any) => n.role === 'button' && !n.name);
       expect(controls).toHaveLength(2);
       expect(controls.every((n: any) => !n.name)).toBe(true);
-      expect(seen.value.view.elements.some((n: any) => n.name === 'Cash')).toBe(false);
+      expect(seen.value.view.elements.some((n: any) => n.name === 'Cash')).toBe(true);
+      expect(controls.every((n: any) => n.box?.length === 4)).toBe(true);
       const confirmed = await call('act', page.id, ['--source', seen.value.view.source.id,
-        '--action', 'click', '--target-key', controls[1].k, '--query', 'Notes']);
+        '--action', 'click', '--target-key', controls[1].k]);
       expect(confirmed.value.action.commandSucceeded, JSON.stringify(confirmed)).toBe(true);
       socket = await CdpSession.connect(page.webSocketDebuggerUrl);
       expect((await socket.command('Runtime.evaluate', { expression: 'window.noteDispatches', returnByValue: true })).result.value).toBe(1);
@@ -52,7 +53,7 @@ describe('compact live execution', () => {
   });
   it('retains original same-capture pixels and CSS dimensions while transporting a scaled copy', async () => {
     const page = await chrome.createPage(app.baseUrl);
-    const seen = await call('screenshot', page.id, ['--screenshot-scale', '0.25', '--query', 'Cash|Account']);
+    const seen = await call('screenshot', page.id, ['--screenshot-scale', '0.25']);
     const shot = seen.value.screenshot;
     expect(shot.available, JSON.stringify(seen)).toBe(true);
     expect(shot.semanticStable).toBe(true);
@@ -71,7 +72,7 @@ describe('compact live execution', () => {
     try { expect((await socket.command('Runtime.evaluate', { expression: 'window.dispatches||0', returnByValue: true })).result.value).toBe(0); }
     finally { socket.close(); }
   }, 30000);
-  it('finds the actual nested child action and scopes post-action state without relaxing canonical freshness', async () => {
+  it('finds the actual nested child action without query and preserves canonical freshness', async () => {
     const page = await chrome.createPage(app.baseUrl);
     const evaluate = async (expression: string) => {
       const socket = await CdpSession.connect(page.webSocketDebuggerUrl);
@@ -83,21 +84,21 @@ describe('compact live execution', () => {
     };
     const markup = `<div id="counter" role="button">COUNTER <button id="add" onclick="window.dispatches=(window.dispatches||0)+1;document.getElementById('result').textContent='Added'">+</button></div>`;
     await evaluate(`document.body.insertAdjacentHTML('beforeend',${JSON.stringify(markup)})`);
-    const seen = await call('observe', page.id, ['--query', 'Counter']);
+    const seen = await call('observe', page.id, []);
     expect(seen.success, JSON.stringify(seen)).toBe(true);
     const plus = seen.value.view.elements.find((n: any) => n.name === '+');
     expect(plus).toBeDefined();
-    expect(seen.value.view.elements.some((n: any) => n.name === 'Card')).toBe(false);
+    expect(seen.value.view.elements.some((n: any) => n.name === 'Card')).toBe(true);
     expect(seen.value.view.elements.some((n: any) => n.name === 'Account frozen')).toBe(true);
-    expect(seen.value.view.scope.excludedElements).toBeGreaterThan(0);
-    const added = await call('act', page.id, ['--source', seen.value.view.source.id, '--action', 'click', '--target-key', plus.k, '--query', 'Added|Cash']);
+    expect(seen.value.view.scope).toBeUndefined();
+    const added = await call('act', page.id, ['--source', seen.value.view.source.id, '--action', 'click', '--target-key', plus.k]);
     expect(added.value.action.commandSucceeded, JSON.stringify(added)).toBe(true);
     expect(added.value.view.elements.some((n: any) => n.text === 'Added')).toBe(true);
     expect(await evaluate('window.dispatches')).toBe(1);
     // A change outside the requested scope still blocks an action.
     await evaluate(`document.querySelector('#card').textContent='Different account'`);
     const cash = added.value.view.elements.find((n: any) => n.name === 'Cash');
-    const refused = await call('act', page.id, ['--source', added.value.view.source.id, '--action', 'click', '--target-key', cash.k, '--query', 'Paid']);
+    const refused = await call('act', page.id, ['--source', added.value.view.source.id, '--action', 'click', '--target-key', cash.k]);
     expect(refused.value.action.actionDelivered).toBe(false);
     expect(await evaluate('window.dispatches')).toBe(1);
   }, 30000);

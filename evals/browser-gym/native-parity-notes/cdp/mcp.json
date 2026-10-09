@@ -1,0 +1,21 @@
+{
+  "mcpServers": {
+    "cdp-workflow": {
+      "command": "C:/Program Files/nodejs/node.exe",
+      "env": {
+        "CDP_PAGE": "57CE1EABFF01AE377488D76E020A16BA",
+        "CDP_WORKFLOW_MAX_ACTIONS": "12",
+        "CDP_WORKFLOW_VIEW_PROFILE": "haiku-compact",
+        "CDP_DAEMON_URL": "http://127.0.0.1:9223",
+        "CDP_WORKFLOW_DEADLINE_MS": "180000",
+        "CDP_SESSION": "pruning-ablation-01",
+        "CDP_URL": "http://127.0.0.1:9222"
+      },
+      "args": [
+        "Q:/apps/cdp-cli-haiku-gym/build/index.js",
+        "workflow-mcp"
+      ],
+      "type": "stdio"
+    }
+  }
+}

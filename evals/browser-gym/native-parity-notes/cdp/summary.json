@@ -1,0 +1,19 @@
+{
+  "arm": "cdp",
+  "processedTokens": 122845,
+  "estimatedUsd": 0.0077545800000000005,
+  "peakInput": 27854,
+  "compactions": 0,
+  "browserCalls": 3,
+  "expansions": 0,
+  "toolCounts": {
+    "Read": 2,
+    "ToolSearch": 1,
+    "mcp__cdp-workflow__screenshot": 1,
+    "mcp__cdp-workflow__act": 2,
+    "Write": 1
+  },
+  "models": {
+    "claude-haiku-5-5": 7
+  }
+}

@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, readFileSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StateStore } from '../../src/state/store.js';
-import { compactWorkflowResult, expandWorkflowEvidence, scopedWorkflowView, workflowQueryTerms } from '../../src/workflow-compact.js';
+import { compactWorkflowResult, expandWorkflowEvidence } from '../../src/workflow-compact.js';
 import { workflowViewProfile, boundWorkflowResult } from '../../src/workflow-output.js';
 import { resolveWorkflowTarget } from '../../src/workflow.js';
 
@@ -18,32 +18,22 @@ const result = (s: any) => ({ success: true, value: { view: { source: { id: s.id
   diagnostics: { network: 'available', networkAtLimit: true } } });
 
 describe('compact transport contracts', () => {
-  it('keeps source-backed unlabeled editor controls without widening to unrelated or hidden controls', () => {
-    const view: any = { elements: [
-      { k: 'notes', role: 'textbox', name: 'Notes' },
-      { k: 'confirm', role: 'button' }, { k: 'cancel', role: 'button' },
-      { k: 'hidden', role: 'button', state: { vis: false } },
-      { k: 'other', role: 'button', name: 'Refund' }
-    ], omitted: { count: 0 } };
-    scopedWorkflowView(view, 'Notes', {
-      notes: { controlGroup: 'top|editor' }, confirm: { controlGroup: 'top|editor' },
-      cancel: { controlGroup: 'top|editor' }, hidden: { controlGroup: 'top|editor' },
-      other: { controlGroup: 'top/frame:other|editor' }
-    });
-    expect(view.elements.map((n: any) => n.k)).toEqual(['notes', 'confirm', 'cancel']);
-    expect(view.elements.find((n: any) => n.k === 'confirm')).not.toHaveProperty('name');
-    expect(view.scope.editorControlsRetained).toBe(2);
-  });
-  it('does not widen an oversized editor group or a static text query to sibling actions', () => {
-    const buttons = Array.from({ length: 13 }, (_, i) => ({ k: `b${i}`, role: 'button' }));
-    const view: any = { elements: [{ k: 'notes', role: 'textbox', name: 'Notes' }, ...buttons], omitted: { count: 0 } };
-    const hints: any = Object.fromEntries(view.elements.map((n: any) => [n.k, { controlGroup: 'top|big' }]));
-    scopedWorkflowView(view, 'Notes', hints);
-    expect(view.elements.map((n: any) => n.k)).toEqual(['notes']);
-    expect(view.scope.editorGroupsLimited).toBe(1);
-    const textView: any = { elements: [{ k: 'text', role: 'text', text: 'Notes' }, { k: 'b', role: 'button' }], omitted: { count: 0 } };
-    scopedWorkflowView(textView, 'Notes', { text: { controlGroup: 'top|x' }, b: { controlGroup: 'top|x' } });
-    expect(textView.elements.map((n: any) => n.k)).toEqual(['text']);
+  it('maps unnamed controls to captured boxes without inventing labels or changing source identity', () => {
+    const dir = root();
+    try {
+      const store = new StateStore('http://cdp', 'owned', 'page', dir);
+      const s = state(store, [{ k: 'top|id:confirm', kq: 'strong', role: 'button' },
+        { k: 'top|id:cash', kq: 'strong', role: 'button', name: 'Cash' },
+        { k: 'top|id:bad', kq: 'strong', role: 'button' }]);
+      const out = compactWorkflowResult(result(s), store, 'profile', 'observe', new Set(), workflowViewProfile({ CDP_WORKFLOW_VIEW_PROFILE: 'haiku-compact' }),
+        { boxes: { 'top|id:confirm': [536, 124, 52, 42], 'top|id:cash': [1, 1, 10, 10], 'top|id:bad': [0, 0, -1, 10] } });
+      expect(out.value.view.elements[0].box).toEqual([536, 124, 52, 42]);
+      expect(out.value.view.elements[0].name).toBeUndefined();
+      expect(store.resolveReference(`profile/${s.id}`, out.value.view.elements[0].k)).toBe('top|id:confirm');
+      expect(out.value.view.elements.slice(1).every((n: any) => n.box === undefined)).toBe(true);
+      expect(out.value.view.geometrySpace).toContain('CSS viewport');
+      expect(store.load(s.id).elements[0].box).toBeUndefined();
+    } finally { rmSync(dir, { recursive: true, force: true }); }
   });
   it('retains a dispatched-but-unwitnessed click error through overflow without claiming safe retry', () => {
     const dir = root();
@@ -61,38 +51,6 @@ describe('compact transport contracts', () => {
       expect(out.value.action.witnessOmitted).toBe(12);
       expect(out.value.action.instruction).toContain('do not repeat');
     } finally { rmSync(dir, { recursive: true, force: true }); }
-  });
-  it('keeps separate label/amount text on the rendered row, with no guessed target identity', () => {
-    const view: any = { elements: [{ k: 'total', role: 'text', text: 'Total' }, { k: 'amount', role: 'text', text: '$4.13' },
-      { k: 'other', role: 'text', text: 'Different row' }], omitted: { count: 0 } };
-    scopedWorkflowView(view, 'Total', {}, [], { total: [500, 100, 50, 20], amount: [800, 100, 50, 20], other: [800, 200, 50, 20] });
-    expect(view.elements.map((n: any) => n.k)).toEqual(['total', 'amount']);
-  });
-  it('does not discard an unchanged explicit text query during action compaction', () => {
-    const dir = root();
-    try {
-      const store = new StateStore('http://cdp', 'owned', 'page', dir);
-      const s = state(store, [{ k: 'cashier', role: 'text', text: 'Cashier: Michel Untel' }]);
-      const out = compactWorkflowResult(result(s), store, s.captureProfile, 'act', new Set(),
-        workflowViewProfile({ CDP_WORKFLOW_VIEW_PROFILE: 'haiku-compact' }), { query: 'Cashier', task: 'buy' });
-      expect(out.value.view.elements[0].text).toBe('Cashier: Michel Untel');
-      expect(out.value.view.scope.matched).toBe(1);
-    } finally { rmSync(dir, { recursive: true, force: true }); }
-  });
-  it('scopes literal labels while keeping child actions and global out-of-vocabulary safety state', () => {
-    const view: any = { elements: [
-      { k: 'counter', role: 'button', name: 'COUNTER +' }, { k: 'plus', role: 'button', name: '+' },
-      { k: 'alert', role: 'alert', name: 'Account frozen' }, { k: 'invalid', role: 'textbox', state: { invalid: true } },
-      { k: 'live', role: 'text', name: 'System unavailable' }, { k: 'selected', role: 'option', state: { selected: true } },
-      { k: 'other', role: 'button', name: 'Refund' }
-    ], diff: { changes: [{ key: 'other', kind: 'added', to: { role: 'button' } }, { key: 'oldAlert', kind: 'removed', from: { role: 'alert', name: 'Frozen' } }] }, omitted: { count: 0 } };
-    scopedWorkflowView(view, 'counter', { plus: { parents: ['counter'] }, live: { live: true } });
-    expect(view.elements.map((n: any) => n.k)).toEqual(['counter', 'plus', 'alert', 'invalid', 'live', 'selected']);
-    expect(view.diff.changes).toHaveLength(1);
-    expect(view.scope.excludedElements).toBe(1);
-    expect(view.scope.excludedChanges).toBe(1);
-    expect(() => workflowQueryTerms('a||b')).toThrow('INVALID_QUERY');
-    expect(workflowQueryTerms('TPS|TVQ')).toEqual(['tps', 'tvq']);
   });
   it('expires reference namespaces with captures without reusing their refs', () => {
     const dir = root();

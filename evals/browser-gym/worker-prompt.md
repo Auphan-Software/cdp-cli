@@ -9,6 +9,8 @@ first pilot. The final JSON contract applies only to your final answer; call too
 Read the pinned workflow skill before the first browser action. Observe, inspect state, then act
 using the latest returned source. Use a server-resolved target key if supported; otherwise use
 the supplied stable selector validated against state. Never convert a structural key to CSS by guess.
+Workflow query filtering and reranking are retired. Omit query. Match captured unnamed-control
+boxes to screenshot pixels and act with the current source-bound key; expand only missing evidence.
 Each act supplies the next fresh view. Reuse it; re-observe when required state is unavailable or
 after historical expansion/renewal. Inspect fresh stale recovery and delivery fields before retrying.
 Confirm a delivered payment's stored effect before considering another payment action.

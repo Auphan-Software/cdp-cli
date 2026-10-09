@@ -1,0 +1,26 @@
+{
+  "fixtureSha256": "2d6cc6b06784cc5293fb74dc9717c8a85fc2764e178aac4cc51ff99dd68cafd9",
+  "businessPromptHashes": {
+    "native": "f521a3672ec2ea9836a2384c85518f87bb0b712e154381bd9da8ba065d6f81c7",
+    "cdp": "f521a3672ec2ea9836a2384c85518f87bb0b712e154381bd9da8ba065d6f81c7"
+  },
+  "independentSaveProof": {
+    "native": true,
+    "cdp": true
+  },
+  "actualFinalPixelsReviewedByController": [
+    "native",
+    "cdp"
+  ],
+  "processedTokenRatio": 0.4686933662977249,
+  "costRatio": 0.7567873005091391,
+  "providerStatuses": "CDP unused/retired on all three views; no ranking requests",
+  "nativeSetup": "Worker-charged tab creation refusal + tab-group recovery + navigate + resize; final close also counted",
+  "cdpSetup": "Controller allocated, activated, resized and applied 1234x676/DPR1 emulation before dispatch; controller costs excluded",
+  "runtimeHashes": {
+    "workflow.js": "c9a0010fce33b5b16e3862076216e068b9586fc8fc427ae511aa832ae9071c51",
+    "workflow-mcp.js": "9996bf420b989ce7b92757d334c642a1b43f86e4a427cb83dac00c147f3aefe1",
+    "workflow-compact.js": "059b69629a8a0d0eb1feb9ad21a5ce23585db159c6d1fe15b9e450a7d0f9f787",
+    "state/page-script.js": "34baa39cda83581034c66901a278be246eeeadb97b7b4a4d4ed4e311152d02a5"
+  }
+}

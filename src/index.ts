@@ -671,7 +671,7 @@ cli.command('workflow <operation> <page>', 'Observe, act with fresh state, expan
   yargs => yargs.positional('operation', { type: 'string', choices: ['observe', 'act', 'expand', 'screenshot'] })
     .positional('page', { type: 'string', demandOption: true })
     .option('task', { type: 'string', demandOption: true })
-    .option('query', { type: 'string', description: 'Compact-profile literal post-observation label alternatives separated by |' })
+    .option('query', { type: 'string', description: 'Retired: omit this option; rejected before dispatch' })
     .option('source', { type: 'string', description: 'Previous source ID; required for act/expand' })
     .option('frame', { type: 'string' }).option('max-elements', { type: 'number', description: 'Canonical capture cap; acts inherit omitted settings from their source' })
     .option('offset', { type: 'number' }).option('limit', { type: 'number' })

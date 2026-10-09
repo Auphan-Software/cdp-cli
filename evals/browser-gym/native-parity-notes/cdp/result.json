@@ -1,0 +1,44 @@
+{
+  "outcome": "pass",
+  "journey": "Save exactly 'fixture note 01' in visible Notes editor, confirm once via visible green checkmark",
+  "steps": [
+    {
+      "step": 1,
+      "action": "screenshot (initial)",
+      "result": "ok",
+      "evidence": "C:\\Users\\wingz\\.cdp-cli\\state\\31e541860f6a45f3\\pruning-ablation-01\\57CE1EABFF01AE377488D76E020A16BA\\evidence\\34ad8942-18d4-4235-8e48-27f5689eb18b.png",
+      "notes": "Empty Notes textbox (len 0), status 'Waiting', green check visible at approx CSS x 555 y 145; grey X at approx x 492 y 117"
+    },
+    {
+      "step": 2,
+      "action": "fill textbox k raba9940601ba6d5f.2 (source cb2cdb20...) with 'fixture note 01'",
+      "result": "ok",
+      "evidence": "observe diff seq 4: textbox value len 0 -> 15",
+      "notes": "len 15 matches exact text length"
+    },
+    {
+      "step": 3,
+      "action": "click green checkmark k r7c7dd051ed0e7e38.4 (source 6017ba93...), single click, not repeated",
+      "result": "ok",
+      "evidence": "witness: trusted mousedown at x 562 y 145 on path, targetMatches true; post-click screenshot C:\\Users\\wingz\\.cdp-cli\\state\\31e541860f6a45f3\\pruning-ablation-01\\57CE1EABFF01AE377488D76E020A16BA\\evidence\\7b308916-bac1-4c3b-8538-21ab3a586da6.png",
+      "notes": "status changed Waiting -> 'Saved notes: fixture note 01'"
+    }
+  ],
+  "final_verification": {
+    "saved_notes_status": "Saved notes: fixture note 01",
+    "textbox_value_len": 15,
+    "final_screenshot": "C:\\Users\\wingz\\.cdp-cli\\state\\31e541860f6a45f3\\pruning-ablation-01\\57CE1EABFF01AE377488D76E020A16BA\\evidence\\7b308916-bac1-4c3b-8538-21ab3a586da6.png",
+    "final_screenshot_pixels": "visually shows textbox 'fixture note 01' and status 'Saved notes: fixture note 01'"
+  },
+  "checkmark_identification": "Box [536,124,52,44] (k .4) maps to green check pixels in initial screenshot (scaled 1.23 from displayed image); click witness coordinates land inside it.",
+  "browser_calls": {
+    "used": 5,
+    "limit": 12,
+    "note": "1 screenshot + 2 act (fill, click) + 2 ToolSearch/Read-type tool loads excluded from browser budget"
+  },
+  "recoveries": [],
+  "unknowns": [
+    "Saved notes status is visible UI state only; no backend persistence verified (out of scope, no network inspection performed)",
+    "Checkmark identified from pixel-to-box mapping, not from accessible name (button unnamed)"
+  ]
+}

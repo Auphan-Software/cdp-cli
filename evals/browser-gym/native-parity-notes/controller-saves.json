@@ -1,0 +1,12 @@
+{
+  "native": [
+    {
+      "note": "fixture note 01"
+    }
+  ],
+  "cdp": [
+    {
+      "note": "fixture note 01"
+    }
+  ]
+}

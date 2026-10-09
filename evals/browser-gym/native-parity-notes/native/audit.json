@@ -1,0 +1,46 @@
+{
+  "usage": {
+    "input_tokens": 28,
+    "cache_creation_input_tokens": 30273,
+    "cache_read_input_tokens": 227981,
+    "output_tokens": 3819
+  },
+  "processedTokens": 262101,
+  "models": {
+    "claude-haiku-5-5": 14
+  },
+  "estimatedApiUsd": 0.01024671,
+  "assistantEstimatedApiUsd": 0.01024671,
+  "compactionCostComplete": true,
+  "usageScope": "recorded assistant usage",
+  "zeroUsageSyntheticMessages": 0,
+  "nativeCostState": null,
+  "rawTranscriptPath": "C:\\Users\\wingz\\.claude\\projects\\C--Users-wingz-OneDrive-Documents-ChatGPT-Work-native-parity-notes-01-native\\87d651f7-6f2d-484a-8348-02b5fb227e52.jsonl",
+  "pricingAsOf": "2026-10-07",
+  "warnings": [],
+  "peakInputTokens": 24712,
+  "longContextRequests": 0,
+  "compactionBoundaries": 0,
+  "compactionIterations": 0,
+  "elapsedSeconds": 78.268,
+  "toolCalls": 15,
+  "toolNames": {
+    "Read": 2,
+    "ToolSearch": 1,
+    "mcp__claude-in-chrome__tabs_create_mcp": 1,
+    "mcp__claude-in-chrome__tabs_context_mcp": 1,
+    "mcp__claude-in-chrome__navigate": 1,
+    "mcp__claude-in-chrome__resize_window": 1,
+    "mcp__claude-in-chrome__computer": 6,
+    "mcp__claude-in-chrome__tabs_close_mcp": 1,
+    "Write": 1
+  },
+  "toolErrors": 1,
+  "chainMismatches": 0,
+  "chainUnavailable": 0,
+  "capOverrides": 0,
+  "offloadedResults": 0,
+  "truncatedResults": 0,
+  "unavailableReceipts": 0,
+  "workflow": []
+}

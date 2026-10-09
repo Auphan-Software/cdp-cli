@@ -1,0 +1,40 @@
+{
+  "outcome": "success",
+  "target_text": "fixture note 01",
+  "confirm_action": "single left_click on green checkmark at (562,146) after verifying input field text",
+  "confirm_clicks": 1,
+  "saved_notes_text_observed": "Saved notes: fixture note 01",
+  "setup": {
+    "tab_owned": true,
+    "tab_closed_at_end": true,
+    "url": "http://127.0.0.1:59094/?arm=native",
+    "resize_requested": "1280x720",
+    "screenshot_actual_size": "1234x676",
+    "setup_calls_before_initial_pixels": 4
+  },
+  "browser_calls_total": 10,
+  "screenshots": {
+    "initial": {
+      "id": "ss_3356ktyvi",
+      "saved_path": "C:\\Users\\wingz\\AppData\\Local\\Temp\\claude-chrome-screenshots-xwTOEK\\screenshot-1791503963433-0.jpg",
+      "observed": "Empty Notes input, Waiting status, green checkmark visible at approx (562,146)"
+    },
+    "pre_confirm": {
+      "id": "ss_13073f941",
+      "saved_path": "C:\\Users\\wingz\\AppData\\Local\\Temp\\claude-chrome-screenshots-xwTOEK\\screenshot-1791503981371-1.jpg",
+      "observed": "Input shows fixture note 01, status still Waiting"
+    },
+    "final": {
+      "id": "ss_1727waa0s",
+      "saved_path": "C:\\Users\\wingz\\AppData\\Local\\Temp\\claude-chrome-screenshots-xwTOEK\\screenshot-1791503991785-2.jpg",
+      "observed": "Saved notes: fixture note 01 shown below editor"
+    }
+  },
+  "recoveries": [
+    "tabs_create_mcp failed: no tab group existed; recovered with tabs_context_mcp createIfEmpty=true"
+  ],
+  "unknowns": [
+    "Screenshot pixel size 1234x676 differs from requested 1280x720 viewport; resize reported success",
+    "Checkmark identified by visual inspection only (no DOM read), per job constraints"
+  ]
+}
