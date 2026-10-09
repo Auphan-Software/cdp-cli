@@ -1,0 +1,166 @@
+[
+  {
+    "source": "69ded858-1902-48ea-bcdc-8a21182481be",
+    "rawBytes": 37471,
+    "rawNodes": 116,
+    "delivered": 18,
+    "omitted": {
+      "count": 166
+    },
+    "readiness": "ready",
+    "droppedNodes": 98,
+    "droppedVisible": 13,
+    "droppedVisibleControls": [
+      {
+        "role": "button",
+        "name": "More"
+      },
+      {
+        "role": "button",
+        "name": "Logout"
+      }
+    ]
+  },
+  {
+    "source": "f44d19da-5522-43e3-91ca-a97b2ed39a88",
+    "rawBytes": 51599,
+    "rawNodes": 210,
+    "delivered": 37,
+    "omitted": {
+      "count": 241
+    },
+    "readiness": "ready",
+    "droppedNodes": 173,
+    "droppedVisible": 30,
+    "droppedVisibleControls": [
+      {
+        "role": "button"
+      },
+      {
+        "role": "button"
+      },
+      {
+        "role": "button"
+      },
+      {
+        "role": "button"
+      },
+      {
+        "role": "button",
+        "name": "Purchase"
+      }
+    ]
+  },
+  {
+    "source": "c5d85f37-cf27-478e-b904-48590ac7bcfc",
+    "rawBytes": 20478,
+    "rawNodes": 125,
+    "delivered": 48,
+    "omitted": {
+      "count": 236
+    },
+    "readiness": "ready",
+    "droppedNodes": 77,
+    "droppedVisible": 25,
+    "droppedVisibleControls": []
+  },
+  {
+    "source": "e9b26761-bbf5-48a4-9b15-b54c92e3e9fd",
+    "rawBytes": 22937,
+    "rawNodes": 138,
+    "delivered": 47,
+    "omitted": {
+      "count": 249
+    },
+    "readiness": "ready",
+    "droppedNodes": 91,
+    "droppedVisible": 37,
+    "droppedVisibleControls": []
+  },
+  {
+    "source": "3ad47560-8b0b-4490-96db-ba9b91b00ea3",
+    "rawBytes": 20503,
+    "rawNodes": 126,
+    "delivered": 48,
+    "omitted": {
+      "count": 248
+    },
+    "readiness": "ready",
+    "droppedNodes": 78,
+    "droppedVisible": 36,
+    "droppedVisibleControls": []
+  },
+  {
+    "source": "8e20462c-d7db-4b9d-82a6-4c29369ef9da",
+    "rawBytes": 18873,
+    "rawNodes": 128,
+    "delivered": 55,
+    "omitted": {
+      "count": 247
+    },
+    "readiness": "ready",
+    "droppedNodes": 73,
+    "droppedVisible": 37,
+    "droppedVisibleControls": []
+  },
+  {
+    "source": "573df4fb-2ba6-40d1-8604-a8c732e947bf",
+    "rawBytes": 19117,
+    "rawNodes": 130,
+    "delivered": 56,
+    "omitted": {
+      "count": 246
+    },
+    "readiness": "ready",
+    "droppedNodes": 74,
+    "droppedVisible": 37,
+    "droppedVisibleControls": []
+  },
+  {
+    "source": "86960227-9f2b-48ee-9430-7ba16f95322d",
+    "rawBytes": 20541,
+    "rawNodes": 137,
+    "delivered": 52,
+    "omitted": {
+      "count": 251
+    },
+    "readiness": "ready",
+    "droppedNodes": 85,
+    "droppedVisible": 40,
+    "droppedVisibleControls": []
+  },
+  {
+    "source": "76f2420c-db8f-48df-b73b-eb44b045bae2",
+    "rawBytes": 19571,
+    "rawNodes": 128,
+    "delivered": 54,
+    "omitted": {
+      "count": 294
+    },
+    "readiness": "ready",
+    "droppedNodes": 74,
+    "droppedVisible": 37,
+    "droppedVisibleControls": []
+  },
+  {
+    "source": "a01dee12-5182-4b98-8276-701eb6399687",
+    "rawBytes": 36452,
+    "rawNodes": 153,
+    "delivered": 23,
+    "omitted": {
+      "count": 337
+    },
+    "readiness": "ready",
+    "droppedNodes": 130,
+    "droppedVisible": 32,
+    "droppedVisibleControls": [
+      {
+        "role": "button"
+      },
+      {
+        "role": "button",
+        "name": "Purchase"
+      }
+    ]
+  }
+]

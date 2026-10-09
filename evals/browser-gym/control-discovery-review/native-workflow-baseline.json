@@ -1,0 +1,17 @@
+{
+  "browserCalls": 25,
+  "actions": {
+    "screenshot": 10,
+    "javascript_exec": 1,
+    "left_click": 9,
+    "type": 1
+  },
+  "toolNames": {
+    "mcp__claude-in-chrome__tabs_context_mcp": 1,
+    "mcp__claude-in-chrome__tabs_create_mcp": 1,
+    "mcp__claude-in-chrome__navigate": 1,
+    "mcp__claude-in-chrome__resize_window": 1,
+    "mcp__claude-in-chrome__computer": 20,
+    "mcp__claude-in-chrome__javascript_tool": 1
+  }
+}

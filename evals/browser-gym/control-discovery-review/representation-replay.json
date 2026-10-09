@@ -1,0 +1,83 @@
+{
+  "kind": "proposed-discovery-representation-replay",
+  "runtimeImplemented": false,
+  "modelTokensMeasured": false,
+  "semanticRoundTripChecked": true,
+  "observations": 10,
+  "nodes": 438,
+  "weak": 426,
+  "strong": 12,
+  "beforeBytes": 43118,
+  "afterBytes": 36584,
+  "fieldBytes": {
+    "referencePrefixes": 7884,
+    "weakQuality": 5112,
+    "context": 799,
+    "state": 1507,
+    "maskedValues": 1325
+  },
+  "perObservation": [
+    {
+      "source": "69ded858-1902-48ea-bcdc-8a21182481be",
+      "nodes": 18,
+      "beforeBytes": 2628,
+      "afterBytes": 2408
+    },
+    {
+      "source": "f44d19da-5522-43e3-91ca-a97b2ed39a88",
+      "nodes": 37,
+      "beforeBytes": 3483,
+      "afterBytes": 2914
+    },
+    {
+      "source": "c5d85f37-cf27-478e-b904-48590ac7bcfc",
+      "nodes": 48,
+      "beforeBytes": 4542,
+      "afterBytes": 3786
+    },
+    {
+      "source": "e9b26761-bbf5-48a4-9b15-b54c92e3e9fd",
+      "nodes": 47,
+      "beforeBytes": 4255,
+      "afterBytes": 3516
+    },
+    {
+      "source": "3ad47560-8b0b-4490-96db-ba9b91b00ea3",
+      "nodes": 48,
+      "beforeBytes": 4510,
+      "afterBytes": 3754
+    },
+    {
+      "source": "8e20462c-d7db-4b9d-82a6-4c29369ef9da",
+      "nodes": 55,
+      "beforeBytes": 5352,
+      "afterBytes": 4607
+    },
+    {
+      "source": "573df4fb-2ba6-40d1-8604-a8c732e947bf",
+      "nodes": 56,
+      "beforeBytes": 5343,
+      "afterBytes": 4555
+    },
+    {
+      "source": "86960227-9f2b-48ee-9430-7ba16f95322d",
+      "nodes": 52,
+      "beforeBytes": 5021,
+      "afterBytes": 4197
+    },
+    {
+      "source": "76f2420c-db8f-48df-b73b-eb44b045bae2",
+      "nodes": 54,
+      "beforeBytes": 5333,
+      "afterBytes": 4527
+    },
+    {
+      "source": "a01dee12-5182-4b98-8276-701eb6399687",
+      "nodes": 23,
+      "beforeBytes": 2651,
+      "afterBytes": 2320
+    }
+  ],
+  "savedBytes": 6534,
+  "reductionPercent": 15.153764089243472
+}
