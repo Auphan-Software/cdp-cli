@@ -98,3 +98,16 @@ receipt, deliver screenshot pixels, enforce <1KB action and screenshot text with
 budgets, deny a second click, recover controls and independently confirm exactly
 one mutation. Missing/oversized-image tests retain recovery paths. Receipt formatter
 line coverage100%; repository coverage remains below80% (existing cdp-cli-yr7).
+
+Installed second-pass runtime01591444297d is clean. Windows retained the locked
+d3f178a executable under cdp-cli.previous-d3f178a.exe; fresh launches use the new
+build without interrupting existing processes. Read-only installed WebSRM smoke:
+screenshot674 text bytes with pixels, no elements/diff/path, semanticStable:false;
+observe5900 bytes and explicit rich observe8057 bytes. Current live control state
+differs from the earlier smoke, so observation sizes are not a matched comparison.
+Screenshot text is near the retained native screenshot receipt size (~651 bytes),
+but the different runs/images do not establish token or task-performance parity.
+The installed Codex workflow skill was discovered to still contain old action-plus-
+state/reranker guidance and was refreshed from the current versioned skill, along
+with Claude and the owned gym worktree copies. Existing loaded agents need a fresh
+launch to consume new code and instructions. Final repository line coverage61.87%.
