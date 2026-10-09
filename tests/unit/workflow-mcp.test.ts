@@ -11,7 +11,8 @@ describe('readable expected refusals', () => {
     const budget = createWorkflowBudget({ CDP_WORKFLOW_MAX_ACTIONS: '1' });
     try {
       for (const options of [{ query: 'a|b|c|d|e|f|g|h|i' }, { query: 'a||b' }, { query: 'x', full: true },
-        { screenshotScale: NaN }, { screenshotScale: Infinity }, { screenshotScale: 0 }, { screenshotScale: 1.1 }]) {
+        { screenshotScale: NaN }, { screenshotScale: Infinity }, { screenshotScale: 0 }, { screenshotScale: 1.1 },
+        { screenshotViewportScale: NaN }, { screenshotViewportScale: 0 }, { screenshotViewportScale: 0.5, screenshotScale: 0.5 }]) {
         const response: any = await callWorkflowTool('act', { task: 'click once', source: 'current', action: 'click', ...options }, budget);
         const receipt = JSON.parse(response.content[0].text);
         expect(receipt.type).toBe('workflow-input-rejection');

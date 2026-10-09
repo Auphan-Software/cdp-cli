@@ -568,6 +568,23 @@ is rejected; unbounded streaming requires `--follow`. `--duration` may not be
 combined with `--follow`, and the bounded maximum is 3600 seconds.
 
 **snapshot** - Get page content snapshot
+
+Owned workflow agents can use `workflow snapshot` / MCP `snapshot` for this
+concise actionable discovery, with raw field values excluded, explicit alignment
+and omissions. Routine MCP images support `screenshotViewportScale:0.5`, measured
+against the CSS viewport rather than device pixels. Coordinate workflow clicks
+accept `x`/`y` in the screenshot delivered with the exact current source; the tool
+maps pixels internally and refuses changed DOM/scroll/viewport or missing mapping.
+Refresh after layout changes. Canvas/video and cross-origin-frame guards are
+unsupported. Event delivery still requires independent effect verification.
+
+```bash
+cdp-cli workflow screenshot PAGE --task 'Inspect next action' --screenshot-viewport-scale 0.5
+cdp-cli workflow act PAGE --task 'Click visible button' --source SOURCE --action click --x 300 --y 150
+cdp-cli workflow snapshot PAGE --task 'Find exact field selector'
+# Raw CLI points use CSS viewport coordinates directly; they are not screenshot-bound.
+cdp-cli click PAGE --x 600 --y 300
+```
 ```bash
 # Actionable elements for click/fill (default)
 cdp-cli snapshot "example"

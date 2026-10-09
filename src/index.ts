@@ -648,6 +648,8 @@ cli.command(
         alias: 'f',
         default: 'ax'
       })
+      .option('json', { type: 'boolean', description: 'Structured actionable snapshot lines' })
+      .option('redact-values', { type: 'boolean', description: 'Exclude raw field values from discovery' })
       .option('frame', {
         type: 'string',
         description: 'Target iframe by selector (e.g. "#myframe") or index (1 = first iframe)'
@@ -656,6 +658,8 @@ cli.command(
   async (argv) => {
     const context = new CDPContext(argv['cdp-url'] as string);
     await debug.snapshot(context, {
+      json: argv.json as boolean | undefined,
+      redactValues: argv['redact-values'] as boolean | undefined,
       format: argv.format as string,
       page: argv.page as string,
       frame: argv.frame as string | undefined
@@ -668,7 +672,7 @@ cli.command('workflow-mcp', 'Serve deterministic browser workflow tools over std
   yargs => yargs, async () => { await serveWorkflowMcp(); });
 
 cli.command('workflow <operation> <page>', 'Observe, act with fresh state, expand or capture image evidence',
-  yargs => yargs.positional('operation', { type: 'string', choices: ['observe', 'act', 'expand', 'screenshot'] })
+  yargs => yargs.positional('operation', { type: 'string', choices: ['observe', 'act', 'expand', 'screenshot', 'snapshot'] })
     .positional('page', { type: 'string', demandOption: true })
     .option('task', { type: 'string', demandOption: true })
     .option('query', { type: 'string', description: 'Retired: omit this option; rejected before dispatch' })
@@ -678,6 +682,8 @@ cli.command('workflow <operation> <page>', 'Observe, act with fresh state, expan
     .option('section', { type: 'string', choices: ['elements', 'receipt', 'errors', 'changes', 'coverage', 'artifact'] })
     .option('receipt-id', { type: 'string' })
     .option('screenshot-scale', { type: 'number', description: 'Opt-in PNG pixel scale 0.1..1; does not change viewport or action coordinates' })
+    .option('screenshot-viewport-scale', { type: 'number', description: 'Image dimensions relative to CSS viewport, independent of desktop scaling' })
+    .option('x', { type: 'number' }).option('y', { type: 'number' })
     .option('stability-ms', { type: 'number', default: 200 })
     .option('full', { type: 'boolean', default: false }).option('screenshot', { type: 'boolean', default: false })
     .option('action', { type: 'string', choices: ['click', 'fill', 'select', 'press-key', 'navigate', 'back', 'forward', 'reload'] })
@@ -688,6 +694,7 @@ cli.command('workflow <operation> <page>', 'Observe, act with fresh state, expan
     const context = new CDPContext(argv['cdp-url'] as string);
     try {
       const result = await workflow(context, argv.operation as string, { page: argv.page as string, task: argv.task as string,
+        x: argv.x as number | undefined, y: argv.y as number | undefined, screenshotViewportScale: argv['screenshot-viewport-scale'] as number | undefined,
         source: argv.source as string | undefined, frame: argv.frame as string | undefined, query: argv.query as string | undefined,
         offset: argv.offset as number | undefined, limit: argv.limit as number | undefined, section: argv.section as string | undefined, receiptId: argv['receipt-id'] as string | undefined,
         maxElements: argv['max-elements'] as number, stabilityMs: argv['stability-ms'] as number,
@@ -868,6 +875,7 @@ cli.command(
         description: 'Scale factor to resize the image (0 < scale <= 1)',
         alias: 's'
       })
+      .option('viewport-scale', { type: 'number', description: 'Scale relative to CSS viewport; exclusive with raster scale/crop' })
       .option('selector', {
         type: 'string',
         description: 'CSS selector to capture a specific element instead of the full page'
@@ -878,6 +886,7 @@ cli.command(
   async (argv) => {
     const context = new CDPContext(argv['cdp-url'] as string);
     await debug.screenshot(context, {
+      viewportScale: argv['viewport-scale'] as number | undefined,
       output: argv.output as string | undefined,
       format: argv.format as string,
       quality: argv.quality as number,
@@ -1008,6 +1017,9 @@ cli.command(
         type: 'string',
         description: 'Match element by visible text instead of CSS selector'
       })
+      .option('x', { type: 'number', description: 'CSS viewport coordinate, paired with y' })
+      .option('point-guard', { type: 'string', description: 'Internal source screenshot change guard' })
+      .option('y', { type: 'number', description: 'CSS viewport coordinate, paired with x' })
       .option('match', {
         type: 'string',
         description: 'Text matching strategy (exact, contains, regex)',
@@ -1080,7 +1092,9 @@ cli.command(
       .check((argv) => {
         const hasSelector = typeof argv.selector === 'string' && argv.selector.length > 0;
         const hasText = typeof argv.text === 'string' && argv.text.length > 0;
-        if (!hasSelector && !hasText) {
+        const hasPoint = argv.x !== undefined || argv.y !== undefined;
+        if (hasPoint && (!Number.isFinite(argv.x) || !Number.isFinite(argv.y) || hasSelector || hasText)) throw new Error('Provide finite --x and --y, exclusive with selector/text');
+        if (!hasSelector && !hasText && !hasPoint) {
           throw new Error('Provide either a CSS selector or --text');
         }
         if (hasSelector && hasText) {
@@ -1105,6 +1119,9 @@ cli.command(
     await input.click(
       context,
       {
+        x: argv.x as number | undefined,
+        pointGuard: argv['point-guard'] as string | undefined,
+        y: argv.y as number | undefined,
         selector: argv.selector as string | undefined,
         text: argv.text as string | undefined,
         match: argv.match as 'exact' | 'contains' | 'regex',

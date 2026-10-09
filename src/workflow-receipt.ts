@@ -39,13 +39,14 @@ export function workflowReceipt(row: any, operation: string, full = false, image
     receipt.value.view.focus = view.focus;
     if (view.omitted?.count) receipt.value.view.omitted = { count: view.omitted.count };
   }
+  if (operation === 'snapshot' && value.actionable) receipt.value.actionable = value.actionable;
   const errors = view.errors?.length ?? 0;
   const omittedErrors = value.output?.omittedErrors ?? 0;
   if (errors || omittedErrors) receipt.value.evidence = { ...(errors ? { errors } : {}), ...(omittedErrors ? { omittedErrors } : {}) };
   const alerts = (view.elements ?? []).filter((n: any) => /^(alert|status|dialog|alertdialog)$/.test(n.role));
   if (operation !== 'observe' && alerts.length) receipt.value.alerts = alerts;
   if (value.screenshot) {
-    const { evidence: _evidence, source: _source, coordinateSpace: _space, ...shot } = value.screenshot;
+    const { evidence: _evidence, source: _source, coordinateSpace: _space, pointGuard: _guard, ...shot } = value.screenshot;
     if (imageDelivered) {
       for (const key of ['path', 'originalPath', 'originalPixelWidth', 'originalPixelHeight', 'evidenceOmitted']) delete shot[key];
     }

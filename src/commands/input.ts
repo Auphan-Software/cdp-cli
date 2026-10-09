@@ -3,6 +3,7 @@
  */
 
 import { CDPContext, type Page } from '../context.js';
+import { pointerGuardCheck } from '../workflow-pointer-guard.js';
 import { outputError, outputCommandError, outputSuccess } from '../output.js';
 import { describeChar, describeKey, type KeyDescriptor } from '../keys.js';
 import {
@@ -20,6 +21,9 @@ import {
 type TextMatchMode = 'exact' | 'contains' | 'regex';
 
 interface ClickTargetInput {
+  pointGuard?: string;
+  x?: number;
+  y?: number;
   selector?: string;
   text?: string;
   match?: TextMatchMode;
@@ -304,7 +308,8 @@ async function getClickPoint(
   objectId: string,
   priorRect: ElementMetadata['rect'],
   scroll: boolean = true,
-  selectExposed: boolean = true
+  selectExposed: boolean = true,
+  requestedPoint?: { x: number; y: number }
 ): Promise<ClickPoint> {
   // DOM.scrollIntoViewIfNeeded accounts for clipping scroll containers, which
   // a viewport-only visibility test cannot: an element scrolled out of an
@@ -321,14 +326,14 @@ async function getClickPoint(
   const callResult = await context.sendCommand(ws, 'Runtime.callFunctionOn', {
     objectId,
     functionDeclaration: `
-      function(selectExposed) {
+      function(selectExposed, requestedPoint) {
         const el = this;
         if (!el.isConnected) {
           return { detached: true };
         }
 
         const rect = el.getBoundingClientRect();
-        const center = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+        const center = requestedPoint || { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
         const left = Math.max(0, rect.left), right = Math.min(window.innerWidth, rect.right);
         const top = Math.max(0, rect.top), bottom = Math.min(window.innerHeight, rect.bottom);
         const points = [center];
@@ -405,7 +410,7 @@ async function getClickPoint(
         };
       }
     `,
-    arguments: [{ value: selectExposed }],
+    arguments: [{ value: selectExposed }, { value: requestedPoint ?? null }],
     returnByValue: true
   });
 
@@ -1332,6 +1337,11 @@ export async function click(
       ? Math.max(0, options.longpress)
       : 0;
   const longpressMs = longpressSeconds > 0 ? longpressSeconds * 1000 : 0;
+  const pointTarget = target.x !== undefined || target.y !== undefined;
+  if (pointTarget && (!Number.isFinite(target.x) || !Number.isFinite(target.y) || target.x! < 0 || target.y! < 0 ||
+    target.selector !== undefined || target.text !== undefined || options.frame || options.force || options.touch || options.double || longpressMs)) {
+    throw new Error('CLICK_INVALID_POINT: finite viewport x/y only; no selector, text, frame or forced/modified input');
+  }
 
   try {
     if (options.double && longpressSeconds > 0) {
@@ -1388,7 +1398,18 @@ export async function click(
 
     // Resolve elements - use frame context if specified
     let matches: ElementMatch[];
-    if (options.frame) {
+    if (pointTarget) {
+      const hit = await context.sendCommand(ws, 'Runtime.evaluate', {
+        expression: `(() => { if (${target.x} >= innerWidth || ${target.y} >= innerHeight) return null;
+          let el = document.elementFromPoint(${target.x}, ${target.y});
+          while (el?.shadowRoot) { const next = el.shadowRoot.elementFromPoint(${target.x}, ${target.y}); if (!next || next === el) break; el = next; }
+          if (!el || el.closest('[disabled],[aria-disabled="true"],[inert]') || (${!!target.pointGuard} && el.closest('canvas,video'))) return null; return el; })()`,
+        returnByValue: false
+      });
+      const objectId = hit.result?.objectId;
+      if (!objectId) throw new ClickError('Point is outside the viewport or unavailable', 'CLICK_POINT_UNAVAILABLE', {});
+      matches = [{ objectId, nodeId: 0, metadata: await getElementMetadataFromObjectId(context, ws, objectId, false) }];
+    } else if (options.frame) {
       // Get iframe rect for coordinate offset
       const iframeRect = await getIframeRect(context, ws, options.frame);
       frameOffsetX = iframeRect.x;
@@ -1497,7 +1518,8 @@ export async function click(
     if (chosen.objectId) {
       // Child-frame hit tests cannot see parent overlays. Keep their existing
       // center/witness contract; exposed-point recovery is top-document only.
-      const point = await getClickPoint(context, ws, chosen.objectId, rect, true, !options.force && !options.frame);
+      const point = await getClickPoint(context, ws, chosen.objectId, rect, !pointTarget, !pointTarget && !options.force && !options.frame,
+        pointTarget ? { x: target.x!, y: target.y! } : undefined);
       clickPoint = point;
       rect = point.rect;
       scrolled = point.scrolled;
@@ -1594,6 +1616,10 @@ export async function click(
     }
     if (options.waitForResponse) {
       networkResponseWatcher = await armNetworkResponseWatcher(context, ws, options);
+    }
+    if (pointTarget && target.pointGuard) {
+      const checked = await context.sendCommand(ws, 'Runtime.evaluate', { expression: pointerGuardCheck(target.pointGuard), returnByValue: true });
+      if (checked.result?.value !== true) throw new ClickError('Screenshot changed before dispatch', 'CLICK_POINT_IMAGE_CHANGED', {});
     }
 
     if (options.touch) {
@@ -1749,7 +1775,7 @@ export async function click(
     );
 
     if (!options.quiet) outputSuccess('Click performed', {
-      strategy: target.selector ? 'css' : 'text',
+      strategy: pointTarget ? 'point' : target.selector ? 'css' : 'text',
       selector: target.selector ?? null,
       text: target.text ?? null,
       match: target.selector ? undefined : target.match ?? 'exact',

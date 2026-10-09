@@ -13,6 +13,8 @@ import { projectState, mustKeep } from './experimental/decision.js';
 import { DaemonClient } from './daemon/client.js';
 import { boundWorkflowResult, workflowViewProfile } from './workflow-output.js';
 import { compactWorkflowResult, expandWorkflowEvidence, saveWorkflowArtifact } from './workflow-compact.js';
+import { imagePointToViewport, layoutSignature } from './workflow-coordinates.js';
+import { pointerGuardScript, pointerGuardCheck } from './workflow-pointer-guard.js';
 
 const execFileAsync = promisify(execFile);
 const exeMode = typeof CDP_CLI_EXE_MODE !== 'undefined' && CDP_CLI_EXE_MODE === true;
@@ -21,6 +23,8 @@ export interface WorkflowOptions {
   stabilityMs?: number; full?: boolean; action?: string; selector?: string; targetKey?: string; value?: string;
   url?: string; key?: string; waitFor?: string; waitForText?: string; screenshot?: boolean; screenshotScale?: number;
   offset?: number; limit?: number; section?: string; receiptId?: string; query?: string;
+  x?: number; y?: number; screenshotViewportScale?: number;
+  pointGuard?: string;
 }
 
 /** Opt-in site configuration; never infer harmlessness from time-shaped text. */
@@ -83,7 +87,7 @@ export function actionArgs(options: WorkflowOptions): string[] {
   const selector = () => required(options.selector, 'selector');
   let args: string[];
   switch (options.action) {
-    case 'click': args = ['click', selector(), options.page]; break;
+    case 'click': args = options.x !== undefined ? ['click', options.page, '--x', String(options.x), '--y', String(options.y)] : ['click', selector(), options.page]; break;
     case 'fill': args = ['fill', selector(), required(options.value, 'value'), options.page, '--expect-value']; break;
     case 'select': args = ['select', selector(), required(options.value, 'value'), options.page]; break;
     case 'press-key':
@@ -100,12 +104,18 @@ export function actionArgs(options: WorkflowOptions): string[] {
   if (options.frame) args.push(options.action === 'navigate' || ['back', 'forward', 'reload'].includes(options.action!) ? '--wait-for-frame' : '--frame', options.frame);
   if (options.waitFor) args.push('--wait-for', options.waitFor);
   if (options.waitForText) args.push('--wait-for-text', options.waitForText);
+  if (options.pointGuard) args.push('--point-guard', options.pointGuard);
   args.push('--timeout', '10000');
   return args;
 }
 
 export async function workflow(context: CDPContext, operation: string, options: WorkflowOptions): Promise<unknown> {
   const transport = workflowViewProfile();
+  if (options.screenshotViewportScale !== undefined && (!Number.isFinite(options.screenshotViewportScale) || options.screenshotViewportScale < 0.1 || options.screenshotViewportScale > 1 || options.screenshotScale !== undefined))
+    throw new Error('WORKFLOW_INVALID_VIEWPORT_SCALE: expected 0.1..1, exclusive with screenshotScale');
+  const pointTarget = options.x !== undefined || options.y !== undefined;
+  if (pointTarget && (operation !== 'act' || options.action !== 'click' || !Number.isFinite(options.x) || !Number.isFinite(options.y) || options.selector !== undefined || options.targetKey !== undefined || options.frame))
+    throw new Error('WORKFLOW_COORDINATE_CONFLICT: click with finite image x/y only, no selector/key/frame');
   if (options.screenshotScale !== undefined && (!Number.isFinite(options.screenshotScale) || options.screenshotScale < 0.1 || options.screenshotScale > 1))
     throw new Error('WORKFLOW_INVALID_SCREENSHOT_SCALE: expected 0.1..1; no action dispatched');
   if (options.query !== undefined) {
@@ -119,6 +129,7 @@ export async function workflow(context: CDPContext, operation: string, options: 
   const store = new StateStore(context.cdpUrl, context.workspaceSessionName, page.id, process.env.CDP_STATE_ROOT);
   const previous = options.source ? store.load(options.source) : undefined;
   const settings = previous?.captureOptions;
+  if (pointTarget && settings?.frame) throw new Error('WORKFLOW_COORDINATE_FRAMED_SOURCE: request a top-viewport screenshot');
   if (options.targetKey?.startsWith('r') && /^r[a-f0-9]{16}\./.test(options.targetKey)) {
     if (!previous) throw new Error('WORKFLOW_SOURCE_REQUIRED');
     options = { ...options, targetKey: store.resolveReference(`${previous.captureProfile}/${previous.id}`, options.targetKey) };
@@ -130,7 +141,7 @@ export async function workflow(context: CDPContext, operation: string, options: 
   const observationAlias = `workflow-${createHash('sha256').update(JSON.stringify([options.frame, options.maxElements ?? 2000])).digest('hex').slice(0, 16)}`;
   let observedBefore: PageState | undefined;
   let historyUnavailable = false;
-  if (!previous && ['observe', 'screenshot'].includes(operation)) {
+  if (!previous && ['observe', 'screenshot', 'snapshot'].includes(operation)) {
     try { observedBefore = store.load(observationAlias); }
     catch (error) { historyUnavailable = !(error instanceof Error && error.message.startsWith('STATE_NOT_FOUND:')); }
   }
@@ -169,13 +180,25 @@ export async function workflow(context: CDPContext, operation: string, options: 
     }
     return expanded;
   }
-  if (!['observe', 'act', 'screenshot'].includes(operation)) throw new Error('WORKFLOW_INVALID_OPERATION');
+  if (!['observe', 'act', 'screenshot', 'snapshot'].includes(operation)) throw new Error('WORKFLOW_INVALID_OPERATION');
   let action: unknown;
   let current: PageState;
   let stale = false;
   let refusalCode: string | undefined;
   if (operation === 'act') {
     if (!previous) throw new Error('WORKFLOW_SOURCE_REQUIRED');
+    if (pointTarget) {
+      const artifact = JSON.parse(readFileSync(join(store.dir, `${previous.id}-workflow.json`), 'utf8'));
+      const mapped = imagePointToViewport(artifact.value?.screenshot, options.x!, options.y!);
+      const token = artifact.value?.screenshot?.pointGuard;
+      if (typeof token !== 'string') throw new Error('WORKFLOW_COORDINATE_GUARD_UNAVAILABLE');
+      const ws = await context.connect(page);
+      try {
+        const checked = await context.sendCommand(ws, 'Runtime.evaluate', { expression: pointerGuardCheck(token), returnByValue: true });
+        if (checked.result?.value !== true) throw new Error('WORKFLOW_COORDINATE_IMAGE_CHANGED: request fresh screenshot; no action delivered');
+      } finally { ws.close(); }
+      options = { ...options, ...mapped, pointGuard: token };
+    }
     let selector: string | undefined;
     try { selector = resolveWorkflowTarget(previous, options); }
     catch (error) {
@@ -185,7 +208,7 @@ export async function workflow(context: CDPContext, operation: string, options: 
     const args = refusalCode ? [] : actionArgs({ ...options, selector, targetKey: undefined });
     const before = await take(options.stabilityMs ?? 200, false, selector);
     if (refusalCode || previous.coverage.unstable || before.coverage.unstable || before.coverage.blockedByDialog || before.coverage.dialogProbeUnavailable ||
-      semanticSignature(previous) !== semanticSignature(before)) {
+      semanticSignature(previous) !== semanticSignature(before) || (pointTarget && layoutSignature(previous) !== layoutSignature(before))) {
       stale = true;
       current = before;
       action = { kind: options.action, ...(options.targetKey ? { targetKey: options.targetKey } : {}), actionDelivered: false, commandSucceeded: false, deliveryUnknown: false,
@@ -255,6 +278,18 @@ export async function workflow(context: CDPContext, operation: string, options: 
   const targets = options.targetKey ? [options.targetKey] : [];
   const view = await projectState(options.task, current, { prune: !options.full, hints: current.hints, diff, errors, targets, protectVisibleActions: true });
   Object.assign(view, { providerReason: 'retired' });
+  let actionable: { lines: string[]; omitted: number; aligned: boolean } | undefined;
+  if (operation === 'snapshot') {
+    const snap = await runCli(['snapshot', page.id, '--json', '--redact-values', ...(options.frame ? ['--frame', options.frame] : []), '--cdp-url', context.cdpUrl,
+      ...(context.workspaceSessionName ? ['--session', context.workspaceSessionName] : [])]);
+    if (!snap.ok) throw new Error('WORKFLOW_SNAPSHOT_UNAVAILABLE');
+    const all = snap.rows.find(row => Array.isArray(row.data?.lines))?.data.lines as string[] | undefined;
+    if (!all) throw new Error('WORKFLOW_SNAPSHOT_UNAVAILABLE');
+    const lines: string[] = []; let bytes = 0;
+    for (const line of all) { const size = Buffer.byteLength(JSON.stringify(line)) + 1; if (bytes + size > 5000) break; lines.push(line); bytes += size; }
+    const after = await take(0, false);
+    actionable = { lines, omitted: all.length - lines.length, aligned: semanticSignature(current) === semanticSignature(after) && layoutSignature(current) === layoutSignature(after) };
+  }
   let screenshot: unknown;
   let retainedOriginal: string | undefined;
   if (operation === 'screenshot' || options.screenshot) {
@@ -262,18 +297,31 @@ export async function workflow(context: CDPContext, operation: string, options: 
       const directory = join(store.dir, 'evidence');
       mkdirSync(directory, { recursive: true });
       const path = join(directory, `${randomUUID()}.png`);
-      const originalPath = options.screenshotScale !== undefined && options.screenshotScale < 1 ? path.replace(/\.png$/, '-original.png') : undefined;
+      const originalPath = (options.screenshotScale !== undefined && options.screenshotScale < 1) || options.screenshotViewportScale !== undefined ? path.replace(/\.png$/, '-original.png') : undefined;
       retainedOriginal = originalPath;
-      const result = await runCli(['screenshot', page.id, '--output', path, '--format', 'png', '--scale', String(options.screenshotScale ?? 1),
+      const pointGuard = randomUUID();
+      const guardWs = await context.connect(page);
+      let guardSupported = false;
+      try {
+        const armed = await context.sendCommand(guardWs, 'Runtime.evaluate', { expression: pointerGuardScript(pointGuard,
+          current.elements.filter(n => n.cosmeticClock && n.locator).map(n => n.locator!)), returnByValue: true });
+        guardSupported = armed.result?.value?.supported === true;
+      } finally { guardWs.close(); }
+      const result = await runCli(['screenshot', page.id, '--output', path, '--format', 'png',
+        ...(options.screenshotViewportScale !== undefined ? ['--viewport-scale', String(options.screenshotViewportScale)] : ['--scale', String(options.screenshotScale ?? 1)]),
         '--coordinate-frame', ...(originalPath ? ['--original-output', originalPath] : []), '--cdp-url', context.cdpUrl,
         ...(context.workspaceSessionName ? ['--session', context.workspaceSessionName] : [])]);
       const dimensions = result.rows.find(row => row.data?.width)?.data;
+      const after = result.ok ? await take(0, false) : undefined;
       screenshot = { available: result.ok, path: result.ok ? path : undefined, source: view.source, evidence: result.rows,
-        scale: options.screenshotScale ?? 1, pixelWidth: dimensions?.width ?? null, pixelHeight: dimensions?.height ?? null,
+        ...(options.screenshotViewportScale !== undefined ? { viewportScale: options.screenshotViewportScale } : { scale: options.screenshotScale ?? 1 }),
+        pixelWidth: dimensions?.width ?? null, pixelHeight: dimensions?.height ?? null,
         originalPath: dimensions?.originalFile, originalPixelWidth: dimensions?.originalWidth, originalPixelHeight: dimensions?.originalHeight,
         coordinateFrame: dimensions?.coordinateFrame ?? null,
         coordinateSpace: 'CSS viewport; image pixels are scaled. Use source-bound keys for actions. Reduced pixels may not prove small text; request scale 1 when needed.',
-        semanticStable: result.ok ? semanticSignature(current, false) === semanticSignature(await take(0, false), false) : false };
+        semanticStable: after ? semanticSignature(current, false) === semanticSignature(after, false) : false,
+        pointGuard,
+        coordinateAligned: after && guardSupported && !options.frame ? semanticSignature(current) === semanticSignature(after) && layoutSignature(current) === layoutSignature(after) : false };
     } catch {
       screenshot = { available: false, semanticStable: null, source: view.source,
         ...(retainedOriginal && existsSync(retainedOriginal) ? { originalPath: retainedOriginal, originalAvailable: true,
@@ -282,8 +330,11 @@ export async function workflow(context: CDPContext, operation: string, options: 
     }
   }
   const result = { success: !stale, type: stale ? (refusalCode ? 'workflow-target-rejection' : 'workflow-stale') : 'workflow-observation', value: { ...(action ? { action } : {}), view, diagnostics,
-    canonicalPath: join(store.dir, `${current.id}.json`), ...(screenshot ? { screenshot } : {}) } };
+    canonicalPath: join(store.dir, `${current.id}.json`), ...(screenshot ? { screenshot } : {}), ...(actionable ? { actionable } : {}) } };
   const protectedKeys = mustKeep(options.task, current, { hints: current.hints, diff, errors, targets, protectVisibleActions: true });
+  // Point mapping is source-bound evidence even when a CLI result fits its output cap.
+  if (screenshot && !saveWorkflowArtifact(join(store.dir, `${current.id}-workflow.json`), result))
+    Object.assign(screenshot, { coordinateAligned: false });
   if (transport.profile === 'haiku-compact') return compactWorkflowResult(result, store, current.captureProfile, operation, protectedKeys, transport,
     { full: options.full, task: options.task, hints: current.hints, targets,
       boxes: Object.fromEntries(current.elements.filter(node => node.box && node.k.startsWith('top|')).map(node => [node.k, node.box!])) });

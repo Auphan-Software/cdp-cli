@@ -31,7 +31,7 @@ import {
 /**
  * Get the ax snapshot script for evaluating in page context
  */
-function getAxSnapshotScript(): string {
+function getAxSnapshotScript(redactValues = false): string {
   return `
 (() => {
   const results = [];
@@ -171,6 +171,10 @@ function getAxSnapshotScript(): string {
       info.options = Array.from(el.options).slice(0, 5).map(o => o.text.trim().slice(0, 30));
       if (el.options.length > 5) info.options.push('...');
     }
+    if (${redactValues}) {
+      delete info.value;
+      if (tag === 'textarea' || el.isContentEditable) delete info.label;
+    }
 
     return info;
   }
@@ -294,7 +298,7 @@ export async function listConsole(
  */
 export async function snapshot(
   context: CDPContext,
-  options: { format?: string; page: string; frame?: string }
+  options: { format?: string; page: string; frame?: string; json?: boolean; redactValues?: boolean }
 ): Promise<void> {
   let session: Awaited<ReturnType<typeof createExecSessionByPageRef>> | undefined;
   let directWs: Awaited<ReturnType<typeof context.connect>> | undefined;
@@ -318,12 +322,13 @@ export async function snapshot(
         outputRaw(result.result?.value || '');
       } else if (format === 'ax') {
         const result = await context.sendCommand(directWs, 'Runtime.evaluate', {
-          expression: getAxSnapshotScript(),
+          expression: getAxSnapshotScript(options.redactValues),
           contextId,
           returnByValue: true
         });
         const elements = result.result?.value || [];
-        outputRaw(formatAxElements(elements));
+        if (options.json) outputSuccess('snapshot', { lines: formatAxElements(elements).split('\n').filter(Boolean) });
+        else outputRaw(formatAxElements(elements));
       } else {
         throw new Error(`Unknown snapshot format: ${format}`);
       }
@@ -347,10 +352,12 @@ export async function snapshot(
     } else if (format === 'ax') {
       await session.exec('Runtime.enable');
       const result = await session.exec('Runtime.evaluate', {
-        expression: getAxSnapshotScript(),
+        expression: getAxSnapshotScript(options.redactValues),
         returnByValue: true
       });
-      outputRaw(formatAxElements(result.result?.value || []));
+      const lines = formatAxElements(result.result?.value || []).split('\n').filter(Boolean);
+      if (options.json) outputSuccess('snapshot', { lines });
+      else outputRaw(lines.join('\n'));
     } else {
       throw new Error(`Unknown snapshot format: ${format}`);
     }
@@ -579,7 +586,7 @@ export function imageDimensions(buffer: Buffer): { width: number; height: number
  */
 export async function screenshot(
   context: CDPContext,
-  options: { output?: string; format?: string; page: string; quality?: number; scale?: number; selector?: string; originalOutput?: string; coordinateFrame?: boolean }
+  options: { output?: string; format?: string; page: string; quality?: number; scale?: number; viewportScale?: number; selector?: string; originalOutput?: string; coordinateFrame?: boolean }
 ): Promise<void> {
   let ws;
   const outputPath = options.output ? describeCliPath(options.output) : undefined;
@@ -624,7 +631,9 @@ export async function screenshot(
       return undefined;
     })();
 
-    const scale = options.scale ?? 1;
+    let scale = options.scale ?? 1;
+    if (options.viewportScale !== undefined && (!Number.isFinite(options.viewportScale) || options.viewportScale < 0.1 || options.viewportScale > 1 || options.scale !== undefined || options.selector))
+      throw new Error('Invalid viewport scale: expected 0.1..1, exclusive with scale and selector');
 
     if (scale <= 0 || scale > 1) {
       throw new Error(`Invalid scale: ${scale}. Must be between 0 (exclusive) and 1 (inclusive).`);
@@ -632,13 +641,13 @@ export async function screenshot(
 
     // Downscaling decodes and re-encodes as PNG, so a scaled capture has to be
     // PNG or the resizer is handed bytes it cannot parse.
-    if (scale !== 1 && detectedFormat && detectedFormat !== 'png') {
+    if ((scale !== 1 || options.viewportScale !== undefined) && detectedFormat && detectedFormat !== 'png') {
       throw new Error(
         `--scale re-encodes to PNG and cannot produce ${detectedFormat}. Use --format png (and a .png output path), or drop --scale.`
       );
     }
 
-    const format = detectedFormat ?? (scale !== 1 ? 'png' : 'jpeg');
+    const format = detectedFormat ?? (scale !== 1 || options.viewportScale !== undefined ? 'png' : 'jpeg');
 
     if (!validFormats.includes(format)) {
       throw new Error(`Invalid format: ${format}. Must be one of: ${validFormats.join(', ')}`);
@@ -695,13 +704,19 @@ export async function screenshot(
       captureParams.captureBeyondViewport = true;
     }
 
-    const metrics = options.coordinateFrame ? await context.sendCommand(ws, 'Page.getLayoutMetrics').catch(() => undefined) : undefined;
+    const metrics = options.coordinateFrame || options.viewportScale !== undefined ? await context.sendCommand(ws, 'Page.getLayoutMetrics').catch(() => undefined) : undefined;
     const viewport = metrics?.cssLayoutViewport;
     const coordinateFrame = viewport ? { space: 'CSS viewport', width: viewport.clientWidth, height: viewport.clientHeight,
       ...(options.selector ? { imageScope: 'cropped document', clip: captureParams.clip } : { imageScope: 'full viewport' }) } : null;
     const result = await context.sendCommand(ws, 'Page.captureScreenshot', captureParams);
 
     let buffer: Buffer = Buffer.from(result.data, 'base64');
+    if (options.viewportScale !== undefined) {
+      const dimensions = imageDimensions(buffer);
+      if (!viewport?.clientWidth || !viewport?.clientHeight || !dimensions?.width || !dimensions?.height) throw new Error('Screenshot viewport mapping unavailable');
+      scale = options.viewportScale * viewport.clientWidth / dimensions.width;
+      if (scale > 1 || scale <= 0) throw new Error('Screenshot viewport scale requires unsupported upscaling');
+    }
     const originalDimensions = originalPath ? imageDimensions(buffer) : null;
     if (originalPath) writeFileSync(originalPath.normalizedPath, buffer);
 

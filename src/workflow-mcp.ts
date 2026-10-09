@@ -51,6 +51,9 @@ function budgetContent(budget: WorkflowExecutionBudget): Array<{ type: 'text'; t
 }
 
 const properties = {
+  x: { type: 'number', description: 'Click x in pixels of the screenshot delivered with this exact source; mapped internally to CSS viewport. Requires y. No selector/key/frame.' },
+  y: { type: 'number', description: 'Click y in delivered screenshot pixels, paired with x. Request fresh screenshot after layout changes.' },
+  screenshotViewportScale: { type: 'number', minimum: 0.1, maximum: 1, description: 'Image size relative to CSS viewport. Prefer0.5 for routine vision;1 for small text. Independent of desktop pixel ratio; exclusive with screenshotScale.' },
   task: { type: 'string', description: 'Current reproduction or evidence goal, not the full coding conversation.' },
   screenshotScale: { type: 'number', minimum: 0.1, maximum: 1, description: 'Raster pixel scale only (default1). Original same-capture pixels are retained. Reduced text may require scale1 evidence; viewport/action coordinates do not change.' },
   source: { type: 'string', description: 'view.source.id from the latest observation or action result, including fresh state after a no-delivery stale rejection; required for act/expand.' },
@@ -71,13 +74,15 @@ const properties = {
   waitForText: { type: 'string', description: 'Text wait; prefer selectors for asynchronously replaced pages.' }
 };
 const optionsByTool: Record<string, string[]> = {
-  observe: ['task', 'source', 'frame', 'full', 'screenshot', 'screenshotScale', 'maxElements', 'stabilityMs'],
-  act: ['task', 'source', 'frame', 'full', 'screenshot', 'screenshotScale', 'stabilityMs', 'action', 'selector', 'targetKey', 'value', 'url', 'key', 'waitFor', 'waitForText'],
+  observe: ['task', 'source', 'frame', 'full', 'screenshot', 'screenshotScale', 'screenshotViewportScale', 'maxElements', 'stabilityMs'],
+  act: ['task', 'source', 'frame', 'full', 'screenshot', 'screenshotScale', 'screenshotViewportScale', 'x', 'y', 'stabilityMs', 'action', 'selector', 'targetKey', 'value', 'url', 'key', 'waitFor', 'waitForText'],
   expand: ['task', 'source', 'offset', 'limit', 'section', 'receiptId'],
-  screenshot: ['task', 'source', 'frame', 'full', 'screenshotScale', 'maxElements', 'stabilityMs']
+  screenshot: ['task', 'source', 'frame', 'full', 'screenshotScale', 'screenshotViewportScale', 'maxElements', 'stabilityMs'],
+  snapshot: ['task', 'source', 'frame', 'full', 'stabilityMs']
 };
 const tools = Object.keys(optionsByTool).map(name => ({ name,
   description: name === 'act' ? 'Perform one bounded action; return a short delivery/witness receipt and fresh view.source.id. No unsolicited state dump. Observe for controls, expand for historical errors/changes/receipt, full:true for rich output. Command success is not task proof; never retry uncertain delivery.' :
+    name === 'snapshot' ? 'Existing concise actionable snapshot: labels, roles and CSS selectors, optional frame. No DOM/state dump. Use selectors with its fresh source only when aligned:true; omitted count discloses incomplete discovery.' :
     name === 'expand' ? 'Read source-bound historical elements or receipt/errors/changes/coverage evidence. It is not a fresh observation. Use for required omitted evidence.' :
     name === 'screenshot' ? 'Return owned-page pixels and alignment metadata without a state dump. Use view.source.id next. Full evidence remains available through expand; semanticStable:false is uncertain alignment.' :
     'Observe the owned page. Unnamed controls include captured CSS viewport boxes for matching pixels; use their source-bound keys to act.',
@@ -97,6 +102,8 @@ export async function callWorkflowTool(name: string, args: Record<string, unknow
   }
   if (args.screenshotScale !== undefined && (typeof args.screenshotScale !== 'number' || !Number.isFinite(args.screenshotScale) || args.screenshotScale < 0.1 || args.screenshotScale > 1))
     rejection = 'WORKFLOW_INVALID_SCREENSHOT_SCALE';
+  if (args.screenshotViewportScale !== undefined && (typeof args.screenshotViewportScale !== 'number' || !Number.isFinite(args.screenshotViewportScale) || args.screenshotViewportScale < 0.1 || args.screenshotViewportScale > 1 || args.screenshotScale !== undefined))
+    rejection = 'WORKFLOW_INVALID_VIEWPORT_SCALE';
   if (rejection) return { content: [{ type: 'text', text: JSON.stringify({ success: false, type: 'workflow-input-rejection', value: {
     rejection: { code: rejection, stage: 'input-validation', commandDispatched: false },
     output: { bounded: false, profile: profile.profile, maxBytes: profile.maxBytes },
@@ -122,6 +129,9 @@ export async function callWorkflowTool(name: string, args: Record<string, unknow
         instruction: 'No browser command dispatched. Supply a nonempty task, plus source and action for act or source for expand. Reuse valid current state; do not repeat a delivered action.'
       } }) }, ...budgetContent(budget)] };
   if (name === 'act') {
+    const point = args.x !== undefined || args.y !== undefined;
+    if (point && (args.action !== 'click' || !Number.isFinite(args.x) || !Number.isFinite(args.y) || args.selector !== undefined || args.targetKey !== undefined || args.frame !== undefined))
+      throw new Error('WORKFLOW_COORDINATE_CONFLICT: no command dispatched');
     const code = budget.admitAction();
     if (code) return { content: [{ type: 'text', text: JSON.stringify({ success: false, type: 'workflow-budget-rejection', value: {
       action: { kind: args.action, code, actionDelivered: false, commandSucceeded: false, deliveryUnknown: false },
