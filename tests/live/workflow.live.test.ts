@@ -158,17 +158,19 @@ describe('deployed deterministic browser workflow', () => {
     try {
       const init = await request('initialize',{protocolVersion:'2025-06-18',capabilities:{},clientInfo:{name:'test',version:'1'}});
       expect(init.capabilities.tools).toEqual({});
-      expect((await request('tools/list')).tools.map((t:any)=>t.name)).toEqual(['observe','act','expand','screenshot']);
-      const observed = await request('tools/call',{name:'observe',arguments:{task:'reproduce Save',stabilityMs:20}});
+      expect((await request('tools/list')).tools.map((t:any)=>t.name)).toEqual(['observe','act','expand','screenshot','snapshot']);
+      const observed = await request('tools/call',{name:'observe',arguments:{task:'reproduce Save',stabilityMs:20,full:true}});
       expect(observed.isError,JSON.stringify(observed)).not.toBe(true);
       const state = JSON.parse(observed.content[0].text);
       expect(Buffer.byteLength(observed.content[0].text)).toBeLessThanOrEqual(24000);
       expect(state.value.output.bounded).toBe(true);
       const full = JSON.parse(await readFile(state.value.output.fullPath, 'utf8'));
       expect(full.value.view.elements.length).toBeGreaterThan(state.value.view.elements.length);
-      if (process.env.CDP_WORKFLOW_REQUIRE_RERANK === '1') expect(state.value.view.providerStatus).toBe('applied');
+      expect(state.value.view.providerStatus).toBe('unused');
       expect(state.value.diagnostics.console).toBe('available');
-      const changed = await request('tools/call',{name:'act',arguments:{task:'reproduce Save',source:state.value.view.source.id,action:'click',targetKey:state.value.view.elements.find((node:any)=>node.k==='top|id:save').k,screenshot:true,stabilityMs:20}});
+      const saveControl = state.value.view.elements.find((node:any)=>node.name==='Save');
+      expect(saveControl).toBeDefined();
+      const changed = await request('tools/call',{name:'act',arguments:{task:'reproduce Save',source:state.value.view.source.id,action:'click',targetKey:saveControl.k,screenshot:true,stabilityMs:20,full:true}});
       expect(changed.isError,JSON.stringify(changed.content.filter((c:any)=>c.type==='text'))).not.toBe(true);
       const result = JSON.parse(changed.content[0].text);
       expect(Buffer.byteLength(changed.content[0].text)).toBeLessThanOrEqual(24000);
@@ -204,7 +206,7 @@ describe('deployed deterministic browser workflow', () => {
     try {
       const page = await chrome.createPage(app.baseUrl);
       const observed = await cli('observe', page.id);
-      expect(observed.value.view.providerStatus).toBe('fallback');
+      expect(observed.value.view.providerStatus).toBe('unused');
       const clicked = await cli('act', page.id, ['--source', observed.value.view.source.id, '--action', 'click', '--selector', '#save']);
       expect(clicked.value.action.commandSucceeded).toBe(true);
       expect(clicked.value.view.elements).toEqual(expect.arrayContaining([expect.objectContaining({k:'top|id:result',text:'Saved'})]));

@@ -194,7 +194,7 @@ export async function workflow(context: CDPContext, operation: string, options: 
       if (typeof token !== 'string') throw new Error('WORKFLOW_COORDINATE_GUARD_UNAVAILABLE');
       const ws = await context.connect(page);
       try {
-        const checked = await context.sendCommand(ws, 'Runtime.evaluate', { expression: pointerGuardCheck(token), returnByValue: true });
+        const checked = await context.sendCommand(ws, 'Runtime.evaluate', { expression: pointerGuardCheck(token, mapped.x, mapped.y), returnByValue: true });
         if (checked.result?.value !== true) throw new Error('WORKFLOW_COORDINATE_IMAGE_CHANGED: request fresh screenshot; no action delivered');
       } finally { ws.close(); }
       options = { ...options, ...mapped, pointGuard: token };

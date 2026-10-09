@@ -57,11 +57,12 @@ it('maps reduced screenshot points, witnesses top/frame clicks and refuses stale
     expect(acted.value.action.commandSucceeded).toBe(true);
     expect(await evaluate('window.clicks')).toBe(1);
     const second = await shot();
-    await evaluate("document.querySelector('#hit').style.left='400px'");
+    await evaluate("document.querySelector('#hit').style.left='102px'");
     const stale = await click(second.value.view.source.id, 75, 60);
     expect(stale.error).toBe(true);
     expect(stale.message).toContain('COORDINATE_IMAGE_CHANGED');
     expect(await evaluate('window.clicks')).toBe(1);
+    await evaluate("document.querySelector('#hit').style.left='400px'");
     const third = await shot();
     const disabled = await click(third.value.view.source.id, 150, 60);
     expect(disabled.value.action.commandSucceeded).toBe(false);
@@ -87,5 +88,25 @@ it('maps reduced screenshot points, witnesses top/frame clicks and refuses stale
       expect(clicked.value.action.commandSucceeded).toBe(true);
     }
     expect(await evaluate('window.clicks')).toBe(3);
+    const unrelated = await shot();
+    await evaluate("document.querySelector('#secret').style.background='red'");
+    expect((await click(unrelated.value.view.source.id, 225, 60)).value.action.commandSucceeded).toBe(true);
+    expect(await evaluate('window.clicks')).toBe(4);
+    await evaluate("document.head.insertAdjacentHTML('beforeend','<style id=guard-style>#css-cover { position:fixed; left:400px; top:100px; width:100px; height:40px; z-index:999; }</style>'); document.body.insertAdjacentHTML('beforeend','<div id=css-cover></div>')");
+    const covered = await shot();
+    await evaluate("document.querySelector('#guard-style').sheet.insertRule('#css-cover { pointer-events:none; }',1)");
+    expect((await click(covered.value.view.source.id, 225, 60)).error).toBe(true);
+    expect(await evaluate('window.clicks')).toBe(4);
+    await evaluate("document.querySelector('#guard-style').sheet.insertRule('#css-cover { pointer-events:auto; clip-path:inset(100%); }',2)");
+    const clipped = await shot();
+    await evaluate("document.querySelector('#guard-style').sheet.insertRule('#css-cover { clip-path:none; }',3)");
+    expect((await click(clipped.value.view.source.id, 225, 60)).error).toBe(true);
+    expect(await evaluate('window.clicks')).toBe(4);
+    await fixture.command('Input.dispatchMouseEvent', { type:'mouseMoved', x:700, y:500 });
+    await evaluate("document.querySelector('#css-cover').remove(); document.querySelector('#guard-style').textContent=''; document.querySelector('#hit').addEventListener('mouseover',()=>document.body.insertAdjacentHTML('beforeend','<div id=hover-cover style=\"position:fixed;inset:0;z-index:1000\"></div>'),{once:true})");
+    const hover = await shot();
+    const hoverResult = await click(hover.value.view.source.id, 225, 60);
+    expect(hoverResult.value.action.commandSucceeded, JSON.stringify({hoverResult, hoverCover:await evaluate('!!document.querySelector("#hover-cover")')})).toBe(false);
+    expect(await evaluate('window.clicks')).toBe(4);
   } finally { await fixture.close(); }
-}, 60000);
+}, 90000);

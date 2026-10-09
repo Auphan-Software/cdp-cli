@@ -60,8 +60,8 @@ describe('transport profiles in the deployed real MCP bridge', () => {
     const receipt = (response: any) => JSON.parse(response.content[0].text);
     try {
       for (const session of [small, rich, invalid]) await session.request('initialize');
-      const a = await small.request('tools/call', { name: 'observe', arguments: { task: 'buy', stabilityMs: 20 } });
-      const b = await rich.request('tools/call', { name: 'observe', arguments: { task: 'buy', stabilityMs: 20 } });
+      const a = await small.request('tools/call', { name: 'observe', arguments: { task: 'buy', stabilityMs: 20, full: true } });
+      const b = await rich.request('tools/call', { name: 'observe', arguments: { task: 'buy', stabilityMs: 20, full: true } });
       expect(a.isError, JSON.stringify(a)).not.toBe(true); expect(b.isError, JSON.stringify(b)).not.toBe(true);
       const av = receipt(a).value, bv = receipt(b).value;
       expect(av.output).toMatchObject({ profile: 'current-24k', maxBytes: 24000 });
@@ -75,7 +75,7 @@ describe('transport profiles in the deployed real MCP bridge', () => {
       const increment = bv.view.elements.find((element: any) => element.k === 'top|id:increment');
       expect(increment).toBeDefined();
       const acted = await rich.request('tools/call', { name: 'act', arguments: { task: 'increment', source: bv.view.source.id,
-        action: 'click', targetKey: increment.k, stabilityMs: 20 } });
+        action: 'click', targetKey: increment.k, stabilityMs: 20, full: true } });
       expect(acted.isError, JSON.stringify(acted)).not.toBe(true);
       expect(receipt(acted).value.action).toMatchObject({ commandSucceeded: true, deliveryUnknown: false });
       expect(receipt(acted).value.output.profile).toBe('rich-64k');

@@ -1618,7 +1618,7 @@ export async function click(
       networkResponseWatcher = await armNetworkResponseWatcher(context, ws, options);
     }
     if (pointTarget && target.pointGuard) {
-      const checked = await context.sendCommand(ws, 'Runtime.evaluate', { expression: pointerGuardCheck(target.pointGuard), returnByValue: true });
+      const checked = await context.sendCommand(ws, 'Runtime.evaluate', { expression: pointerGuardCheck(target.pointGuard, target.x!, target.y!), returnByValue: true });
       if (checked.result?.value !== true) throw new ClickError('Screenshot changed before dispatch', 'CLICK_POINT_IMAGE_CHANGED', {});
     }
 
@@ -1652,6 +1652,12 @@ export async function click(
         x,
         y
       });
+
+      if (pointTarget && target.pointGuard) {
+        await context.sendCommand(ws, 'Runtime.evaluate', { expression: 'new Promise(resolve => { setTimeout(resolve,150); requestAnimationFrame(() => requestAnimationFrame(resolve)); })', awaitPromise: true });
+        const checked = await context.sendCommand(ws, 'Runtime.evaluate', { expression: pointerGuardCheck(target.pointGuard, target.x!, target.y!), returnByValue: true });
+        if (checked.result?.value !== true) throw new ClickError('Screenshot changed after pointer movement', 'CLICK_POINT_IMAGE_CHANGED', {});
+      }
 
       await context.sendCommand(ws, 'Input.dispatchMouseEvent', {
         type: 'mousePressed',
