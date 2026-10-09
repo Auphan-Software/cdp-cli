@@ -4,6 +4,8 @@ Henry requested dropping query filtering and workflow reranking, reaching native
 
 The agent MCP bridge now defaults to the measured haiku-compact transport when the owner supplies no profile. Explicit profiles still work; the composable CLI retains its current24k default.
 
+Installed runtime is commit46cbcdf8c818 (later commits contain reporting only). Global npm shims link to Q:/apps/cdp-cli-haiku-gym; keep this checkout while it supplies the installation. The Windows exe, PowerShell, Git Bash and PHP paths were verified against that runtime. An initial exe overwrite failed because existing agents held it open; its old image was renamed to cdp-cli.previous-d5e7133.exe and retained, allowing the new image to install without stopping those agents. Existing processes keep their loaded runtime until normal relaunch. The installed default bridge smoke verifies compact profile, two captured unnamed boxes, no advertised query, no-dispatch query refusal and provider unused/retired even with an unreachable configured endpoint. See installation.json.
+
 | Recorded whole attempt | Native extension | Simplified CDP |
 | --- | ---: | ---: |
 | Independently verified exact save once / final pixels | pass | pass |

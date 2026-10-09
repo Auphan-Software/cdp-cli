@@ -1,0 +1,17 @@
+{
+  "mcpQueryAdvertised": 0,
+  "existingAgentProcessesRetained": true,
+  "providerStatus": "unused",
+  "queryRefusal": {
+    "code": "WORKFLOW_QUERY_RETIRED",
+    "stage": "input-validation",
+    "commandDispatched": false
+  },
+  "cmdAndPhpDoctorAgree": true,
+  "capturedUnnamedControlBoxes": 2,
+  "runtimeCommit": "46cbcdf8c8189a33566d8c006bb1813cc85358b9",
+  "previousExecutable": "C:/Program Files/nodejs/cdp-cli.previous-d5e7133.exe",
+  "defaultBridgeProfile": "haiku-compact",
+  "providerReason": "retired",
+  "npmLink": "Q:\\apps\\cdp-cli-haiku-gym"
+}
