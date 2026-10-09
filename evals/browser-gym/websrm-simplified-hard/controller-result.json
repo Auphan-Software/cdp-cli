@@ -1,0 +1,31 @@
+{
+  "outcome": "FAIL",
+  "passed": 6,
+  "total": 8,
+  "failed": [
+    "modifier-boundary-fixture",
+    "rq-description-no-trailing-space"
+  ],
+  "invoiceId": 150395,
+  "expectedNoteLength": 141,
+  "storedNoteLength": 148,
+  "storedExact": false,
+  "fillArgument": {
+    "type": "tool_use",
+    "id": "toolu_01D7TafppZN5mmM2xqp1LTtz",
+    "name": "mcp__cdp-workflow__act",
+    "input": {
+      "task": "Enter the exact modifier-note.txt contents into the Pepsi ITEM Notes control (#mod-notes) in the Modify dialog.",
+      "source": "69920fa0-ef5b-42ca-a267-df0736b49381",
+      "action": "fill",
+      "selector": "#mod-notes",
+      "value": "Note: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa boundary tail",
+      "screenshot": true,
+      "screenshotScale": 0.25
+    },
+    "caller": {
+      "type": "direct"
+    }
+  },
+  "printedReview": "bill-review.json"
+}

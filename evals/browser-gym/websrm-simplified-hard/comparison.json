@@ -1,0 +1,272 @@
+{
+  "current": {
+    "processedTokens": 1770193,
+    "estimatedUsd": 0.11863878000000001,
+    "peakInput": 128826,
+    "compactions": 0,
+    "elapsed": 239.996,
+    "browserCalls": 21,
+    "expansions": 3,
+    "screenshots": 12,
+    "queryCalls": 0,
+    "models": {
+      "claude-haiku-5-5": 27
+    },
+    "typed": [
+      {
+        "length": 148,
+        "exactNote": false
+      }
+    ],
+    "views": [
+      {
+        "provider": "unused",
+        "reason": "retired",
+        "boxes": 0,
+        "screenshotAvailable": true
+      },
+      {
+        "provider": "unused",
+        "reason": "retired",
+        "boxes": 0,
+        "screenshotAvailable": true
+      },
+      {
+        "provider": "unused",
+        "reason": "retired",
+        "boxes": 1
+      },
+      {
+        "provider": "unused",
+        "reason": "retired",
+        "boxes": 1
+      },
+      {
+        "provider": "unused",
+        "reason": "retired",
+        "boxes": 1,
+        "screenshotAvailable": true
+      },
+      {
+        "provider": "unused",
+        "reason": "retired",
+        "boxes": 5
+      },
+      {
+        "provider": "unused",
+        "reason": "retired",
+        "boxes": 2,
+        "screenshotAvailable": true
+      },
+      {
+        "provider": "unused",
+        "reason": "retired",
+        "boxes": 1,
+        "screenshotAvailable": true
+      },
+      {
+        "provider": "unused",
+        "reason": "retired",
+        "boxes": 1,
+        "screenshotAvailable": true
+      },
+      {
+        "provider": "unused",
+        "reason": "retired",
+        "boxes": 3
+      },
+      {
+        "provider": "unused",
+        "reason": "retired",
+        "boxes": 1,
+        "screenshotAvailable": true
+      },
+      {
+        "provider": "unused",
+        "reason": "retired",
+        "boxes": 1,
+        "screenshotAvailable": true,
+        "rejection": "WORKFLOW_STALE_SOURCE"
+      },
+      {
+        "provider": "unused",
+        "reason": "retired",
+        "boxes": 1,
+        "screenshotAvailable": true
+      },
+      {
+        "provider": "unused",
+        "reason": "retired",
+        "boxes": 6
+      },
+      {
+        "provider": "unused",
+        "reason": "retired",
+        "boxes": 2,
+        "screenshotAvailable": true
+      },
+      {
+        "provider": "unused",
+        "reason": "retired",
+        "boxes": 5
+      },
+      {
+        "provider": "unused",
+        "reason": "retired",
+        "boxes": 5,
+        "screenshotAvailable": true
+      },
+      {
+        "provider": "unused",
+        "reason": "retired",
+        "boxes": 5,
+        "screenshotAvailable": true
+      }
+    ]
+  },
+  "native": {
+    "processedTokens": 981860,
+    "estimatedUsd": 0.02699815,
+    "browserCalls": 25,
+    "peakInput": 52477,
+    "elapsed": 137.886,
+    "passed": 6,
+    "total": 8
+  },
+  "oldCdp": {
+    "processedTokens": 1941352,
+    "estimatedUsd": 0.12916246,
+    "browserCalls": 23,
+    "peakInput": 131389,
+    "elapsed": 200.544,
+    "passed": 6,
+    "total": 8
+  },
+  "ratios": {
+    "tokensVsNative": 1.8028975617705172,
+    "costVsNative": 4.394329981869129,
+    "tokensVsOldCdp": 0.9118351540575846,
+    "costVsOldCdp": 0.918523694887818
+  },
+  "images": [
+    {
+      "mediaType": "image/png",
+      "width": 617,
+      "height": 338,
+      "bytes": 118523
+    },
+    {
+      "mediaType": "image/png",
+      "width": 617,
+      "height": 338,
+      "bytes": 20736
+    },
+    {
+      "mediaType": "image/png",
+      "width": 617,
+      "height": 338,
+      "bytes": 73440
+    },
+    {
+      "mediaType": "image/png",
+      "width": 617,
+      "height": 338,
+      "bytes": 73440
+    },
+    {
+      "mediaType": "image/png",
+      "width": 617,
+      "height": 338,
+      "bytes": 9093
+    },
+    {
+      "mediaType": "image/png",
+      "width": 617,
+      "height": 338,
+      "bytes": 16716
+    },
+    {
+      "mediaType": "image/png",
+      "width": 617,
+      "height": 338,
+      "bytes": 78241
+    },
+    {
+      "mediaType": "image/png",
+      "width": 617,
+      "height": 338,
+      "bytes": 78241
+    },
+    {
+      "mediaType": "image/png",
+      "width": 617,
+      "height": 338,
+      "bytes": 57559
+    },
+    {
+      "mediaType": "image/png",
+      "width": 617,
+      "height": 338,
+      "bytes": 57746
+    },
+    {
+      "mediaType": "image/png",
+      "width": 617,
+      "height": 338,
+      "bytes": 54554
+    },
+    {
+      "mediaType": "image/jpeg",
+      "width": 2000,
+      "height": 1096,
+      "bytes": 185176
+    }
+  ],
+  "usage": {
+    "input_tokens": 54,
+    "cache_creation_input_tokens": 127110,
+    "cache_read_input_tokens": 1625376,
+    "output_tokens": 17653
+  },
+  "allTools": 30,
+  "modelRequests": 27,
+  "longContextRequests": 6,
+  "workflowInlineBytes": 172959,
+  "expansionResultBytes": [
+    8071,
+    8150,
+    8081
+  ],
+  "fillMatchesDatabase": true,
+  "grading": {
+    "outcome": "FAIL",
+    "passed": 6,
+    "total": 8,
+    "failed": [
+      "modifier-boundary-fixture",
+      "rq-description-no-trailing-space"
+    ],
+    "invoiceId": 150395,
+    "expectedNoteLength": 141,
+    "storedNoteLength": 148,
+    "storedExact": false,
+    "fillArgument": {
+      "type": "tool_use",
+      "id": "toolu_01D7TafppZN5mmM2xqp1LTtz",
+      "name": "mcp__cdp-workflow__act",
+      "input": {
+        "task": "Enter the exact modifier-note.txt contents into the Pepsi ITEM Notes control (#mod-notes) in the Modify dialog.",
+        "source": "69920fa0-ef5b-42ca-a267-df0736b49381",
+        "action": "fill",
+        "selector": "#mod-notes",
+        "value": "Note: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa boundary tail",
+        "screenshot": true,
+        "screenshotScale": 0.25
+      },
+      "caller": {
+        "type": "direct"
+      }
+    },
+    "printedReview": "bill-review.json"
+  }
+}

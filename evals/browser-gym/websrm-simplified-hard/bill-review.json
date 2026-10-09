@@ -1,0 +1,31 @@
+{
+  "reviewer": "controller-pixels",
+  "caseId": "long-modifier",
+  "path": "C:/autoprint/20261008172521.png",
+  "sha256": "a6ecb20b429c9fbadc23ab4aa264a1b3eb16dbfb7db1a29ae42e763bb7107bae",
+  "invoiceId": 150395,
+  "txnId": 34,
+  "transaction": "00I6-05R3-07IV-025Z",
+  "boot": {
+    "path": "C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/websrm-simplified-hard-01/boot.json",
+    "sha256": "fdd5d35286c1aadd93076bf6443963f605aaa58e2f9a812d41890e0cfd69c048"
+  },
+  "amounts": {
+    "avantTax": 359,
+    "TPS": 18,
+    "TVQ": 36,
+    "apresTax": 413
+  },
+  "items": [
+    {
+      "description": "Pepsi",
+      "quantity": 1,
+      "priceCents": 359,
+      "tax": "FP",
+      "precisions": [
+        "Note: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      ]
+    }
+  ],
+  "text": "Actual printed pixels: invoice150395; Note: then ten rows of12 a glyphs then two; no boundary tail printed; ARGENT COMPTANT; PAIEMENT REÇU. Transaction00I6-05R3-07IV-025Z; totals3.59/.18/.36/4.13."
+}

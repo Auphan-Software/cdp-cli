@@ -1,0 +1,21 @@
+{
+  "contractHash": "b5a75bd8908e0e68981a86a0b2f697645deef0520bc1a169319c9f6a85910c15",
+  "operatorHash": "b89522c45ba909cd23c172ca4b87ad9152b712d4c26b0022f3522374165329da",
+  "noteHash": "ba0d0f61026acfb1adc74f4abbaf3ef41111e0541f2dee6ba7272bde922008f7",
+  "build": {
+    "version": "2.2.3",
+    "commit": "46cbcdf8c8189a33566d8c006bb1813cc85358b9",
+    "dirty": false,
+    "built": "2026-10-09T00:06:41Z"
+  },
+  "adapterHash": "8369e918b15f2940b11307adabba853001369cec0363bb4757ac12150b3d651e",
+  "files": {
+    "workflow.js": "c9a0010fce33b5b16e3862076216e068b9586fc8fc427ae511aa832ae9071c51",
+    "workflow-mcp.js": "ec99e64d6e4960231e1c63ef98a91ea23dcf56f8005d3297e94f35c7fd79316e",
+    "workflow-compact.js": "059b69629a8a0d0eb1feb9ad21a5ce23585db159c6d1fe15b9e450a7d0f9f787"
+  },
+  "adapterHashBeforeLocalhostAppend": "8369e918b15f2940b11307adabba853001369cec0363bb4757ac12150b3d651e",
+  "finalContractHash": "b5a75bd8908e0e68981a86a0b2f697645deef0520bc1a169319c9f6a85910c15",
+  "finalOperatorHash": "b89522c45ba909cd23c172ca4b87ad9152b712d4c26b0022f3522374165329da",
+  "finalNoteHash": "ba0d0f61026acfb1adc74f4abbaf3ef41111e0541f2dee6ba7272bde922008f7"
+}

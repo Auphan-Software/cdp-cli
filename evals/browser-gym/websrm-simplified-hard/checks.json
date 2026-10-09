@@ -1,0 +1,22 @@
+{
+  "checks": {
+    "boot-role": true,
+    "bill-image": true,
+    "fixture-cleanup": true,
+    "modifier-boundary-fixture": false,
+    "rq-description-no-trailing-space": false,
+    "rq-accepted-arg": true,
+    "invoice-payment-totals": true,
+    "bill-payload-parity": true
+  },
+  "artifactsRoot": "C:\\Users\\wingz\\OneDrive\\Documents\\ChatGPT\\Work\\websrm-simplified-hard-01",
+  "runtime": {
+    "version": "2.2.3",
+    "commit": "46cbcdf8c8189a33566d8c006bb1813cc85358b9",
+    "dirty": false,
+    "built": "2026-10-09T00:06:41Z"
+  },
+  "invoiceId": 150395,
+  "transaction": "00I6-05R3-07IV-025Z",
+  "billHash": "a6ecb20b429c9fbadc23ab4aa264a1b3eb16dbfb7db1a29ae42e763bb7107bae"
+}
