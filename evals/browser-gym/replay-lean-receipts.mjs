@@ -13,7 +13,7 @@ for(const[id,result]of results){const tool=tools.get(id);if(!tool?.name.startsWi
  const operation=tool.name.split('__').at(-1);const item=summary.operations[operation]??={calls:0,beforeBytes:0,afterBytes:0};
  summary.calls++;item.calls++;
  for(const block of result.content??[]){if(block.type!=='text')continue;
-  let after=block.text;try{after=JSON.stringify(workflowReceipt(JSON.parse(block.text),operation,tool.input.full===true));}catch{}
+  let after=block.text;try{after=JSON.stringify(workflowReceipt(JSON.parse(block.text),operation,tool.input.full===true,(result.content??[]).some(b=>b.type==='image')));}catch{}
   const a=Buffer.byteLength(block.text),b=Buffer.byteLength(after);summary.beforeBytes+=a;summary.afterBytes+=b;item.beforeBytes+=a;item.afterBytes+=b;
  }
 }

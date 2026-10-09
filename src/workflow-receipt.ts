@@ -1,7 +1,7 @@
 /** Model-facing presentation only. Execution and canonical evidence are unchanged. */
 import { actionWitnesses } from './workflow-output.js';
 
-export function workflowReceipt(row: any, operation: string, full = false): any {
+export function workflowReceipt(row: any, operation: string, full = false, imageDelivered = false): any {
   if (full || operation === 'expand' || !row?.value?.view) return row;
   if (row.success === false && !row.value.action) return row;
   const value = row.value, view = value.view;
@@ -10,16 +10,25 @@ export function workflowReceipt(row: any, operation: string, full = false): any 
   const source = view.source?.id;
   const receipt: any = { success: row.success, type: row.type, value: {
     view: { source: { id: source }, readiness: view.readiness,
-      coverage: view.coverage, ...(view.geometrySpace ? { geometrySpace: view.geometrySpace } : {}) },
-    details: { available: true, source, historical: true, ...(value.recovery?.receiptId ? { receiptId: value.recovery.receiptId } : {}) },
-    diagnostics: value.diagnostics,
+      coverage: Object.fromEntries(Object.entries(view.coverage ?? {}).filter(([key, status]) =>
+        !(['truncated', 'blockedByDialog'].includes(key) && status === false) &&
+        !(['unreachableFrames', 'ambiguousKeys'].includes(key) && Array.isArray(status) && !status.length))),
+      ...(operation === 'observe' && view.geometrySpace ? { geometrySpace: view.geometrySpace } : {}) },
+    ...(value.recovery?.receiptId ? { details: { receiptId: value.recovery.receiptId } } : {}),
     ...(value.observationUnavailable ? { observationUnavailable: true } : {})
   } };
+  const diagnostics = Object.fromEntries(Object.entries(value.diagnostics ?? {}).filter(([key, status]) =>
+    key !== 'boundedLast' && status !== 'available' && status !== false));
+  if (Object.keys(diagnostics).length) receipt.value.diagnostics = diagnostics;
   if (value.action) {
     // Retain all delivery/witness/refusal fields; only recoverable raw evidence is externalized.
-    const { evidence, instruction, ...action } = value.action;
+    const { evidence, instruction, kind: _kind, targetKey: _target, evidenceOmitted: _omitted, ...action } = value.action;
     const witnesses = action.witness ?? actionWitnesses(evidence ?? []);
-    receipt.value.action = { ...action, witness: witnesses.slice(0, 8),
+    receipt.value.action = { ...action, witness: witnesses.slice(0, 8).map((witness: any) => {
+      if (witness.clickDelivered !== true || witness.frameReached === false || witness.witnessedEvent?.targetMatches === false) return witness;
+      const { x: _x, y: _y, target: _target, ...event } = witness.witnessedEvent ?? {};
+      return { ...witness, ...(witness.witnessedEvent ? { witnessedEvent: event } : {}) };
+    }),
       ...(witnesses.length > 8 ? { witnessOmitted: witnesses.length - 8 } : {}) };
     if (row.success === false || action.commandSucceeded !== true || action.deliveryUnknown) receipt.value.action.instruction = instruction;
   }
@@ -28,17 +37,18 @@ export function workflowReceipt(row: any, operation: string, full = false): any 
     receipt.value.view.url = view.url;
     receipt.value.view.elements = view.elements;
     receipt.value.view.focus = view.focus;
-    receipt.value.view.omitted = view.omitted;
+    if (view.omitted?.count) receipt.value.view.omitted = { count: view.omitted.count };
   }
   const errors = view.errors?.length ?? 0;
-  receipt.value.evidence = { stateRequested: operation === 'observe', changed: view.diff?.changed,
-    errors, omittedErrors: value.output?.omittedErrors ?? 0,
-    omittedElements: value.output?.omittedElements ?? 0,
-    incomplete: view.readiness === 'incomplete', detailsOmitted: value.output?.protectedEvidenceOmitted === true };
+  const omittedErrors = value.output?.omittedErrors ?? 0;
+  if (errors || omittedErrors) receipt.value.evidence = { ...(errors ? { errors } : {}), ...(omittedErrors ? { omittedErrors } : {}) };
   const alerts = (view.elements ?? []).filter((n: any) => /^(alert|status|dialog|alertdialog)$/.test(n.role));
   if (operation !== 'observe' && alerts.length) receipt.value.alerts = alerts;
   if (value.screenshot) {
     const { evidence: _evidence, source: _source, coordinateSpace: _space, ...shot } = value.screenshot;
+    if (imageDelivered) {
+      for (const key of ['path', 'originalPath', 'originalPixelWidth', 'originalPixelHeight', 'evidenceOmitted']) delete shot[key];
+    }
     receipt.value.screenshot = shot;
   }
   return receipt;

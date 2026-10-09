@@ -79,7 +79,7 @@ describe('execution budget enforcement in the real stdio bridge', () => {
         expect(first(completed).value.action.witness.some((w: any) => w.clickDelivered === true)).toBe(true);
         expect(first(completed).value.view).not.toHaveProperty('elements');
         expect(first(completed).value.view).not.toHaveProperty('diff');
-        expect(Buffer.byteLength(completed.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join(''))).toBeLessThan(2000);
+        expect(Buffer.byteLength(completed.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join(''))).toBeLessThan(1000);
         expect(budget(completed).actionsUsed).toBe(1);
         source = first(completed).value.view.source.id;
         const historical = await request('tools/call', { name: 'expand', arguments: { task: 'verify delivered action', source, section: 'receipt' } });
@@ -87,9 +87,11 @@ describe('execution budget enforcement in the real stdio bridge', () => {
         const shot = await request('tools/call', { name: 'screenshot', arguments: { task: 'verify count pixels', source, screenshotScale: .5 } });
         expect(shot.content.some((b: any) => b.type === 'image')).toBe(true);
         expect(first(shot).value.screenshot.available).toBe(true);
+        expect(first(shot).value.screenshot).not.toHaveProperty('path');
+        expect(first(shot).value.screenshot).not.toHaveProperty('originalPath');
         expect(first(shot).value.view).not.toHaveProperty('elements');
         expect(first(shot).value.view).not.toHaveProperty('diff');
-        expect(Buffer.byteLength(shot.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join(''))).toBeLessThan(2500);
+        expect(Buffer.byteLength(shot.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join(''))).toBeLessThan(1000);
         source = first(shot).value.view.source.id;
       }
       const denied = await request('tools/call', { name: 'act', arguments: { task: 'increment again', source, action: 'click', targetKey: 'top|id:increment' } });

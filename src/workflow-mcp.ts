@@ -138,15 +138,18 @@ export async function callWorkflowTool(name: string, args: Record<string, unknow
       instruction: name === 'act' ? 'Command transport failed after admission; delivery may be unknown. Observe to recover evidence; do not repeat the action blindly.' : 'Recover observation evidence without repeating an action.'
     } }) }, ...budgetContent(budget)] };
   }
-  const content: unknown[] = result.rows.map(row => ({ type: 'text', text: JSON.stringify(workflowReceipt(row, name, args.full === true)) }));
+  const images: unknown[] = [];
+  let imageDelivered = false;
   const shot = result.rows[result.rows.length - 1]?.value?.screenshot;
   if (shot?.available && shot.path) {
     try {
       const bytes = readFileSync(shot.path);
-      if (bytes.length > 10 * 1024 * 1024) content.push({ type: 'text', text: 'Image exceeds transport limit; use the saved artifact with the existing image reader.' });
-      else content.push({ type: 'image', mimeType: 'image/png', data: bytes.toString('base64') });
-    } catch { content.push({ type: 'text', text: 'Screenshot artifact could not be read. Preserve the action/state evidence above; request new screenshot evidence without repeating the action.' }); }
+      if (bytes.length > 10 * 1024 * 1024) images.push({ type: 'text', text: 'Image exceeds transport limit; use the saved artifact with the existing image reader.' });
+      else { images.push({ type: 'image', mimeType: 'image/png', data: bytes.toString('base64') }); imageDelivered = true; }
+    } catch { images.push({ type: 'text', text: 'Screenshot artifact could not be read. Preserve the action/state evidence above; request new screenshot evidence without repeating the action.' }); }
   }
+  const content: unknown[] = result.rows.map(row => ({ type: 'text', text: JSON.stringify(workflowReceipt(row, name, args.full === true, imageDelivered)) }));
+  content.push(...images);
   content.push(...budgetContent(budget));
   const row = result.rows.length === 1 ? result.rows[0] : undefined;
   const action = row?.value?.action;

@@ -79,7 +79,8 @@ describe('workflow image evidence recovery', () => {
   it('retains completed action evidence when the saved image becomes unreadable', async () => {
     vi.stubEnv('CDP_PAGE', 'owned-page'); vi.stubEnv('CDP_SESSION', 'owned-session');
     mocks.run.mockResolvedValue({ ok: true, rows: [{ success: true, value: {
-      action: { commandSucceeded: true }, view: { source: { id: 'completed' } }, screenshot: { available: true, path: 'gone.png' }
+      action: { commandSucceeded: true }, view: { source: { id: 'completed' } }, screenshot: { available: true, path: 'gone.png' },
+      recovery: { fullArtifactAvailable: true }
     } }] });
     mocks.read.mockImplementation(() => { throw new Error('ENOENT'); });
     try {
@@ -87,7 +88,26 @@ describe('workflow image evidence recovery', () => {
       expect(JSON.parse(result.content[0].text!).value.action.commandSucceeded).toBe(true);
       expect(result.content[1].text).toContain('without repeating the action');
       expect(result.content.some(block => block.type === 'image')).toBe(false);
+      expect(JSON.parse(result.content[0].text!).value.screenshot.path).toBe('gone.png');
       expect(result.isError).not.toBe(true);
+    } finally { vi.unstubAllEnvs(); }
+  });
+  it('cuts artifact paths only after image delivery, and keeps them when the image exceeds transport limits', async () => {
+    vi.stubEnv('CDP_PAGE', 'owned-page'); vi.stubEnv('CDP_SESSION', 'owned-session');
+    mocks.run.mockResolvedValue({ ok: true, rows: [{ success: true, value: {
+      view: { source: { id: 'captured' }, readiness: 'ready' }, recovery: { fullArtifactAvailable: true },
+      screenshot: { available: true, path: 'capture.png', originalPath: 'original.png', semanticStable: false }
+    } }] });
+    try {
+      mocks.read.mockReturnValue(Buffer.from('pixels'));
+      const delivered: any = await callWorkflowTool('screenshot', { task: 'evidence' });
+      expect(delivered.content[1].type).toBe('image');
+      expect(JSON.parse(delivered.content[0].text).value.screenshot).toEqual({ available: true, semanticStable: false });
+      mocks.read.mockReturnValue(Buffer.alloc(10 * 1024 * 1024 + 1));
+      const oversized: any = await callWorkflowTool('screenshot', { task: 'evidence' });
+      expect(oversized.content.some((block: any) => block.type === 'image')).toBe(false);
+      expect(JSON.parse(oversized.content[0].text).value.screenshot.originalPath).toBe('original.png');
+      expect(oversized.content[1].text).toContain('transport limit');
     } finally { vi.unstubAllEnvs(); }
   });
 });

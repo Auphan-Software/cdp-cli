@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Further trim default MCP receipts: omit healthy/repeated metadata and input echoes;
+  keep failure/uncertainty and control discovery. Delivered screenshots omit artifact
+  paths; failed image transport retains recovery paths. Full evidence is recoverable.
+
 - Restore lean model-facing MCP receipts: actions expose delivery/witness and fresh
   source; screenshots expose pixels/alignment without unsolicited state/diff dumps.
   Explicit observe, full:true and historical expand retain rich evidence. A failed

@@ -23,7 +23,7 @@ describe('lean agent receipts preserve execution and recoverable evidence', () =
     expect(result.value.view.source).toEqual({ id: 'fresh' });
     expect(result.value.view).not.toHaveProperty('elements');
     expect(result.value.view).not.toHaveProperty('diff');
-    expect(result.value.evidence).toMatchObject({ errors: 1, omittedErrors: 2, incomplete: false, detailsOmitted: true });
+    expect(result.value.evidence).toEqual({ errors: 1, omittedErrors: 2 });
     expect(result.value.screenshot).toMatchObject({ semanticStable: false, originalPath: 'original.png', coordinateFrame: { width: 1200, height: 800 } });
     expect(Buffer.byteLength(JSON.stringify(result))).toBeLessThan(1200);
     expect(row.value.view.diff.changes).toHaveLength(1); // canonical object is untouched
@@ -40,7 +40,7 @@ describe('lean agent receipts preserve execution and recoverable evidence', () =
     expect(result.value.view.elements).toEqual(row.value.view.elements);
     expect(result.value.view.omitted).toEqual({ count: 4 });
     expect(result.value.view).not.toHaveProperty('diff');
-    expect(result.value.details).toMatchObject({ source: 'fresh', available: true, historical: true });
+    expect(result.value).not.toHaveProperty('details');
   });
   it('preserves full/expand output and the only evidence copy on storage failure', () => {
     const row = original();
@@ -63,5 +63,43 @@ describe('lean agent receipts preserve execution and recoverable evidence', () =
       details: { witnessedEvent: { type: 'click', trusted: true, targetMatches: false } } }];
     expect(workflowReceipt(row, 'act').value.action.witness[0]).toMatchObject({ code: 'CLICK_FRAME_DELIVERY_UNCONFIRMED',
       message: 'Frame did not receive click', witnessedEvent: { targetMatches: false } });
+  });
+  it('cuts healthy defaults and repeated input but preserves unknown coverage and diagnostic warnings', () => {
+    const row: any = original();
+    row.value.view.coverage = { truncated: false, unreachableFrames: [], blockedByDialog: false, ambiguousKeys: [], dialogProbeUnavailable: true, unstable: null };
+    row.value.view.readiness = 'incomplete';
+    row.value.diagnostics = { boundedLast: 100, console: 'available', network: 'unavailable', consoleAtLimit: false, networkAtLimit: true };
+    row.value.action.targetKey = 'ref'; row.value.action.evidenceOmitted = 9;
+    const result = workflowReceipt(row, 'act');
+    expect(result.value.view).toMatchObject({ readiness: 'incomplete', coverage: { dialogProbeUnavailable: true, unstable: null } });
+    expect(result.value.diagnostics).toEqual({ network: 'unavailable', networkAtLimit: true });
+    expect(result.value.action).not.toHaveProperty('targetKey');
+    expect(result.value.action).not.toHaveProperty('kind');
+    expect(result.value.action).not.toHaveProperty('evidenceOmitted');
+  });
+  it('retains matched trusted delivery without echoing successful pointer coordinates', () => {
+    const row: any = original();
+    row.value.action.evidence = [{ data: { clickDelivered: true, frameReached: null,
+      witnessedEvent: { type: 'click', trusted: true, targetMatches: true, x: 10, y: 20, target: 'button' } } }];
+    expect(workflowReceipt(row, 'act').value.action.witness[0]).toEqual({ clickDelivered: true, frameReached: null,
+      witnessedEvent: { type: 'click', trusted: true, targetMatches: true } });
+    row.value.action.evidence[0].data.witnessedEvent.targetMatches = false;
+    expect(workflowReceipt(row, 'act').value.action.witness[0].witnessedEvent).toMatchObject({ x: 10, y: 20, targetMatches: false });
+  });
+  it('omits paths only when pixels actually reached the transport; preserves recovery and alignment', () => {
+    const row: any = original(); row.value.recovery.receiptId = 'recover';
+    const result = workflowReceipt(row, 'screenshot', false, true);
+    expect(result.value.screenshot).not.toHaveProperty('path');
+    expect(result.value.screenshot).not.toHaveProperty('originalPath');
+    expect(result.value.screenshot).toMatchObject({ semanticStable: false, pixelWidth: 600, scale: .5, coordinateFrame: { width: 1200, height: 800 } });
+    expect(result.value.details).toEqual({ receiptId: 'recover' });
+    expect(workflowReceipt(row, 'screenshot').value.screenshot.originalPath).toBe('original.png');
+    expect(workflowReceipt(row, 'screenshot', true, true)).toBe(row);
+  });
+  it('does not fabricate error evidence when there are no reported errors', () => {
+    const row: any = original(); row.value.view.errors = []; row.value.output.omittedErrors = 0;
+    expect(workflowReceipt(row, 'act').value).not.toHaveProperty('evidence');
+    row.value.output.omittedErrors = 3;
+    expect(workflowReceipt(row, 'act').value.evidence).toEqual({ omittedErrors: 3 });
   });
 });

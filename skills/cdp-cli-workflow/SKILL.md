@@ -20,7 +20,9 @@ MCP act returns a short delivery/witness receipt and value.view.source.id.
 Screenshot returns pixels plus source/alignment metadata. Neither dumps page
 elements, diffs or console text automatically. Command success is not task proof.
 Check action witness, deliveryUnknown, frameReached, coverage and relevant effects.
-Evidence counts or unavailable diagnostics are not a clean bill of health.
+Error counts or unavailable diagnostics are not a clean bill of health. Healthy
+coverage defaults and available diagnostic flags are omitted; warnings, unknowns
+and limits remain explicit. Diagnostics are bounded to the last100 records.
 
 Observe returns the current control list with source-bound keys and captured
 unnamed top-document boxes. Use only keys from that exact current source; never
@@ -34,8 +36,8 @@ Full state, diffs and diagnostics remain canonical evidence. Request full:true
 for an explicit rich bounded response; expand sections elements, receipt, errors,
 changes, coverage or artifact for source-bound historical details. Pagination and
 omissions remain explicit. Expansion is historical, not a fresh action surface.
-No automatic expansion is necessary merely because detailsOmitted is true: expand
-the specific evidence required by the task. Never claim omitted evidence passed.
+Expand the specific evidence required by the task; a short receipt deliberately
+externalizes raw state and diagnostics. Never claim omitted evidence passed.
 If canonical persistence fails, the tool retains its richer result rather than
 discarding the only copy of execution/evidence information.
 
@@ -48,7 +50,9 @@ recover effects before any retry. Preserve uncertainty and action/deadline budge
 
 Request screenshot:true on an act when its resulting pixels are useful, or use
 screenshot separately. Do not redundantly Read an image already delivered by a
-tool. semanticStable:false means alignment is uncertain. Scale affects pixels,
+tool. Delivered images omit file paths; full:true or historical receipt expansion
+retrieves artifact metadata. Image delivery failure retains recovery paths.
+semanticStable:false means alignment is uncertain. Scale affects pixels,
 not CSS coordinates. Original same-capture pixels remain retained; request readable
 scale when small text matters. Boxes identify controls; source-bound keys execute.
 
