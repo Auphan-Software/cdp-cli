@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased
+## 2.3.0
+
+- Add half-CSS-viewport screenshots, source-bound image-coordinate clicks and
+  guarded pointer delivery, plus concise actionable snapshots for exact selectors.
+- Retire query filtering and reranking from the browser-agent workflow; retain
+  composable CLI actions, frame support and canonical evidence recovery.
+- Include the current lean workflow instructions in npm and the developer plugin.
+- Update dependency lockfile to patched releases; npm audit reports zero vulnerabilities.
 
 - Further trim default MCP receipts: omit healthy/repeated metadata and input echoes;
   keep failure/uncertainty and control discovery. Delivered screenshots omit artifact
