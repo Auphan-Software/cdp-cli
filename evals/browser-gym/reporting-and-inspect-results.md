@@ -63,3 +63,5 @@ C:/Users/wingz/OneDrive/Documents/ChatGPT/Work/inspect-format-probe-01.
 The first diagnostic-helper attempt failed because its imported bridge dispatched
 through the helper entry point. The helper was corrected to use the production
 CLI entry and the complete probe rerun passed; no product action was involved.
+
+A subsequent [five-format managed Haiku evidence replay](inspection-selection-results.md) completed with independently checked answers and provider token accounting. It qualifies format selection on the captured login task; it does not establish fresh hard-E2E or native parity.

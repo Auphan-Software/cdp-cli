@@ -1,0 +1,208 @@
+{
+  "scope": "five fresh managed Haiku captured login evidence replays, no browser actions; not native/CDP E2E",
+  "work_item": "wi-8508",
+  "usage_basis": "sum per-turn completed provider result.usage, checked against last cumulative modelUsage and input fields of deduplicated assistant message IDs; no pricing assumption",
+  "rows": [
+    {
+      "format": "ax",
+      "run_id": "run-inspect-ax-46e137da978e44",
+      "host": "laptop-win",
+      "model": "claude-haiku-5-5",
+      "result": {
+        "store": "14417",
+        "srm": "2.9.3",
+        "target": "#page-login > div:nth-of-type(2) > button:nth-of-type(2)",
+        "need": null
+      },
+      "pass": true,
+      "requests": 1,
+      "usage": {
+        "input_tokens": 2,
+        "cache_creation_input_tokens": 32989,
+        "cache_read_input_tokens": 0,
+        "output_tokens": 699
+      },
+      "processed_tokens": 33690,
+      "tool_calls": 0,
+      "thinking_tokens": 643,
+      "compactions": 0,
+      "raw_history_sha256": "3354e9b9c68744633b40b482875edf387bc72c16505c92247ca6f990f4e406b2",
+      "initial_answer": {
+        "store": "14417",
+        "srm": "2.9.3",
+        "target": "#page-login > div:nth-of-type(2) > button:nth-of-type(2)",
+        "need": null
+      },
+      "host_summary": {
+        "input": 6,
+        "cache_read": 43116,
+        "cache_write": 55207,
+        "output": 11,
+        "requests": 3,
+        "missing": 0
+      }
+    },
+    {
+      "format": "ax-json",
+      "run_id": "run-inspect-ax-json-cd303e217b3a4b",
+      "host": "laptop-win",
+      "model": "claude-haiku-5-5",
+      "result": {
+        "store": "14417",
+        "srm": "2.9.3",
+        "target": "#page-login > div:nth-of-type(2) > button:nth-of-type(2)",
+        "need": null
+      },
+      "pass": true,
+      "requests": 1,
+      "usage": {
+        "input_tokens": 2,
+        "cache_creation_input_tokens": 11860,
+        "cache_read_input_tokens": 21558,
+        "output_tokens": 445
+      },
+      "processed_tokens": 33865,
+      "tool_calls": 0,
+      "thinking_tokens": 389,
+      "compactions": 0,
+      "raw_history_sha256": "2f0c7adc4ef466cf16f106a8292156c8e8305922650db3a71c5599c8e5f51106",
+      "initial_answer": {
+        "store": "14417",
+        "srm": "2.9.3",
+        "target": "#page-login > div:nth-of-type(2) > button:nth-of-type(2)",
+        "need": null
+      },
+      "host_summary": {
+        "input": 10,
+        "cache_read": 86232,
+        "cache_write": 79841,
+        "output": 19,
+        "requests": 5,
+        "missing": 0
+      }
+    },
+    {
+      "format": "text",
+      "run_id": "run-inspect-text-bd3337312c1046",
+      "host": "laptop-win",
+      "model": "claude-haiku-5-5",
+      "result": {
+        "store": "14417",
+        "srm": "2.9.3",
+        "target": "#page-login > div:nth-of-type(2) > button:nth-of-type(2)",
+        "need": null
+      },
+      "pass": true,
+      "requests": 2,
+      "usage": {
+        "input_tokens": 4,
+        "cache_creation_input_tokens": 15383,
+        "cache_read_input_tokens": 53474,
+        "output_tokens": 991
+      },
+      "processed_tokens": 69852,
+      "tool_calls": 0,
+      "thinking_tokens": 901,
+      "compactions": 0,
+      "raw_history_sha256": "7535ea96267402cff25cc8bb6f210904e93e3eb5c98a58a66c2ae2b69bcb67c4",
+      "initial_answer": {
+        "store": "14417",
+        "srm": "2.9.3",
+        "target": null,
+        "need": "snapshot"
+      },
+      "host_summary": {
+        "input": 14,
+        "cache_read": 152893,
+        "cache_write": 88762,
+        "output": 29,
+        "requests": 7,
+        "missing": 0
+      }
+    },
+    {
+      "format": "snapshot",
+      "run_id": "run-inspect-snapshot-ce295ed9eed345",
+      "host": "laptop-win",
+      "model": "claude-haiku-5-5",
+      "result": {
+        "store": "14417",
+        "srm": "2.9.3",
+        "target": "#page-login > div:nth-of-type(2) > button:nth-of-type(2)",
+        "need": null
+      },
+      "pass": true,
+      "requests": 1,
+      "usage": {
+        "input_tokens": 2,
+        "cache_creation_input_tokens": 11447,
+        "cache_read_input_tokens": 21558,
+        "output_tokens": 368
+      },
+      "processed_tokens": 33375,
+      "tool_calls": 0,
+      "thinking_tokens": 312,
+      "compactions": 0,
+      "raw_history_sha256": "7e3baee20c6d6608746183a501cc6aeeb50ea1d9711af4f9c9deb04597a0e634",
+      "initial_answer": {
+        "store": "14417",
+        "srm": "2.9.3",
+        "target": "#page-login > div:nth-of-type(2) > button:nth-of-type(2)",
+        "need": null
+      },
+      "host_summary": {
+        "input": 10,
+        "cache_read": 86232,
+        "cache_write": 79841,
+        "output": 19,
+        "requests": 5,
+        "missing": 0
+      }
+    },
+    {
+      "format": "observe",
+      "run_id": "run-inspect-observe-376e99cb0d884a",
+      "host": "laptop-win",
+      "model": "claude-haiku-5-5",
+      "result": {
+        "store": "14417",
+        "srm": "2.9.3",
+        "target": {
+          "key": "rbff122566707a02d.8",
+          "source": "baffebec-2e41-4dc9-8afa-1a392a4b5215"
+        },
+        "need": null
+      },
+      "pass": true,
+      "requests": 2,
+      "usage": {
+        "input_tokens": 4,
+        "cache_creation_input_tokens": 17083,
+        "cache_read_input_tokens": 56303,
+        "output_tokens": 1284
+      },
+      "processed_tokens": 74674,
+      "tool_calls": 0,
+      "thinking_tokens": 1137,
+      "compactions": 0,
+      "raw_history_sha256": "c570989b953fa794ba750b91589e97f525bbf0f310e69f889d31d61d4132c163",
+      "initial_answer": {
+        "store": null,
+        "srm": null,
+        "target": {
+          "key": "rbff122566707a02d.8",
+          "source": "baffebec-2e41-4dc9-8afa-1a392a4b5215"
+        },
+        "need": "text"
+      },
+      "host_summary": {
+        "input": 14,
+        "cache_read": 152893,
+        "cache_write": 88762,
+        "output": 29,
+        "requests": 7,
+        "missing": 0
+      }
+    }
+  ]
+}
