@@ -87,3 +87,13 @@ presentation applies at the agent MCP boundary; explicit rich output is opt-in.
 Judge savings by complete verified-task input/cache/output usage, recovery costs
 and completion time, not just calls or response bytes. No parity claim follows
 from the presentation change until a matched successful agent run verifies it.
+
+## Demo and proof videos
+
+For a video of a journey (an MR, a Work item, a sales demo), use cdp-cli video
+replay <steps.json> <page> --out <file>.webm, or video record <page> --seconds N
+while a person drives the page. Never join screenshots into a slideshow: it shows
+no pointer and no click. Quote the overlay: pointer seen at N/N click steps line;
+exit 4 (pointer NOT seen) means the video is not proof of where clicks happen.
+To review a recording, read <name>.steps.json and check only the key moments you
+need, never the whole video frame by frame.

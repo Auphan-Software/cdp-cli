@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.4.0
+
+- Add `video replay <steps.json> <page>` and `video record <page>`: demo and proof
+  videos (WebM; MP4 with an ffmpeg already on PATH) with a visible pointer, a ring at
+  each click and captions. Steps use the Jarvis browser-video format and run as the
+  ordinary cdp-cli commands; `record` follows the real mouse, bounded by `--seconds`.
+  Each run reads its own video back and prints `overlay: pointer seen at N/N click
+  steps` (exit 4 when a click shows no pointer). Encoding uses the browser's WebCodecs:
+  no new dependency.
+
 ## 2.3.0
 
 - Add half-CSS-viewport screenshots, source-bound image-coordinate clicks and
