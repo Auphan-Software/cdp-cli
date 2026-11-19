@@ -66,6 +66,43 @@ Replay runs the saved commands in order, stops on the first failure, and prints 
 
 In Jarvis `browser-qa-run`, one step can call `{"cdp":["record","replay","C:/qa/menu-journey.ndjson","{{page}}","--params","C:/qa/params.json"],"parse":"json","expect":{"path":"outcome","equals":"PASSED"}}`. Keep the QA row's business assertion and targeted screenshot separate from replay. The journal is append-only and limited to 200 actions; use one file per journey. Review it before reuse because selectors, labels, and literal navigation URLs may still contain page text.
 
+### Demo and proof videos with a visible pointer
+
+`video replay` plays a step file on a page while recording it; `video record` records while you (or another tool) drive the page. Both write a WebM with a red pointer dot, a yellow ring at each click and an optional caption bar, then read the written video back and check that the pointer is on screen at every click:
+
+```powershell
+cdp-cli video replay C:/demos/loyalty.json PAGE --out C:/demos/loyalty.webm --size 1280x720
+# stderr: overlay: pointer seen at 3/3 click steps
+cdp-cli video record PAGE --seconds 90 --out C:/demos/walkthrough.webm   # Ctrl+C stops early
+```
+
+The step file is the Jarvis browser-video format, JSON `{"steps": [...]}` or a bare list. Any step may add `caption` (shown from that step on) and `timeout` (seconds to find an element, default 5):
+
+| `do` | keys |
+|---|---|
+| `goto` | `url` |
+| `click` | `selector` or `text` (an exact match on an interactive element is preferred) |
+| `type` | `selector`, `value` (clicks the field, then `fill`) |
+| `press` | `key` |
+| `wait` | `selector` or `text` (with `"gone": true`, until not visible), `selector` + `value`, or `ms` |
+| `caption` | `text` |
+| `assert-visible` | `selector` or `text` |
+
+```json
+{"steps": [
+  {"do": "goto", "url": "http://127.0.0.1:8080/", "caption": "Open the page"},
+  {"do": "type", "selector": "#name", "value": "Ada"},
+  {"do": "click", "text": "Save", "caption": "Press Save"},
+  {"do": "assert-visible", "text": "Saved"}
+]}
+```
+
+- Each action runs as the ordinary cdp-cli command (`navigate`, `click --x --y`, `fill`, `press-key`), so its guards and delivery checks apply. Before a click the pointer glides to the target (`--glide-ms`, default 450; `0` jumps), the replay waits until the target is visible, enabled, stable and not covered, and the ring plays on arrival. The recorder's own connection is passive: it takes no exclusive page lease.
+- In `record`, the pointer follows the real mouse and every real press rings. Recording is bounded: `--seconds` defaults to 60, at most 3600.
+- Encoding uses Chrome's own WebCodecs (VP9, else VP8) in a short-lived helper tab: no ffmpeg and no extra package. `--out file.mp4` transcodes with an ffmpeg already on PATH (or `CDP_FFMPEG`); without one it stops before recording and asks for `.webm`.
+- `replay` also writes `<name>.steps.json` (each step's start, end, status and `key_moment` on the video clock). A failed step stops the run with exit 1, names the step and still writes the video so far. A click whose frame does not show the pointer prints `overlay: pointer NOT seen at click step N of M` and exits 4: do not use that video as proof of where clicks happen. The NDJSON result carries the same `overlay` object.
+- Limits: one page, no audio, no cross-origin iframe clicks in `record`, a viewport that does not change during a run (`--size` fixes it).
+
 > **Distribution note**
 > This scoped build (`@auphansoftware/cdp-cli`) is published for Auphan Software internal use, remains under the MIT license, and bundles the upstream work originally authored by [@myers](https://github.com/myers) at [github.com/myers/cdp-cli](https://github.com/myers/cdp-cli).
 

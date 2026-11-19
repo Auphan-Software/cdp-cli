@@ -35,6 +35,7 @@ import * as doctor from './commands/doctor.js';
 import { rerankerStatus } from './commands/reranker-status.js';
 import * as diagnose from './commands/diagnose.js';
 import * as targets from './commands/targets.js';
+import * as video from './commands/video.js';
 import { waitForPageConditions } from './commands/wait.js';
 import { outputError, outputLines, outputSuccess, outputLine, outputCommandError } from './output.js';
 import { homedir } from 'os';
@@ -722,6 +723,33 @@ cli.command(
       cdpUrl: argv['cdp-url'] as string,
       session: argv.session as string | undefined
     });
+  }
+);
+
+cli.command(
+  'video <operation> [first] [second]',
+  'Record a page to WebM/MP4 with the pointer drawn and a ring at each click: replay <steps.json> <page> | record <page>',
+  (yargs) => yargs
+    .positional('operation', { type: 'string', choices: ['replay', 'record'] })
+    .positional('first', { type: 'string', description: 'replay: the step file; record: the page' })
+    .positional('second', { type: 'string', description: 'replay: the page' })
+    .option('out', { type: 'string', description: 'Output .webm (default cdp-video-<UTC>.webm) or .mp4 (needs ffmpeg on PATH)' })
+    .option('size', { type: 'string', description: 'Viewport WIDTHxHEIGHT while recording, e.g. 1280x720' })
+    .option('hold', { type: 'number', default: 0, description: 'replay: extra seconds to dwell after each step' })
+    .option('glide-ms', { type: 'number', description: 'replay: pointer travel time to a target (default 450; 0 jumps)' })
+    .option('seconds', { type: 'number', description: `record: stop after this many seconds (default ${video.DEFAULT_RECORD_SECONDS}, at most ${video.MAX_RECORD_SECONDS}); Ctrl+C stops early` })
+    .option('keep-frames', { type: 'boolean', default: false, description: 'Keep the captured JPEG frames next to the video' }),
+  async (argv) => {
+    const context = new CDPContext(argv['cdp-url'] as string);
+    const common = { out: argv.out as string | undefined, size: argv.size as string | undefined, keepFrames: argv['keep-frames'] as boolean };
+    if (argv.operation === 'replay') {
+      if (!argv.first || !argv.second) throw new Error('video replay requires <steps.json> <page>');
+      await video.videoReplay(context, argv.first as string, { ...common, page: argv.second as string,
+        hold: argv.hold as number, glideMs: argv['glide-ms'] as number | undefined });
+    } else {
+      if (!argv.first) throw new Error('video record requires <page>');
+      await video.videoRecord(context, { ...common, page: argv.first as string, seconds: argv.seconds as number | undefined });
+    }
   }
 );
 
