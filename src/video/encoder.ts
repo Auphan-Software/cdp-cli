@@ -12,7 +12,12 @@ import { muxWebm, type EncodedFrame } from './webm.js';
 import { pointerSeen } from './overlay.js';
 
 export interface CapturedFrame { file: string; t: number }
-export interface ClickMark { n: number; at: [number, number]; t: number }
+/**
+ * A click to find the pointer at: `t` is the video time of the frame on screen at the click and `alt`
+ * (optional) the first frame after it. Chrome's screencast frame can trail the page by a few glide steps,
+ * so the pointer may be a few px short of the click point in the frame before the click and settled in the next.
+ */
+export interface ClickMark { n: number; at: [number, number]; t: number; alt?: number }
 export interface OverlayResult { checked: number; ok: number; missing: number[] }
 
 const KEY_INTERVAL_MS = 2000;
@@ -144,18 +149,28 @@ export async function checkClicks(context: CDPContext, file: string, mime: strin
     await evaluate(context, ws, `__enc.open(${JSON.stringify(mime)})`);
     const half = Math.ceil(24 * scale);
     const missing: number[] = [];
-    for (const click of clicks) {
+    const size = 2 * half;
+    const seenAt = async (click: ClickMark, t: number): Promise<boolean> => {
       const rgba = Buffer.from(await evaluate(context, ws,
-        `__enc.win(${click.t + 0.001},${click.at[0] * scale},${click.at[1] * scale},${half})`) as string, 'base64');
-      const size = 2 * half;
-      const seen = pointerSeen({
+        `__enc.win(${t + 0.001},${click.at[0] * scale},${click.at[1] * scale},${half})`) as string, 'base64');
+      // The window is cut at the nearest whole pixel; the click point is not (DPR 1.25: 287.5).
+      return pointerSeen({
         size,
+        cx: half + (click.at[0] * scale - Math.round(click.at[0] * scale)),
+        cy: half + (click.at[1] * scale - Math.round(click.at[1] * scale)),
         at: (x, y) => {
           if (x < 0 || y < 0 || x >= size || y >= size) return null;
           const o = (y * size + x) * 4;
           return rgba[o + 3] === 0 ? null : [rgba[o], rgba[o + 1], rgba[o + 2]];
         }
       }, scale);
+    };
+    for (const click of clicks) {
+      const times = click.alt !== undefined && click.alt !== click.t ? [click.t, click.alt] : [click.t];
+      let seen = false;
+      for (const t of times) {
+        if (await seenAt(click, t)) { seen = true; break; }
+      }
       if (!seen) missing.push(click.n);
     }
     return { checked: clicks.length, ok: clicks.length - missing.length, missing };

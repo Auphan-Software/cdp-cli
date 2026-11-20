@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Fix `video replay` / `video record` printing a false `overlay: pointer NOT seen` (exit 4)
+  on bright pages (yellow, and sometimes dark green) and at a device scale factor of 1.25.
+  The pointer check now searches a band of radii scaled by the device scale instead of two
+  fixed radii, tests the white outline on luma, centres on the exact (fractional) click point
+  and, in `replay`, also tries the first frame after the click. The pointer's white outline
+  is 4 px wide (was 2 px) so it survives 4:2:0 chroma subsampling. A pointer that is really
+  absent is still reported.
+
 ## 2.4.0
 
 - Add `video replay <steps.json> <page>` and `video record <page>`: demo and proof

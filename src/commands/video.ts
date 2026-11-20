@@ -226,7 +226,7 @@ export async function videoReplay(context: CDPContext, file: string,
     const r = run;
     run = undefined; // finish stops the capture itself
     process.exitCode = await finish(context, r, options,
-      (frames, t0) => clicks.map((c) => ({ n: c.n, at: c.at, t: frameTimeAt(frames, t0, c.seen) })),
+      (frames, t0) => clicks.map((c) => ({ n: c.n, at: c.at, t: frameTimeAt(frames, t0, c.seen), alt: frameTimeAt(frames, t0, c.seen, true) })),
       { steps: doc.steps.length, ...(failed ? { failedStep: failed.n, reason: failed.note } : {}) }, marks);
   } catch (error) {
     outputCommandError(error, 'VIDEO_REPLAY_FAILED');

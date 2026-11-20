@@ -3,7 +3,8 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { OVERLAY_JS, glidePath, pointerSeen, type PixelWindow } from '../../src/video/overlay.js';
+import { OUTLINE_PX, OVERLAY_JS, glidePath, pointerSeen, type PixelWindow } from '../../src/video/overlay.js';
+import windows from '../fixtures/pointer-windows.json';
 import { muxWebm, type EncodedFrame } from '../../src/video/webm.js';
 import { readJpegSize } from '../../src/video/capture.js';
 import { HELPER_JS } from '../../src/video/encoder.js';
@@ -23,6 +24,30 @@ function paint(size: number, opts: { ring?: RGB; outline?: RGB | null; bg?: RGB;
       if (d >= 10 && d < 13) return opts.ring ?? [255, 59, 48];
       if (d >= 13 && d < 15.5 && opts.outline !== null) return opts.outline ?? [255, 255, 255];
       return opts.bg ?? [30, 120, 200];
+    }
+  };
+}
+
+interface Fixture { name: string; note: string; scale: number; size: number; cx: number; cy: number; rgb: string }
+
+/**
+ * A window in device pixels like paint(), for a pointer drawn at a fractional device position:
+ * a pixel takes the colour at its centre. The click point lies (fx, fy) device px from the middle.
+ */
+function paintScaled(scale: number, opts: { fx?: number; fy?: number; bg: RGB; outline?: RGB | null; outlineCss?: number; noPointer?: boolean }): PixelWindow {
+  const size = 2 * Math.ceil(24 * scale);
+  const cx = size / 2 + (opts.fx ?? 0);
+  const cy = size / 2 + (opts.fy ?? 0);
+  const outer = 13 + (opts.outlineCss ?? OUTLINE_PX);
+  return {
+    size, cx, cy,
+    at: (x, y) => {
+      const d = Math.hypot(x + 0.5 - cx, y + 0.5 - cy) / scale; // CSS px from the pointer centre
+      if (!opts.noPointer) {
+        if (d >= 10 && d < 13) return [255, 59, 48];
+        if (d >= 13 && d < outer && opts.outline !== null) return opts.outline ?? [255, 255, 255];
+      }
+      return opts.bg;
     }
   };
 }
@@ -49,6 +74,66 @@ describe('pointer overlay check', () => {
   it('scales the ring radii to device pixels', () => {
     const scaled: PixelWindow = { size: 96, at: (x, y) => { const p = paint(48, {}).at(Math.floor(x / 2), Math.floor(y / 2)); return p; } };
     expect(pointerSeen(scaled, 2)).toBe(true);
+  });
+
+  it('draws a white outline wide enough to survive 4:2:0 chroma', () => {
+    expect(OUTLINE_PX).toBe(4);
+    expect(OVERLAY_JS).toContain("outline:'4px solid #fff'");
+  });
+
+  it('sees a pointer whose white outline has lost its blue to a yellow page (chroma bleed)', () => {
+    const bled = paint(48, { bg: [255, 214, 10], outline: [255, 240, 160] });
+    expect(pointerSeen(bled)).toBe(true);
+    expect(pointerSeen(paint(48, { bg: [255, 214, 10], outline: [250, 238, 150], ring: [236, 96, 50] }))).toBe(true);
+  });
+
+  it('does not take a bright yellow page for the outline', () => {
+    expect(pointerSeen(paint(48, { bg: [255, 255, 0], outline: [255, 255, 0] }))).toBe(false);
+    expect(pointerSeen(paint(48, { bg: [255, 214, 10], outline: [255, 214, 10] }))).toBe(false);
+  });
+
+  it('sees the pointer at DPR 1.25 whatever the fraction of the click point, and misses it when absent', () => {
+    for (const [fx, fy] of [[0, 0], [0.5, 0], [0.25, 0.75], [-0.4, 0.3]]) {
+      const win = paintScaled(1.25, { fx, fy, bg: [255, 214, 10], outline: [255, 238, 170], outlineCss: 2 });
+      expect(pointerSeen(win, 1.25), `fraction ${fx},${fy}`).toBe(true);
+      expect(pointerSeen({ ...win, cx: undefined, cy: undefined }, 1.25), `no fraction ${fx},${fy}`).toBe(true);
+    }
+    expect(pointerSeen(paintScaled(1.25, { bg: [255, 214, 10], noPointer: true }), 1.25)).toBe(false);
+    expect(pointerSeen(paintScaled(1.25, { bg: [255, 59, 48], noPointer: true }), 1.25)).toBe(false);
+    expect(pointerSeen(paintScaled(1.25, { bg: [255, 214, 10], outline: null }), 1.25)).toBe(false);
+  });
+
+  describe('real frames from a live VP9 recording (CT106 headless Chrome 153)', () => {
+    /** The frame as sampled; `wipe` paints the pointer out with the frame's corner colour, `shift` slides it right by CSS px. */
+    const rgbWindow = (f: Fixture, wipe = false, shift = 0): PixelWindow => {
+      const rgb = Buffer.from(f.rgb, 'base64');
+      const corner: RGB = [rgb[0], rgb[1], rgb[2]];
+      const dx = Math.round(shift * f.scale);
+      return {
+        size: f.size, cx: f.cx, cy: f.cy,
+        at: (x, y) => {
+          const sx = x - dx;
+          if (x < 0 || y < 0 || x >= f.size || y >= f.size || sx < 0 || sx >= f.size) return null;
+          if (wipe && Math.hypot(sx + 0.5 - f.cx, y + 0.5 - f.cy) <= 20 * f.scale) return corner;
+          const o = (y * f.size + sx) * 3;
+          return [rgb[o], rgb[o + 1], rgb[o + 2]];
+        }
+      };
+    };
+
+    for (const f of windows as Fixture[]) {
+      it(`${f.name}: the pointer is seen`, () => {
+        expect(pointerSeen(rgbWindow(f), f.scale)).toBe(true);
+      });
+    }
+
+    it('a pointer that is absent is still reported, on every frame', () => {
+      for (const f of windows as Fixture[]) expect(pointerSeen(rgbWindow(f, true), f.scale), f.name).toBe(false);
+    });
+
+    it('a pointer 9 CSS px from the click point is still reported', () => {
+      for (const f of windows as Fixture[]) expect(pointerSeen(rgbWindow(f, false, 9), f.scale), f.name).toBe(false);
+    });
   });
 
   it('glides on an ease-in-out path ending on the target, or jumps with 0 ms', () => {
