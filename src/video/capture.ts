@@ -13,6 +13,9 @@ import type { CapturedFrame } from './encoder.js';
 
 interface RawFrame { file: string; ts: number }
 
+/** What the user is told when a minimised window cannot be recorded (Chrome paints nothing in it). */
+export const MINIMISED_MESSAGE = 'VIDEO_WINDOW_MINIMISED: the recording window is minimised, so Chrome sends no frames: restore the window or use --headless';
+
 export class VideoCapture {
   readonly frames: RawFrame[] = [];
   /** Real presses reported by the overlay in record mode, browser clock seconds. */
@@ -31,6 +34,8 @@ export class VideoCapture {
     const ws = await this.context.connect(this.page, { lease: false });
     this.ws = ws;
     ws.on('close', () => { this.closed = true; });
+    // A minimised window sends no frames and makes Runtime.evaluate time out: say so before either happens.
+    if (await this.isMinimised()) { this.closed = true; ws.close(); throw new Error(MINIMISED_MESSAGE); }
     ws.on('message', (data: Buffer) => {
       const text = data.toString();
       if (!text.includes('"method"')) return;
@@ -63,9 +68,26 @@ export class VideoCapture {
     await this.context.sendCommand(ws, 'Page.startScreencast', { format: 'jpeg', quality: 85, everyNthFrame: 1 });
   }
 
+  /** True when the page's browser window is minimised (Browser.getWindowForTarget); false when unknown. */
+  async isMinimised(): Promise<boolean> {
+    if (!this.ws || this.closed) return false;
+    try {
+      const info = await this.context.sendCommand(this.ws, 'Browser.getWindowForTarget', { targetId: this.page.id });
+      return info?.bounds?.windowState === 'minimized';
+    } catch {
+      return false; // not every target or browser exposes window metadata
+    }
+  }
+
   async evaluate(expression: string): Promise<any> {
     if (!this.ws) throw new Error('capture not started');
-    const r = await this.context.sendCommand(this.ws, 'Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true });
+    let r: any;
+    try {
+      r = await this.context.sendCommand(this.ws, 'Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true });
+    } catch (error) {
+      if (await this.isMinimised()) throw new Error(MINIMISED_MESSAGE);
+      throw error;
+    }
     if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description?.split('\n')[0] ?? 'page script failed');
     return r.result?.value;
   }
