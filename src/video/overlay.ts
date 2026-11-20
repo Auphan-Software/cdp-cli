@@ -70,13 +70,42 @@ const MAX_GAP = 7;
 const luma = ([r, g, b]: RGB): number => 0.299 * r + 0.587 * g + 0.114 * b;
 /** Red ring: red clearly above green and blue (JPEG/VP9 blur the edge, so not exactly #ff3b30). */
 const isRed = ([r, g, b]: RGB): boolean => r > 150 && r - Math.max(g, b) > 70;
+/** Where the page lies just outside the pointer, to tell a bled outline from page content of the same colour. */
+const OUTSIDE_BAND: [number, number] = [19.5, 21.5];
+/** A bled outline must be this much brighter (luma) than the page around the pointer. */
+const BLEED_CONTRAST = 12;
 /**
  * White outline: bright, tested on luma. 4:2:0 chroma subsampling bleeds a coloured
  * page into the white (yellow takes its blue, so the minimum channel falls under
- * 200) but the luma stays full resolution. Luma alone would accept #ffd60a (203)
- * and pure #ffff00 (226) page content, so a floor on the weakest channel stays.
+ * 200) but the luma stays full resolution. A pixel that is still plain white (every
+ * channel > 200) passes; a bled one must also stand out from the page beside the
+ * pointer by BLEED_CONTRAST luma, so pale page content (#ffff80: luma 241, weakest
+ * channel 128) is not mistaken for an outline. A floor on the weakest channel keeps
+ * saturated bright pages (#ffd60a luma 203, #ffff00 luma 226) out.
  */
-const isWhite = (p: RGB): boolean => luma(p) >= 215 && Math.min(...p) >= 120;
+const isWhite = (p: RGB, outside: number | undefined): boolean => {
+  const l = luma(p);
+  const weakest = Math.min(...p);
+  if (l < 215 || weakest < 120) return false;
+  return weakest > 200 || (outside !== undefined && l >= outside + BLEED_CONTRAST);
+};
+
+/** Median luma of the page just outside the pointer, or undefined when fewer than 8 samples are in the frame. */
+function outsideLuma(win: PixelWindow, scale: number): number | undefined {
+  const cx = win.cx ?? win.size / 2;
+  const cy = win.cy ?? win.size / 2;
+  const lumas: number[] = [];
+  for (let r = OUTSIDE_BAND[0] * scale; r <= OUTSIDE_BAND[1] * scale + 1e-9; r += 1) {
+    for (let k = 0; k < SAMPLES; k++) {
+      const a = (2 * Math.PI * k) / SAMPLES;
+      const p = win.at(Math.floor(cx + r * Math.cos(a)), Math.floor(cy + r * Math.sin(a)));
+      if (p) lumas.push(luma(p));
+    }
+  }
+  if (lumas.length < 8) return undefined;
+  lumas.sort((a, b) => a - b);
+  return lumas[Math.floor(lumas.length / 2)];
+}
 
 /**
  * Radii (device px) of the circles of the band at which `ok` holds for two thirds
@@ -117,7 +146,8 @@ function matchingRadii(win: PixelWindow, scale: number, band: [number, number], 
 export function pointerSeen(win: PixelWindow, scale = 1): boolean {
   const red = matchingRadii(win, scale, RED_BAND, isRed);
   if (!red.length) return false;
-  const white = matchingRadii(win, scale, WHITE_BAND, isWhite);
+  const outside = outsideLuma(win, scale);
+  const white = matchingRadii(win, scale, WHITE_BAND, (p) => isWhite(p, outside));
   return red.some((r) => white.some((w) => w - r >= MIN_GAP * scale && w - r <= MAX_GAP * scale));
 }
 

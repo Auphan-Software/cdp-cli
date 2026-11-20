@@ -92,6 +92,18 @@ describe('pointer overlay check', () => {
     expect(pointerSeen(paint(48, { bg: [255, 214, 10], outline: [255, 214, 10] }))).toBe(false);
   });
 
+  it('does not take pale yellow page content (#ffff80) behind a red disc for pointer and outline', () => {
+    // a 24 px red disc on a pale yellow page, no pointer: the page's own pixels are as bright as a bled outline
+    const disc = (scale: number): PixelWindow => ({
+      size: 2 * Math.ceil(24 * scale),
+      at: (x, y) => (Math.hypot(x + 0.5 - Math.ceil(24 * scale), y + 0.5 - Math.ceil(24 * scale)) / scale < 12 ? [255, 59, 48] : [255, 255, 128])
+    });
+    expect(pointerSeen(disc(1))).toBe(false);
+    expect(pointerSeen(disc(1.25), 1.25)).toBe(false);
+    // and a pointer with a plain white outline on that page is still seen
+    expect(pointerSeen(paint(48, { bg: [255, 255, 128], outline: [255, 255, 255] }))).toBe(true);
+  });
+
   it('sees the pointer at DPR 1.25 whatever the fraction of the click point, and misses it when absent', () => {
     for (const [fx, fy] of [[0, 0], [0.5, 0], [0.25, 0.75], [-0.4, 0.3]]) {
       const win = paintScaled(1.25, { fx, fy, bg: [255, 214, 10], outline: [255, 238, 170], outlineCss: 2 });
