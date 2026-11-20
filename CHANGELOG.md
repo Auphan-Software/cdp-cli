@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- `ready` starts Chrome with `--disable-backgrounding-occluded-windows`,
+  `--disable-renderer-backgrounding`, `--disable-background-timer-throttling` and
+  `--disable-features=CalculateNativeWinOcclusion`, so a covered window keeps painting.
+- `--headless` on `ready`, `video replay` and `video record` starts its own
+  `--headless=new` Chrome (own profile, port 9333, daemon 9334; the default stays a visible
+  window) and prints `CDP_URL` / `CDP_DAEMON_URL` to reach it. `<page>` may be left out.
+- A recording of a minimised window stops at once with `VIDEO_WINDOW_MINIMISED` (restore
+  it or use `--headless`) instead of `VIDEO_NO_FRAMES` or a timeout.
+
 ## 2.4.0
 
 - Add `video replay <steps.json> <page>` and `video record <page>`: demo and proof

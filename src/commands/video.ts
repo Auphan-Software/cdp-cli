@@ -11,7 +11,7 @@ import { outputCommandError, outputLine } from '../output.js';
 import { describeCliPath } from '../path.js';
 import { runCli } from '../workflow.js';
 import { glidePath } from '../video/overlay.js';
-import { VideoCapture } from '../video/capture.js';
+import { MINIMISED_MESSAGE, VideoCapture } from '../video/capture.js';
 import { checkClicks, encodeWebm, findFfmpeg, transcodeMp4, type CapturedFrame, type ClickMark, type OverlayResult } from '../video/encoder.js';
 import { childArgs, conditionExpression, describeStep, locateExpression, parseSteps, type VideoStep } from '../video/steps.js';
 
@@ -105,8 +105,9 @@ async function finish(context: CDPContext, run: Awaited<ReturnType<typeof startC
   clicksAt: (frames: CapturedFrame[], t0: number) => ClickMark[], extra: Record<string, unknown>,
   marks?: StepMark[]): Promise<number> {
   const { capture, output, ffmpeg, framesDir } = run;
+  const minimised = !capture.frames.length && await capture.isMinimised();
   const { frames, end, t0 } = await capture.stop();
-  if (!frames.length) throw new Error('VIDEO_NO_FRAMES: the page sent no screencast frames');
+  if (!frames.length) throw new Error(minimised ? MINIMISED_MESSAGE : 'VIDEO_NO_FRAMES: the page sent no screencast frames (a covered window needs Chrome started by `cdp-cli ready`; a minimised one needs --headless)');
   const webm = await encodeWebm(context, frames, end, { width: capture.width, height: capture.height });
   const webmFile = output.mp4 ? join(framesDir, 'video.webm') : output.file;
   writeFileSync(webmFile, webm);

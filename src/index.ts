@@ -7,7 +7,7 @@
  */
 
 import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import { dirname } from 'path';
 import { readFileSync } from 'node:fs';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
@@ -38,7 +38,6 @@ import * as targets from './commands/targets.js';
 import * as video from './commands/video.js';
 import { waitForPageConditions } from './commands/wait.js';
 import { outputError, outputLines, outputSuccess, outputLine, outputCommandError } from './output.js';
-import { homedir } from 'os';
 import { describeCliPath } from './path.js';
 import {
   WorkspaceSessionService,
@@ -738,17 +737,25 @@ cli.command(
     .option('hold', { type: 'number', default: 0, description: 'replay: extra seconds to dwell after each step' })
     .option('glide-ms', { type: 'number', description: 'replay: pointer travel time to a target (default 450; 0 jumps)' })
     .option('seconds', { type: 'number', description: `record: stop after this many seconds (default ${video.DEFAULT_RECORD_SECONDS}, at most ${video.MAX_RECORD_SECONDS}); Ctrl+C stops early` })
-    .option('keep-frames', { type: 'boolean', default: false, description: 'Keep the captured JPEG frames next to the video' }),
+    .option('keep-frames', { type: 'boolean', default: false, description: 'Keep the captured JPEG frames next to the video' })
+    .option('headless', { type: 'boolean', default: false, description: 'Record in its own headless Chrome (own profile, port 9333 and daemon) instead of a visible window, which stops painting when covered or minimised; <page> may then be left out' }),
   async (argv) => {
-    const context = new CDPContext(argv['cdp-url'] as string);
+    let cdpUrl = argv['cdp-url'] as string;
+    let headlessPage: string | undefined;
+    if (argv.headless) {
+      const started = await lifecycle.startHeadlessBrowser();
+      cdpUrl = started.target.cdpUrl;
+      headlessPage = started.pageId;
+    }
+    const context = new CDPContext(cdpUrl);
     const common = { out: argv.out as string | undefined, size: argv.size as string | undefined, keepFrames: argv['keep-frames'] as boolean };
     if (argv.operation === 'replay') {
-      if (!argv.first || !argv.second) throw new Error('video replay requires <steps.json> <page>');
-      await video.videoReplay(context, argv.first as string, { ...common, page: argv.second as string,
+      if (!argv.first || !(argv.second ?? headlessPage)) throw new Error('video replay requires <steps.json> <page> (the page may be left out with --headless)');
+      await video.videoReplay(context, argv.first as string, { ...common, page: (argv.second ?? headlessPage) as string,
         hold: argv.hold as number, glideMs: argv['glide-ms'] as number | undefined });
     } else {
-      if (!argv.first) throw new Error('video record requires <page>');
-      await video.videoRecord(context, { ...common, page: argv.first as string, seconds: argv.seconds as number | undefined });
+      if (!(argv.first ?? headlessPage)) throw new Error('video record requires <page> (it may be left out with --headless)');
+      await video.videoRecord(context, { ...common, page: (argv.first ?? headlessPage) as string, seconds: argv.seconds as number | undefined });
     }
   }
 );
@@ -1821,23 +1828,23 @@ cli.command(
         alias: 'p',
         type: 'string',
         description: 'Chrome profile directory',
-        default: join(homedir(), 'cdp-cli-profile')
+        defaultDescription: '~/cdp-cli-profile, or ~/cdp-cli-headless-profile with --headless'
       })
       .option('port', {
         type: 'number',
         description: 'CDP port',
-        default: 9222
+        defaultDescription: '9222, or 9333 with --headless (its daemon: one port above)'
       })
       .option('headless', {
         type: 'boolean',
         default: false,
-        description: 'Launch Chrome without visible windows'
+        description: 'Start its own Chrome (--headless=new) with its own profile, port and daemon, no window to cover or minimise; prints how to reach it'
       });
   },
   async (argv) => {
     await lifecycle.ready({
-      profile: argv.profile as string,
-      port: argv.port as number,
+      profile: argv.profile as string | undefined,
+      port: argv.port as number | undefined,
       cdpUrl: argv['cdp-url'] as string,
       headless: argv.headless as boolean
     });
