@@ -44,13 +44,16 @@ export const HELPER_JS = String.raw`window.__enc={q:[],err:null,
   v.src=URL.createObjectURL(new Blob(this.parts,{type:mime})); this.parts=[];
   await new Promise((ok,no)=>{v.onloadeddata=ok;v.onerror=()=>no(new Error('the written video does not play: '+(v.error&&v.error.message)))});
   this.v=v; this.vc=new OffscreenCanvas(v.videoWidth,v.videoHeight).getContext('2d',{willReadFrequently:true}); return [v.videoWidth,v.videoHeight]; },
- async win(t,x,y,half){ const v=this.v;
-  // A paused video that has only been seeked can still show a frame 0.1 s old (drawImage paints what the decoder last handed over), so
-  // play up to t and draw from the frame callback of the first frame at or after t: its mediaTime is the frame drawn.
+ async frameAt(t){ const v=this.v;
   await new Promise(r=>{v.onseeked=r;v.currentTime=Math.max(0,t-0.15)});
-  await new Promise(done=>{ const stop=setTimeout(()=>{this.vc.drawImage(v,0,0);v.pause();done()},3000);
-   const cb=(_,m)=>{ if(m.mediaTime>=t-0.002){clearTimeout(stop);this.vc.drawImage(v,0,0);v.pause();done()} else v.requestVideoFrameCallback(cb) };
-   v.requestVideoFrameCallback(cb); v.play().catch(()=>{}) });
+  return new Promise(done=>{ let h,off=false; const end=ok=>{ if(off) return; off=true; clearTimeout(stop); v.cancelVideoFrameCallback(h); v.pause(); done(ok) };
+   const stop=setTimeout(()=>end(false),2000);
+   const cb=(_,m)=>{ if(off) return; if(m.mediaTime<t-0.002) h=v.requestVideoFrameCallback(cb); else { if(m.mediaTime<=t+0.05) this.vc.drawImage(v,0,0); end(m.mediaTime<=t+0.05) } };
+   h=v.requestVideoFrameCallback(cb); v.play().catch(()=>end(false)) }) },
+ async win(t,x,y,half){
+  // A paused video that has only been seeked can still show a frame 0.1 s old (drawImage paints what the decoder last handed over), so
+  // play up to t and draw from the frame callback of the first frame at or after t (not more than 50 ms after: that frame was dropped); try 3 times.
+  for(let i=0;!await this.frameAt(t);i++) if(i>1) throw new Error('the written video did not show its frame at '+t+' s');
   return this.b64(new Uint8Array(this.vc.getImageData(Math.round(x)-half,Math.round(y)-half,2*half,2*half).data.buffer)); }};`;
 
 async function evaluate(context: CDPContext, ws: WebSocket, expression: string, timeoutMs = 60_000): Promise<any> {

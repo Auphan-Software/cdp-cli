@@ -171,14 +171,16 @@ describe('reading a frame back from the written video (wi-14877)', () => {
   /**
    * A video element as Chrome's headless build behaves in a helper tab: a seek fires 'seeked' with the decoder
    * still holding a frame 0.15 s older (drawImage paints that one), and only a playing video hands over fresh
-   * frames, one every 16 ms, each reported to requestVideoFrameCallback with its mediaTime.
+   * frames, one every 16 ms, each reported to requestVideoFrameCallback with its mediaTime. `dropped` frames are
+   * never presented; `stalled` means playing presents nothing.
    */
-  function helperWithStaleSeek() {
+  function helperWithStaleSeek(opts: { dropped?: (ms: number) => boolean; stalled?: () => boolean } = {}) {
     const FRAME = 0.016;
-    const callbacks: Array<(now: number, m: { mediaTime: number }) => void> = [];
+    let nextHandle = 1;
+    let callbacks = new Map<number, (now: number, m: { mediaTime: number }) => void>();
     let ticker: ReturnType<typeof setInterval> | undefined;
     const video: any = {
-      videoWidth: 8, videoHeight: 8, muted: false, preload: '', error: null, painted: -1, cur: 0,
+      videoWidth: 8, videoHeight: 8, muted: false, preload: '', error: null, painted: -1, cur: 0, pauses: 0,
       set src(_v: string) { setTimeout(() => video.onloadeddata?.(), 0); },
       get currentTime() { return video.cur; },
       set currentTime(t: number) {
@@ -186,16 +188,20 @@ describe('reading a frame back from the written video (wi-14877)', () => {
         video.painted = Math.max(0, Math.round((t - 0.15) / FRAME) * FRAME);
         setTimeout(() => video.onseeked?.(), 0);
       },
-      requestVideoFrameCallback(cb: (now: number, m: { mediaTime: number }) => void) { callbacks.push(cb); },
+      requestVideoFrameCallback(cb: (now: number, m: { mediaTime: number }) => void) { callbacks.set(nextHandle, cb); return nextHandle++; },
+      cancelVideoFrameCallback(h: number) { callbacks.delete(h); },
       play() {
         ticker ??= setInterval(() => {
+          if (opts.stalled?.()) return;
           video.cur = Math.round((video.cur + FRAME) / FRAME) * FRAME;
+          if (opts.dropped?.(Math.round(video.cur * 1000))) return;
           video.painted = video.cur;
-          for (const cb of callbacks.splice(0)) cb(0, { mediaTime: video.cur });
+          const due = callbacks; callbacks = new Map();
+          for (const cb of due.values()) cb(0, { mediaTime: video.cur });
         }, 4);
         return Promise.resolve();
       },
-      pause() { if (ticker) clearInterval(ticker); ticker = undefined; }
+      pause() { video.pauses++; if (ticker) clearInterval(ticker); ticker = undefined; }
     };
     class FakeCanvas {
       constructor(readonly width: number, readonly height: number) {}
@@ -212,23 +218,48 @@ describe('reading a frame back from the written video (wi-14877)', () => {
       }
       shown = -1;
     }
+    // the 2 s give-up timer runs at 1/10 speed so the tests do not wait for it
+    const fastTimeout = (f: () => void, ms: number) => setTimeout(f, ms >= 1000 ? ms / 10 : ms);
     const sandbox: any = { document: { createElement: () => video }, URL: { createObjectURL: () => 'blob:x' }, Blob, atob, btoa,
-      OffscreenCanvas: FakeCanvas, setTimeout, clearTimeout, Uint8Array, Promise, Math, String, Array };
+      OffscreenCanvas: FakeCanvas, setTimeout: fastTimeout, clearTimeout, Uint8Array, Promise, Math, String, Error };
     sandbox.window = sandbox;
     vm.runInNewContext(HELPER_JS, sandbox);
-    return sandbox.window.__enc as { open(mime: string): Promise<unknown>; win(t: number, x: number, y: number, half: number): Promise<string> };
+    const enc = sandbox.window.__enc as { open(mime: string): Promise<unknown>; win(t: number, x: number, y: number, half: number): Promise<string> };
+    const frameMs = async (t: number): Promise<number> => {
+      const bytes = Buffer.from(await enc.win(t + 0.001, 4, 4, 2), 'base64');
+      return (bytes[0] << 8) | bytes[1];
+    };
+    return { enc, video, frameMs };
   }
 
   it('draws the frame at the click time, not the stale one a seek leaves on screen', async () => {
-    const enc = helperWithStaleSeek();
+    const { enc, frameMs } = helperWithStaleSeek();
     await enc.open('video/webm');
     for (const t of [0.8, 1.2336, 4.3617, 5.742]) {
-      const bytes = Buffer.from(await enc.win(t + 0.001, 4, 4, 2), 'base64');
-      const frameMs = (bytes[0] << 8) | bytes[1];
+      const ms = await frameMs(t);
       // the first frame at or after t (a 16 ms grid), never one from before it
-      expect(frameMs).toBeGreaterThanOrEqual(Math.round(t * 1000) - 2);
-      expect(frameMs).toBeLessThanOrEqual(Math.round(t * 1000) + 16);
+      expect(ms).toBeGreaterThanOrEqual(Math.round(t * 1000) - 2);
+      expect(ms).toBeLessThanOrEqual(Math.round(t * 1000) + 16);
     }
+  });
+
+  it('does not take a later scene for a dropped frame: it tries again, then fails', async () => {
+    let tries = 0;
+    const { enc, frameMs } = helperWithStaleSeek({ dropped: (ms) => ms >= 1000 && ms < 1200 && (++tries, true) });
+    await enc.open('video/webm');
+    await expect(frameMs(1.001)).rejects.toThrow('did not show its frame at');
+    expect(tries).toBeGreaterThan(30); // played through the gap three times
+  });
+
+  it('fails on a video that stalls, and the next read is not cut short by the stalled one', async () => {
+    let stalled = true;
+    const { enc, frameMs, video } = helperWithStaleSeek({ stalled: () => stalled });
+    await enc.open('video/webm');
+    await expect(frameMs(1.001)).rejects.toThrow('did not show its frame');
+    stalled = false;
+    const pauses = video.pauses;
+    expect(await frameMs(2.001)).toBeGreaterThanOrEqual(2000 - 2);
+    expect(video.pauses).toBe(pauses + 1); // one pause for the one read; no leftover callback paused it early
   });
 });
 

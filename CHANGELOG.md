@@ -12,7 +12,8 @@
 - Fix the same false `NOT seen` on Andrey's yellow page in most runs: the in-browser check
   read the written video after a bare seek, and headless Chrome then still showed a frame up
   to 0.15 s older (the pointer 300 px away, mid-glide). It now plays up to each click and reads
-  the frame that the frame callback reports (wi-14877).
+  the frame that the frame callback reports, tries again when that frame was dropped and
+  fails with an error rather than reading a different frame (wi-14877).
 
 ## 2.4.0
 
