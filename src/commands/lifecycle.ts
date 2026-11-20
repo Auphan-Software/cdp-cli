@@ -50,6 +50,19 @@ async function isChromeRunning(port: number): Promise<boolean> {
   }
 }
 
+/** The browser on `port` identifies itself as headless (Chrome's user agent says HeadlessChrome). */
+export async function isHeadlessChrome(port: number): Promise<boolean> {
+  try {
+    const res = await (globalThis.fetch ?? undiciFetch)(`http://localhost:${port}/json/version`, {
+      signal: AbortSignal.timeout(1000)
+    });
+    const version = await res.json() as { 'User-Agent'?: string };
+    return /HeadlessChrome/i.test(version['User-Agent'] ?? '');
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Get pages from Chrome
  */
@@ -163,6 +176,12 @@ export async function ensureBrowser(options: {
     if (!await isChromeRunning(port)) {
       throw new Error('Chrome failed to start within timeout');
     }
+  }
+
+  // A --headless run must not end up in a visible Chrome that already holds the port.
+  if (headless && !chromeStarted && !await isHeadlessChrome(port)) {
+    throw new Error(`HEADLESS_PORT_IN_USE: the Chrome on port ${port} is not headless (it is a visible window or another browser); ` +
+      'close it, or give --headless another port (`ready --headless --port N`)');
   }
 
   // Start daemon if not running

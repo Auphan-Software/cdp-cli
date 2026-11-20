@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { KEEP_ALIVE_FLAGS, chromeLaunchArgs, headlessReachLines, resolveHeadlessTarget } from '../../src/commands/lifecycle.js';
+import { KEEP_ALIVE_FLAGS, chromeLaunchArgs, ensureBrowser, headlessReachLines, isHeadlessChrome, resolveHeadlessTarget } from '../../src/commands/lifecycle.js';
 import { MINIMISED_MESSAGE, VideoCapture } from '../../src/video/capture.js';
 
 describe('chromeLaunchArgs', () => {
@@ -67,6 +67,10 @@ describe('minimised recording window', () => {
     expect(MINIMISED_MESSAGE).toContain('--headless');
     expect(sendCommand).not.toHaveBeenCalledWith(expect.anything(), 'Page.startScreencast', expect.anything());
     expect(ws.close).toHaveBeenCalled();
+    expect((cap as any).closed).toBe(true); // stop() then sends nothing on the closing socket (no 30 s wait)
+    const before = sendCommand.mock.calls.length;
+    await cap.stop();
+    expect(sendCommand.mock.calls.length).toBe(before);
   });
 
   it('names the minimised window when a page script times out', async () => {
@@ -85,5 +89,24 @@ describe('minimised recording window', () => {
       await cap.start().catch(() => undefined);
       expect(await cap.isMinimised()).toBe(false);
     }
+  });
+});
+
+describe('an occupied headless port', () => {
+  const realFetch = global.fetch;
+  afterEach(() => { global.fetch = realFetch; });
+  const answer = (userAgent: string) => { global.fetch = (async () => ({ ok: true, json: async () => ({ 'User-Agent': userAgent }) })) as any; };
+
+  it('knows a headless Chrome from a visible one', async () => {
+    answer('Mozilla/5.0 HeadlessChrome/153.0.0.0 Safari/537.36');
+    expect(await isHeadlessChrome(9333)).toBe(true);
+    answer('Mozilla/5.0 Chrome/153.0.0.0 Safari/537.36');
+    expect(await isHeadlessChrome(9333)).toBe(false);
+  });
+
+  it('refuses to run --headless in a visible Chrome that holds the port', async () => {
+    answer('Mozilla/5.0 Chrome/153.0.0.0 Safari/537.36');
+    await expect(ensureBrowser({ profile: '/p', port: 9333, cdpUrl: 'http://127.0.0.1:9333', headless: true }))
+      .rejects.toThrow(/HEADLESS_PORT_IN_USE/);
   });
 });

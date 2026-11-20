@@ -35,7 +35,7 @@ export class VideoCapture {
     this.ws = ws;
     ws.on('close', () => { this.closed = true; });
     // A minimised window sends no frames and makes Runtime.evaluate time out: say so before either happens.
-    if (await this.isMinimised()) { ws.close(); throw new Error(MINIMISED_MESSAGE); }
+    if (await this.isMinimised()) { this.closed = true; ws.close(); throw new Error(MINIMISED_MESSAGE); }
     ws.on('message', (data: Buffer) => {
       const text = data.toString();
       if (!text.includes('"method"')) return;
