@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import vm from 'node:vm';
 import { OUTLINE_PX, OVERLAY_JS, glidePath, pointerSeen, type PixelWindow } from '../../src/video/overlay.js';
 import windows from '../fixtures/pointer-windows.json';
 import { muxWebm, type EncodedFrame } from '../../src/video/webm.js';
@@ -163,6 +164,71 @@ describe('pointer overlay check', () => {
     }
     expect(OVERLAY_JS).toContain('__cdpVideoClick');
     expect(OVERLAY_JS).not.toMatch(/innerHTML|<style/);
+  });
+});
+
+describe('reading a frame back from the written video (wi-14877)', () => {
+  /**
+   * A video element as Chrome's headless build behaves in a helper tab: a seek fires 'seeked' with the decoder
+   * still holding a frame 0.15 s older (drawImage paints that one), and only a playing video hands over fresh
+   * frames, one every 16 ms, each reported to requestVideoFrameCallback with its mediaTime.
+   */
+  function helperWithStaleSeek() {
+    const FRAME = 0.016;
+    const callbacks: Array<(now: number, m: { mediaTime: number }) => void> = [];
+    let ticker: ReturnType<typeof setInterval> | undefined;
+    const video: any = {
+      videoWidth: 8, videoHeight: 8, muted: false, preload: '', error: null, painted: -1, cur: 0,
+      set src(_v: string) { setTimeout(() => video.onloadeddata?.(), 0); },
+      get currentTime() { return video.cur; },
+      set currentTime(t: number) {
+        video.cur = t;
+        video.painted = Math.max(0, Math.round((t - 0.15) / FRAME) * FRAME);
+        setTimeout(() => video.onseeked?.(), 0);
+      },
+      requestVideoFrameCallback(cb: (now: number, m: { mediaTime: number }) => void) { callbacks.push(cb); },
+      play() {
+        ticker ??= setInterval(() => {
+          video.cur = Math.round((video.cur + FRAME) / FRAME) * FRAME;
+          video.painted = video.cur;
+          for (const cb of callbacks.splice(0)) cb(0, { mediaTime: video.cur });
+        }, 4);
+        return Promise.resolve();
+      },
+      pause() { if (ticker) clearInterval(ticker); ticker = undefined; }
+    };
+    class FakeCanvas {
+      constructor(readonly width: number, readonly height: number) {}
+      getContext() {
+        return {
+          drawImage: (v: any) => { this.shown = v.painted; },
+          getImageData: (_x: number, _y: number, w: number, h: number) => {
+            const data = new Uint8ClampedArray(w * h * 4);
+            const ms = Math.round(this.shown * 1000);
+            data[0] = ms >> 8; data[1] = ms & 255;
+            return { data };
+          }
+        };
+      }
+      shown = -1;
+    }
+    const sandbox: any = { document: { createElement: () => video }, URL: { createObjectURL: () => 'blob:x' }, Blob, atob, btoa,
+      OffscreenCanvas: FakeCanvas, setTimeout, clearTimeout, Uint8Array, Promise, Math, String, Array };
+    sandbox.window = sandbox;
+    vm.runInNewContext(HELPER_JS, sandbox);
+    return sandbox.window.__enc as { open(mime: string): Promise<unknown>; win(t: number, x: number, y: number, half: number): Promise<string> };
+  }
+
+  it('draws the frame at the click time, not the stale one a seek leaves on screen', async () => {
+    const enc = helperWithStaleSeek();
+    await enc.open('video/webm');
+    for (const t of [0.8, 1.2336, 4.3617, 5.742]) {
+      const bytes = Buffer.from(await enc.win(t + 0.001, 4, 4, 2), 'base64');
+      const frameMs = (bytes[0] << 8) | bytes[1];
+      // the first frame at or after t (a 16 ms grid), never one from before it
+      expect(frameMs).toBeGreaterThanOrEqual(Math.round(t * 1000) - 2);
+      expect(frameMs).toBeLessThanOrEqual(Math.round(t * 1000) + 16);
+    }
   });
 });
 
