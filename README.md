@@ -74,7 +74,10 @@ In Jarvis `browser-qa-run`, one step can call `{"cdp":["record","replay","C:/qa/
 cdp-cli video replay C:/demos/loyalty.json PAGE --out C:/demos/loyalty.webm --size 1280x720
 # stderr: overlay: pointer seen at 3/3 click steps
 cdp-cli video record PAGE --seconds 90 --out C:/demos/walkthrough.webm   # Ctrl+C stops early
+cdp-cli video replay C:/demos/loyalty.json --headless --out C:/demos/loyalty.webm   # own headless Chrome, no <page>
 ```
+
+**A covered or minimised window.** Chrome stops painting a window nobody can see, so a recording of it gets no frames (`VIDEO_NO_FRAMES`) or a page script times out. `cdp-cli ready` starts Chrome with `--disable-backgrounding-occluded-windows`, `--disable-renderer-backgrounding`, `--disable-background-timer-throttling` and `--disable-features=CalculateNativeWinOcclusion`, which keeps a *covered* window recording. A *minimised* window cannot be recorded whatever the flags: the command stops at once with `VIDEO_WINDOW_MINIMISED` (restore the window or use `--headless`). With `--headless`, `video replay` and `video record` start (or reuse) their own `--headless=new` Chrome with its own profile (`~/cdp-cli-headless-profile`), port 9333 and daemon 9334, so there is no window to cover or minimise; `<page>` may then be left out (the browser's first page) and the step file's first step is a `goto`. It leaves that browser running and prints how to reach it from another shell: `CDP_URL=http://127.0.0.1:9333` and `CDP_DAEMON_URL=http://127.0.0.1:9334`. The default stays a visible window.
 
 The step file is the Jarvis browser-video format, JSON `{"steps": [...]}` or a bare list. Any step may add `caption` (shown from that step on) and `timeout` (seconds to find an element, default 5):
 
@@ -420,11 +423,11 @@ cdp-cli status
 cdp-cli ready                                    # Uses defaults
 cdp-cli ready --port 9333                        # Custom CDP port
 cdp-cli ready --profile ~/my-chrome-profile     # Custom profile dir
-CDP_DAEMON_URL=http://127.0.0.1:9334 cdp-cli ready --port 9333 --cdp-url http://127.0.0.1:9333 --headless
+cdp-cli ready --headless                         # Own headless Chrome: port 9333, daemon 9334, profile ~/cdp-cli-headless-profile
 ```
 
 This command:
-1. Launches Chrome with remote debugging if not already running
+1. Launches Chrome with remote debugging if not already running, with the flags that keep a covered window painting (`--disable-backgrounding-occluded-windows`, `--disable-renderer-backgrounding`, `--disable-background-timer-throttling`, `--disable-features=CalculateNativeWinOcclusion`); `--headless` starts its own `--headless=new` Chrome on port 9333 (daemon 9334) with its own profile and prints the `CDP_URL` / `CDP_DAEMON_URL` to reach it
 2. Starts the daemon if not already running
 3. Returns list of open pages
 

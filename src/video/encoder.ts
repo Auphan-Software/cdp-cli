@@ -12,7 +12,12 @@ import { muxWebm, type EncodedFrame } from './webm.js';
 import { pointerSeen } from './overlay.js';
 
 export interface CapturedFrame { file: string; t: number }
-export interface ClickMark { n: number; at: [number, number]; t: number }
+/**
+ * A click to find the pointer at: `t` is the video time of the frame on screen at the click and `alt`
+ * (optional) the first frame after it. Chrome's screencast frame can trail the page by a few glide steps,
+ * so the pointer may be a few px short of the click point in the frame before the click and settled in the next.
+ */
+export interface ClickMark { n: number; at: [number, number]; t: number; alt?: number }
 export interface OverlayResult { checked: number; ok: number; missing: number[] }
 
 const KEY_INTERVAL_MS = 2000;
@@ -39,7 +44,16 @@ export const HELPER_JS = String.raw`window.__enc={q:[],err:null,
   v.src=URL.createObjectURL(new Blob(this.parts,{type:mime})); this.parts=[];
   await new Promise((ok,no)=>{v.onloadeddata=ok;v.onerror=()=>no(new Error('the written video does not play: '+(v.error&&v.error.message)))});
   this.v=v; this.vc=new OffscreenCanvas(v.videoWidth,v.videoHeight).getContext('2d',{willReadFrequently:true}); return [v.videoWidth,v.videoHeight]; },
- async win(t,x,y,half){ const v=this.v; await new Promise(r=>{v.onseeked=r;v.currentTime=t}); this.vc.drawImage(v,0,0);
+ async frameAt(t){ const v=this.v;
+  await new Promise(r=>{v.onseeked=r;v.currentTime=Math.max(0,t-0.15)});
+  return new Promise(done=>{ let h,off=false; const end=ok=>{ if(off) return; off=true; clearTimeout(stop); v.cancelVideoFrameCallback(h); v.pause(); done(ok) };
+   const stop=setTimeout(()=>end(false),2000);
+   const cb=(_,m)=>{ if(off) return; if(m.mediaTime<t-0.002) h=v.requestVideoFrameCallback(cb); else { if(m.mediaTime<=t+0.05) this.vc.drawImage(v,0,0); end(m.mediaTime<=t+0.05) } };
+   h=v.requestVideoFrameCallback(cb); v.play().catch(()=>end(false)) }) },
+ async win(t,x,y,half){
+  // A paused video that has only been seeked can still show a frame 0.1 s old (drawImage paints what the decoder last handed over), so
+  // play up to t and draw from the frame callback of the first frame at or after t (not more than 50 ms after: that frame was dropped); try 3 times.
+  for(let i=0;!await this.frameAt(t);i++) if(i>1) throw new Error('the written video did not show its frame at '+t+' s');
   return this.b64(new Uint8Array(this.vc.getImageData(Math.round(x)-half,Math.round(y)-half,2*half,2*half).data.buffer)); }};`;
 
 async function evaluate(context: CDPContext, ws: WebSocket, expression: string, timeoutMs = 60_000): Promise<any> {
@@ -144,18 +158,28 @@ export async function checkClicks(context: CDPContext, file: string, mime: strin
     await evaluate(context, ws, `__enc.open(${JSON.stringify(mime)})`);
     const half = Math.ceil(24 * scale);
     const missing: number[] = [];
-    for (const click of clicks) {
+    const size = 2 * half;
+    const seenAt = async (click: ClickMark, t: number): Promise<boolean> => {
       const rgba = Buffer.from(await evaluate(context, ws,
-        `__enc.win(${click.t + 0.001},${click.at[0] * scale},${click.at[1] * scale},${half})`) as string, 'base64');
-      const size = 2 * half;
-      const seen = pointerSeen({
+        `__enc.win(${t + 0.001},${click.at[0] * scale},${click.at[1] * scale},${half})`) as string, 'base64');
+      // The window is cut at the nearest whole pixel; the click point is not (DPR 1.25: 287.5).
+      return pointerSeen({
         size,
+        cx: half + (click.at[0] * scale - Math.round(click.at[0] * scale)),
+        cy: half + (click.at[1] * scale - Math.round(click.at[1] * scale)),
         at: (x, y) => {
           if (x < 0 || y < 0 || x >= size || y >= size) return null;
           const o = (y * size + x) * 4;
           return rgba[o + 3] === 0 ? null : [rgba[o], rgba[o + 1], rgba[o + 2]];
         }
       }, scale);
+    };
+    for (const click of clicks) {
+      const times = click.alt !== undefined && click.alt !== click.t ? [click.t, click.alt] : [click.t];
+      let seen = false;
+      for (const t of times) {
+        if (await seenAt(click, t)) { seen = true; break; }
+      }
       if (!seen) missing.push(click.n);
     }
     return { checked: clicks.length, ok: clicks.length - missing.length, missing };

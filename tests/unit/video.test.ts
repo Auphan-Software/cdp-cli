@@ -3,7 +3,9 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { OVERLAY_JS, glidePath, pointerSeen, type PixelWindow } from '../../src/video/overlay.js';
+import vm from 'node:vm';
+import { OUTLINE_PX, OVERLAY_JS, glidePath, pointerSeen, type PixelWindow } from '../../src/video/overlay.js';
+import windows from '../fixtures/pointer-windows.json';
 import { muxWebm, type EncodedFrame } from '../../src/video/webm.js';
 import { readJpegSize } from '../../src/video/capture.js';
 import { HELPER_JS } from '../../src/video/encoder.js';
@@ -23,6 +25,30 @@ function paint(size: number, opts: { ring?: RGB; outline?: RGB | null; bg?: RGB;
       if (d >= 10 && d < 13) return opts.ring ?? [255, 59, 48];
       if (d >= 13 && d < 15.5 && opts.outline !== null) return opts.outline ?? [255, 255, 255];
       return opts.bg ?? [30, 120, 200];
+    }
+  };
+}
+
+interface Fixture { name: string; note: string; scale: number; size: number; cx: number; cy: number; rgb: string }
+
+/**
+ * A window in device pixels like paint(), for a pointer drawn at a fractional device position:
+ * a pixel takes the colour at its centre. The click point lies (fx, fy) device px from the middle.
+ */
+function paintScaled(scale: number, opts: { fx?: number; fy?: number; bg: RGB; outline?: RGB | null; outlineCss?: number; noPointer?: boolean }): PixelWindow {
+  const size = 2 * Math.ceil(24 * scale);
+  const cx = size / 2 + (opts.fx ?? 0);
+  const cy = size / 2 + (opts.fy ?? 0);
+  const outer = 13 + (opts.outlineCss ?? OUTLINE_PX);
+  return {
+    size, cx, cy,
+    at: (x, y) => {
+      const d = Math.hypot(x + 0.5 - cx, y + 0.5 - cy) / scale; // CSS px from the pointer centre
+      if (!opts.noPointer) {
+        if (d >= 10 && d < 13) return [255, 59, 48];
+        if (d >= 13 && d < outer && opts.outline !== null) return opts.outline ?? [255, 255, 255];
+      }
+      return opts.bg;
     }
   };
 }
@@ -51,6 +77,78 @@ describe('pointer overlay check', () => {
     expect(pointerSeen(scaled, 2)).toBe(true);
   });
 
+  it('draws a white outline wide enough to survive 4:2:0 chroma', () => {
+    expect(OUTLINE_PX).toBe(4);
+    expect(OVERLAY_JS).toContain("outline:'4px solid #fff'");
+  });
+
+  it('sees a pointer whose white outline has lost its blue to a yellow page (chroma bleed)', () => {
+    const bled = paint(48, { bg: [255, 214, 10], outline: [255, 240, 160] });
+    expect(pointerSeen(bled)).toBe(true);
+    expect(pointerSeen(paint(48, { bg: [255, 214, 10], outline: [250, 238, 150], ring: [236, 96, 50] }))).toBe(true);
+  });
+
+  it('does not take a bright yellow page for the outline', () => {
+    expect(pointerSeen(paint(48, { bg: [255, 255, 0], outline: [255, 255, 0] }))).toBe(false);
+    expect(pointerSeen(paint(48, { bg: [255, 214, 10], outline: [255, 214, 10] }))).toBe(false);
+  });
+
+  it('does not take pale yellow page content (#ffff80) behind a red disc for pointer and outline', () => {
+    // a 24 px red disc on a pale yellow page, no pointer: the page's own pixels are as bright as a bled outline
+    const disc = (scale: number): PixelWindow => ({
+      size: 2 * Math.ceil(24 * scale),
+      at: (x, y) => (Math.hypot(x + 0.5 - Math.ceil(24 * scale), y + 0.5 - Math.ceil(24 * scale)) / scale < 12 ? [255, 59, 48] : [255, 255, 128])
+    });
+    expect(pointerSeen(disc(1))).toBe(false);
+    expect(pointerSeen(disc(1.25), 1.25)).toBe(false);
+    // and a pointer with a plain white outline on that page is still seen
+    expect(pointerSeen(paint(48, { bg: [255, 255, 128], outline: [255, 255, 255] }))).toBe(true);
+  });
+
+  it('sees the pointer at DPR 1.25 whatever the fraction of the click point, and misses it when absent', () => {
+    for (const [fx, fy] of [[0, 0], [0.5, 0], [0.25, 0.75], [-0.4, 0.3]]) {
+      const win = paintScaled(1.25, { fx, fy, bg: [255, 214, 10], outline: [255, 238, 170], outlineCss: 2 });
+      expect(pointerSeen(win, 1.25), `fraction ${fx},${fy}`).toBe(true);
+      expect(pointerSeen({ ...win, cx: undefined, cy: undefined }, 1.25), `no fraction ${fx},${fy}`).toBe(true);
+    }
+    expect(pointerSeen(paintScaled(1.25, { bg: [255, 214, 10], noPointer: true }), 1.25)).toBe(false);
+    expect(pointerSeen(paintScaled(1.25, { bg: [255, 59, 48], noPointer: true }), 1.25)).toBe(false);
+    expect(pointerSeen(paintScaled(1.25, { bg: [255, 214, 10], outline: null }), 1.25)).toBe(false);
+  });
+
+  describe('real frames from a live VP9 recording (CT106 headless Chrome 153)', () => {
+    /** The frame as sampled; `wipe` paints the pointer out with the frame's corner colour, `shift` slides it right by CSS px. */
+    const rgbWindow = (f: Fixture, wipe = false, shift = 0): PixelWindow => {
+      const rgb = Buffer.from(f.rgb, 'base64');
+      const corner: RGB = [rgb[0], rgb[1], rgb[2]];
+      const dx = Math.round(shift * f.scale);
+      return {
+        size: f.size, cx: f.cx, cy: f.cy,
+        at: (x, y) => {
+          const sx = x - dx;
+          if (x < 0 || y < 0 || x >= f.size || y >= f.size || sx < 0 || sx >= f.size) return null;
+          if (wipe && Math.hypot(sx + 0.5 - f.cx, y + 0.5 - f.cy) <= 20 * f.scale) return corner;
+          const o = (y * f.size + sx) * 3;
+          return [rgb[o], rgb[o + 1], rgb[o + 2]];
+        }
+      };
+    };
+
+    for (const f of windows as Fixture[]) {
+      it(`${f.name}: the pointer is seen`, () => {
+        expect(pointerSeen(rgbWindow(f), f.scale)).toBe(true);
+      });
+    }
+
+    it('a pointer that is absent is still reported, on every frame', () => {
+      for (const f of windows as Fixture[]) expect(pointerSeen(rgbWindow(f, true), f.scale), f.name).toBe(false);
+    });
+
+    it('a pointer 9 CSS px from the click point is still reported', () => {
+      for (const f of windows as Fixture[]) expect(pointerSeen(rgbWindow(f, false, 9), f.scale), f.name).toBe(false);
+    });
+  });
+
   it('glides on an ease-in-out path ending on the target, or jumps with 0 ms', () => {
     const path = glidePath([0, 0], [100, 50], 160);
     expect(path).toHaveLength(10);
@@ -66,6 +164,102 @@ describe('pointer overlay check', () => {
     }
     expect(OVERLAY_JS).toContain('__cdpVideoClick');
     expect(OVERLAY_JS).not.toMatch(/innerHTML|<style/);
+  });
+});
+
+describe('reading a frame back from the written video (wi-14877)', () => {
+  /**
+   * A video element as Chrome's headless build behaves in a helper tab: a seek fires 'seeked' with the decoder
+   * still holding a frame 0.15 s older (drawImage paints that one), and only a playing video hands over fresh
+   * frames, one every 16 ms, each reported to requestVideoFrameCallback with its mediaTime. `dropped` frames are
+   * never presented; `stalled` means playing presents nothing.
+   */
+  function helperWithStaleSeek(opts: { dropped?: (ms: number) => boolean; stalled?: () => boolean } = {}) {
+    const FRAME = 0.016;
+    let nextHandle = 1;
+    let callbacks = new Map<number, (now: number, m: { mediaTime: number }) => void>();
+    let ticker: ReturnType<typeof setInterval> | undefined;
+    const video: any = {
+      videoWidth: 8, videoHeight: 8, muted: false, preload: '', error: null, painted: -1, cur: 0, pauses: 0,
+      set src(_v: string) { setTimeout(() => video.onloadeddata?.(), 0); },
+      get currentTime() { return video.cur; },
+      set currentTime(t: number) {
+        video.cur = t;
+        video.painted = Math.max(0, Math.round((t - 0.15) / FRAME) * FRAME);
+        setTimeout(() => video.onseeked?.(), 0);
+      },
+      requestVideoFrameCallback(cb: (now: number, m: { mediaTime: number }) => void) { callbacks.set(nextHandle, cb); return nextHandle++; },
+      cancelVideoFrameCallback(h: number) { callbacks.delete(h); },
+      play() {
+        ticker ??= setInterval(() => {
+          if (opts.stalled?.()) return;
+          video.cur = Math.round((video.cur + FRAME) / FRAME) * FRAME;
+          if (opts.dropped?.(Math.round(video.cur * 1000))) return;
+          video.painted = video.cur;
+          const due = callbacks; callbacks = new Map();
+          for (const cb of due.values()) cb(0, { mediaTime: video.cur });
+        }, 4);
+        return Promise.resolve();
+      },
+      pause() { video.pauses++; if (ticker) clearInterval(ticker); ticker = undefined; }
+    };
+    class FakeCanvas {
+      constructor(readonly width: number, readonly height: number) {}
+      getContext() {
+        return {
+          drawImage: (v: any) => { this.shown = v.painted; },
+          getImageData: (_x: number, _y: number, w: number, h: number) => {
+            const data = new Uint8ClampedArray(w * h * 4);
+            const ms = Math.round(this.shown * 1000);
+            data[0] = ms >> 8; data[1] = ms & 255;
+            return { data };
+          }
+        };
+      }
+      shown = -1;
+    }
+    // the 2 s give-up timer runs at 1/10 speed so the tests do not wait for it
+    const fastTimeout = (f: () => void, ms: number) => setTimeout(f, ms >= 1000 ? ms / 10 : ms);
+    const sandbox: any = { document: { createElement: () => video }, URL: { createObjectURL: () => 'blob:x' }, Blob, atob, btoa,
+      OffscreenCanvas: FakeCanvas, setTimeout: fastTimeout, clearTimeout, Uint8Array, Promise, Math, String, Error };
+    sandbox.window = sandbox;
+    vm.runInNewContext(HELPER_JS, sandbox);
+    const enc = sandbox.window.__enc as { open(mime: string): Promise<unknown>; win(t: number, x: number, y: number, half: number): Promise<string> };
+    const frameMs = async (t: number): Promise<number> => {
+      const bytes = Buffer.from(await enc.win(t + 0.001, 4, 4, 2), 'base64');
+      return (bytes[0] << 8) | bytes[1];
+    };
+    return { enc, video, frameMs };
+  }
+
+  it('draws the frame at the click time, not the stale one a seek leaves on screen', async () => {
+    const { enc, frameMs } = helperWithStaleSeek();
+    await enc.open('video/webm');
+    for (const t of [0.8, 1.2336, 4.3617, 5.742]) {
+      const ms = await frameMs(t);
+      // the first frame at or after t (a 16 ms grid), never one from before it
+      expect(ms).toBeGreaterThanOrEqual(Math.round(t * 1000) - 2);
+      expect(ms).toBeLessThanOrEqual(Math.round(t * 1000) + 16);
+    }
+  });
+
+  it('does not take a later scene for a dropped frame: it tries again, then fails', async () => {
+    let tries = 0;
+    const { enc, frameMs } = helperWithStaleSeek({ dropped: (ms) => ms >= 1000 && ms < 1200 && (++tries, true) });
+    await enc.open('video/webm');
+    await expect(frameMs(1.001)).rejects.toThrow('did not show its frame at');
+    expect(tries).toBeGreaterThan(30); // played through the gap three times
+  });
+
+  it('fails on a video that stalls, and the next read is not cut short by the stalled one', async () => {
+    let stalled = true;
+    const { enc, frameMs, video } = helperWithStaleSeek({ stalled: () => stalled });
+    await enc.open('video/webm');
+    await expect(frameMs(1.001)).rejects.toThrow('did not show its frame');
+    stalled = false;
+    const pauses = video.pauses;
+    expect(await frameMs(2.001)).toBeGreaterThanOrEqual(2000 - 2);
+    expect(video.pauses).toBe(pauses + 1); // one pause for the one read; no leftover callback paused it early
   });
 });
 

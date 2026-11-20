@@ -1,5 +1,28 @@
 # Changelog
 
+## 2.4.1
+
+- Fix `video replay` / `video record` printing a false `overlay: pointer NOT seen` (exit 4)
+  on bright pages (yellow, and sometimes dark green) and at a device scale factor of 1.25.
+  The pointer check now searches a band of radii scaled by the device scale instead of two
+  fixed radii, tests the white outline on luma, centres on the exact (fractional) click point
+  and, in `replay`, also tries the first frame after the click. The pointer's white outline
+  is 4 px wide (was 2 px) so it survives 4:2:0 chroma subsampling. A pointer that is really
+  absent is still reported.
+- Fix the same false `NOT seen` on Andrey's yellow page in most runs: the in-browser check
+  read the written video after a bare seek, and headless Chrome then still showed a frame up
+  to 0.15 s older (the pointer 300 px away, mid-glide). It now plays up to each click and reads
+  the frame that the frame callback reports, tries again when that frame was dropped and
+  fails with an error rather than reading a different frame (wi-14877).
+- `ready` starts Chrome with `--disable-backgrounding-occluded-windows`,
+  `--disable-renderer-backgrounding`, `--disable-background-timer-throttling` and
+  `--disable-features=CalculateNativeWinOcclusion`, so a covered window keeps painting.
+- `--headless` on `ready`, `video replay` and `video record` starts its own
+  `--headless=new` Chrome (own profile, port 9333, daemon 9334; the default stays a visible
+  window) and prints `CDP_URL` / `CDP_DAEMON_URL` to reach it. `<page>` may be left out.
+- A recording of a minimised window stops at once with `VIDEO_WINDOW_MINIMISED` (restore
+  it or use `--headless`) instead of `VIDEO_NO_FRAMES` or a timeout.
+
 ## 2.4.0
 
 - Add `video replay <steps.json> <page>` and `video record <page>`: demo and proof
