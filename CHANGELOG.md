@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 2.4.2
 
 - `video replay` steps `scroll` (container + delta), `swipe` (touch, from/to or direction +
   distance), `select` (native `<select>` value, fires input and change) and `upload` (local
