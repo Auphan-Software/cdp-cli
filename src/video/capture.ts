@@ -92,6 +92,18 @@ export class VideoCapture {
     return r.result?.value;
   }
 
+  /** A raw CDP command on the recorder's own connection (touch input, DOM.setFileInputFiles). */
+  async send(method: string, params: Record<string, unknown> = {}): Promise<any> {
+    if (!this.ws) throw new Error('capture not started');
+    return this.context.sendCommand(this.ws, method, params);
+  }
+
+  /** The element a selector finds as a remote object id, or undefined when there is none. */
+  async elementObjectId(selector: string): Promise<string | undefined> {
+    const r = await this.send('Runtime.evaluate', { expression: `document.querySelector(${JSON.stringify(selector)})` });
+    return r.result?.objectId;
+  }
+
   /** The browser's clock in seconds: the clock of the screencast timestamps. */
   async now(): Promise<number> {
     return this.evaluate('(performance.timeOrigin+performance.now())/1000');

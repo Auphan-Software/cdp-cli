@@ -8,6 +8,14 @@
  * sessionStorage keeps the pointer position and caption.
  */
 
+/** Where a replay's caption goes: over the page at the bottom (default) or top, or in a bar below the page that only the encoder draws. */
+export type CaptionPosition = 'bottom' | 'top' | 'outside';
+export const CAPTION_POSITIONS: CaptionPosition[] = ['bottom', 'top', 'outside'];
+
+/** Height of the `outside` caption bar in CSS px, and the caption font size in it. */
+export const CAPTION_BAR_PX = 64;
+export const CAPTION_FONT_PX = 22;
+
 /** Name of the Runtime binding a followed real click reports through. */
 export const CLICK_BINDING = '__cdpVideoClick';
 
@@ -20,7 +28,7 @@ export const CLICK_BINDING = '__cdpVideoClick';
 export const OUTLINE_PX = 4;
 
 export const OVERLAY_JS = String.raw`(()=>{ if(window.__bv) return; let root,ptr,ring,cap; const kv=(k,v)=>{try{if(v===undefined)return sessionStorage.getItem(k);sessionStorage.setItem(k,v)}catch(e){}};
- const st=Object.assign({x:-40,y:-40,cap:'',follow:false},JSON.parse(kv('__bv')||'{}')); const save=()=>kv('__bv',JSON.stringify(st));
+ const st=Object.assign({x:-40,y:-40,cap:'',pos:'bottom',follow:false},JSON.parse(kv('__bv')||'{}')); const save=()=>kv('__bv',JSON.stringify(st));
  const mk=(id,css)=>{const e=document.createElement('div');e.id=id;for(const k in css)e.style.setProperty(k,css[k],k=='opacity'?'':'important');return e};
  const ensure=()=>{ if(!document.documentElement) return; if(root&&root.isConnected) return;
   root=mk('__bv',{position:'fixed',inset:'0','pointer-events':'none','z-index':'2147483647'});
@@ -31,11 +39,12 @@ export const OVERLAY_JS = String.raw`(()=>{ if(window.__bv) return; let root,ptr
    background:'rgba(0,0,0,.78)',color:'#fff',font:'600 20px/1.3 system-ui,sans-serif','text-align':'center',display:'none'});
   root.append(ring,ptr,cap); document.documentElement.appendChild(root); apply(); };
  const apply=()=>{ ptr.style.setProperty('transform','translate('+st.x+'px,'+st.y+'px)','important'); ring.style.setProperty('left',st.x+'px','important'); ring.style.setProperty('top',st.y+'px','important');
-  cap.textContent=st.cap; cap.style.setProperty('display',st.cap?'block':'none','important'); };
+  cap.textContent=st.cap; cap.style.setProperty('display',st.cap&&st.pos!=='outside'?'block':'none','important');
+  cap.style.setProperty('top',st.pos==='top'?'28px':'auto','important'); cap.style.setProperty('bottom',st.pos==='top'?'auto':'28px','important'); };
  const now=()=>(performance.timeOrigin+performance.now())/1000;
  window.__bv={move(x,y){st.x=x;st.y=y;save();ensure();apply()},click(){ensure();ring.getAnimations().forEach(a=>a.cancel());
    ring.animate([{opacity:1,transform:'scale(0.2)'},{opacity:0,transform:'scale(1.4)'}],{duration:600,easing:'ease-out'})},
-  caption(t){st.cap=t||'';save();ensure();apply()},at(){ensure();const r=ptr.getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2]},
+  caption(t){st.cap=t||'';save();ensure();apply()},captionPosition(p){st.pos=p;save();ensure();apply()},at(){ensure();const r=ptr.getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2]},
   follow(){st.follow=true;save()}};
  // record mode: the pointer follows the real mouse and a real press rings and is reported, so the video's own check covers it
  addEventListener('pointermove',e=>{if(st.follow&&e.isTrusted)window.__bv.move(e.clientX,e.clientY)},true);

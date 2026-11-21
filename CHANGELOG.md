@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.4.2
+
+- `video replay` steps `scroll` (container + delta), `swipe` (touch, from/to or direction +
+  distance), `select` (native `<select>` value, fires input and change) and `upload` (local
+  files into an `<input type=file>`), with a clear error for a malformed step (wi-14879).
+- `video replay --caption-position bottom|top|outside` (or `caption_position` in the step
+  file): `outside` draws the caption in a bar under the page, so it never covers a click
+  target. The default stays bottom.
+- The encoder no longer calls `Page.bringToFront` on its helper tab at the end of a
+  recording, so the desktop keeps its focus. `--bring-to-front` restores it for a window
+  hidden behind others that cannot read the video back.
+
 ## 2.4.1
 
 - Fix `video replay` / `video record` printing a false `overlay: pointer NOT seen` (exit 4)
