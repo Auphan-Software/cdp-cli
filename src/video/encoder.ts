@@ -23,7 +23,7 @@ export interface OverlayResult { checked: number; ok: number; missing: number[] 
 const KEY_INTERVAL_MS = 2000;
 
 /** An extra bar under the page in the video (the `outside` caption): its height and font in video px, and the caption at a frame's time. */
-export interface CaptionBar { height: number; fontPx: number; at: (t: number) => string }
+export interface CaptionBar { height: number; fontPx: number; at: (t: number) => string; changes?: number[] }
 
 export const HELPER_JS = String.raw`window.__enc={q:[],err:null,bar:0,font:20,
  b64(u){let s='';for(let i=0;i<u.length;i+=0x8000)s+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));return btoa(s)},
@@ -115,7 +115,7 @@ async function withHelper<T>(context: CDPContext, front: boolean, fn: (ws: WebSo
     await evaluate(context, ws, HELPER_JS);
     return await fn(ws);
   } catch (error) {
-    if (!front && /written video|does not play/.test((error as Error).message)) {
+    if (!front && /written video|does not play|Command timeout/.test((error as Error).message)) {
       (error as Error).message += ' (the helper tab may be hidden behind another window: run again with --bring-to-front)';
     }
     throw error;
@@ -144,7 +144,14 @@ export async function encodeWebm(context: CDPContext, frames: CapturedFrame[], e
       for (const [timeMs, key, b64] of rows) out.push({ timeMs, key, data: Buffer.from(b64, 'base64') });
     };
     let lastKey = -Infinity;
-    const list = [...frames, { ...frames[frames.length - 1], t: Math.max(endSec, frames[frames.length - 1].t) }];
+    // A caption change hidden from the page need not produce a screencast frame: repeat the latest image at each change.
+    const withChanges = [...frames];
+    for (const t of options.bar?.changes ?? []) {
+      const before = [...withChanges].filter((f) => f.t <= t).pop();
+      if (before && before.t < t && t < endSec) withChanges.push({ ...before, t });
+    }
+    withChanges.sort((a, b) => a.t - b.t);
+    const list = [...withChanges, { ...withChanges[withChanges.length - 1], t: Math.max(endSec, withChanges[withChanges.length - 1].t) }];
     for (const frame of list) {
       const ms = Math.round(frame.t * 1000);
       const key = ms - lastKey >= KEY_INTERVAL_MS;

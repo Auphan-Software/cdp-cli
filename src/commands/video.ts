@@ -32,7 +32,8 @@ export function parseCaptionPosition(value: string | undefined): CaptionPosition
 /** The bar under the page for `outside` captions: `timeline` is [browser time, text] in the order the captions were set; `scale` is video px per CSS px. */
 export function captionBar(timeline: Array<[number, string]>, t0: number, scale: number): CaptionBar {
   return { height: Math.round(CAPTION_BAR_PX * scale), fontPx: Math.round(CAPTION_FONT_PX * scale),
-    at: (t) => timeline.filter(([at]) => at - t0 <= t + 1e-6).pop()?.[1] ?? '' };
+    at: (t) => timeline.filter(([at]) => at - t0 <= t + 1e-6).pop()?.[1] ?? '',
+    changes: timeline.map(([at]) => Math.max(0, at - t0)) };
 }
 interface StepMark { n: number; do: string; caption: string; start: number; end: number; status: 'ok' | 'fail'; note?: string }
 

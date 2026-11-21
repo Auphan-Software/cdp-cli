@@ -52,6 +52,7 @@ function newStepProblem(step: any): string | undefined {
       return step.x === 0 && (step.y ?? 0) === 0 || step.y === 0 && (step.x ?? 0) === 0 ? 'x and y must not both be 0' : undefined;
     }
     case 'swipe': {
+      if (step.selector !== undefined && !isStr(step.selector)) return 'selector must be a non-empty string';
       const hasPath = step.to !== undefined;
       const hasDir = step.direction !== undefined || step.distance !== undefined;
       if (hasPath === hasDir) return 'needs from/to (or selector and to) or direction and distance, not both';

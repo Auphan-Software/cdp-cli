@@ -139,3 +139,22 @@ describe('caption position', () => {
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 });
+
+describe('review fixes (round 1)', () => {
+  it('a caption change on a static page still gets its own encoded frame', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'cdp-bar-'));
+    try {
+      const jpg = join(dir, 'f.jpg');
+      await writeFile(jpg, 'x');
+      const ctx = fakeContext();
+      const bar = captionBar([[100, 'A'], [105, 'B']], 100, 1);
+      await encodeWebm(ctx.context, [{ file: jpg, t: 0 }], 12, { width: 8, height: 8 }, { bar });
+      const adds = ctx.commands.map((c) => c.params?.expression as string).filter((e) => e?.startsWith('__enc.add('));
+      expect(adds.map((e) => /,(\d+),(?:true|false),"(.*)"\)$/.exec(e)!.slice(1, 3).join(':'))).toEqual(['0:A', '5000:B', '12000:B']);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+  it('refuses a non-string swipe selector at parse time', () => {
+    expect(() => parseSteps('[{"do":"swipe","selector":17,"direction":"up","distance":20}]')).toThrow(/selector must be a non-empty string/);
+    expect(() => parseSteps('[{"do":"swipe","selector":"","from":[1,1],"to":[2,2]}]')).toThrow(/selector must be/);
+  });
+});
