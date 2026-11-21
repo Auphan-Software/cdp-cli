@@ -147,7 +147,7 @@ export async function encodeWebm(context: CDPContext, frames: CapturedFrame[], e
     // A caption change hidden from the page need not produce a screencast frame: repeat the latest image at each change.
     const withChanges = [...frames];
     for (const t of options.bar?.changes ?? []) {
-      const before = [...withChanges].filter((f) => f.t <= t).pop();
+      const before = [...frames].sort((a, b) => a.t - b.t).filter((f) => f.t <= t).pop(); // the newest captured image, not a repeat
       if (before && before.t < t && t < endSec) withChanges.push({ ...before, t });
     }
     withChanges.sort((a, b) => a.t - b.t);

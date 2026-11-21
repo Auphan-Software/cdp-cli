@@ -158,3 +158,21 @@ describe('review fixes (round 1)', () => {
     expect(() => parseSteps('[{"do":"swipe","selector":"","from":[1,1],"to":[2,2]}]')).toThrow(/selector must be/);
   });
 });
+
+describe('review fixes (round 2)', () => {
+  it('a caption-change frame repeats the newest captured image, not an earlier repeat', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'cdp-bar-'));
+    try {
+      const files = ['a', 'b', 'c'].map((n) => join(dir, `${n}.jpg`));
+      for (const [i, f] of files.entries()) await writeFile(f, `img${i}`);
+      const ctx = fakeContext();
+      const bar = captionBar([[100, 'X'], [101, 'Y'], [104, 'Z']], 100, 1);
+      await encodeWebm(ctx.context, [{ file: files[0], t: 0 }, { file: files[1], t: 3 }, { file: files[2], t: 6 }], 8, { width: 8, height: 8 }, { bar });
+      const adds = ctx.commands.map((c) => c.params?.expression as string).filter((e) => e?.startsWith('__enc.add('));
+      const img = (e: string) => Buffer.from(/add\("([^"]*)"/.exec(e)![1], 'base64').toString();
+      const at = (ms: number) => adds.find((e) => e.includes(`",${ms},`))!;
+      expect(img(at(1000))).toBe('img0');
+      expect(img(at(4000))).toBe('img1');
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+});
