@@ -736,6 +736,8 @@ cli.command(
     .option('size', { type: 'string', description: 'Viewport WIDTHxHEIGHT while recording, e.g. 1280x720' })
     .option('hold', { type: 'number', default: 0, description: 'replay: extra seconds to dwell after each step' })
     .option('glide-ms', { type: 'number', description: 'replay: pointer travel time to a target (default 450; 0 jumps)' })
+    .option('caption-position', { type: 'string', choices: ['bottom', 'top', 'outside'], description: 'replay: where captions go: bottom (default) or top over the page, or outside in a bar under the page, so a caption never covers a click target (the step file may set caption_position)' })
+    .option('bring-to-front', { type: 'boolean', default: false, description: 'Bring the encoder helper tab to the front (raises the browser window and takes the desktop focus; only for a window hidden behind others that fails to read the video back)' })
     .option('seconds', { type: 'number', description: `record: stop after this many seconds (default ${video.DEFAULT_RECORD_SECONDS}, at most ${video.MAX_RECORD_SECONDS}); Ctrl+C stops early` })
     .option('keep-frames', { type: 'boolean', default: false, description: 'Keep the captured JPEG frames next to the video' })
     .option('headless', { type: 'boolean', default: false, description: 'Record in its own headless Chrome (own profile, port 9333 and daemon) instead of a visible window, which stops painting when covered or minimised; <page> may then be left out' }),
@@ -748,11 +750,12 @@ cli.command(
       headlessPage = started.pageId;
     }
     const context = new CDPContext(cdpUrl);
-    const common = { out: argv.out as string | undefined, size: argv.size as string | undefined, keepFrames: argv['keep-frames'] as boolean };
+    const common = { out: argv.out as string | undefined, size: argv.size as string | undefined, keepFrames: argv['keep-frames'] as boolean, bringToFront: argv['bring-to-front'] as boolean };
     if (argv.operation === 'replay') {
       if (!argv.first || !(argv.second ?? headlessPage)) throw new Error('video replay requires <steps.json> <page> (the page may be left out with --headless)');
       await video.videoReplay(context, argv.first as string, { ...common, page: (argv.second ?? headlessPage) as string,
-        hold: argv.hold as number, glideMs: argv['glide-ms'] as number | undefined });
+        hold: argv.hold as number, glideMs: argv['glide-ms'] as number | undefined,
+        captionPosition: video.parseCaptionPosition(argv['caption-position'] as string | undefined) });
     } else {
       if (!(argv.first ?? headlessPage)) throw new Error('video record requires <page> (it may be left out with --headless)');
       await video.videoRecord(context, { ...common, page: (argv.first ?? headlessPage) as string, seconds: argv.seconds as number | undefined });

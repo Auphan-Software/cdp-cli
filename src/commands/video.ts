@@ -10,9 +10,9 @@ import { DaemonClient } from '../daemon/client.js';
 import { outputCommandError, outputLine } from '../output.js';
 import { describeCliPath } from '../path.js';
 import { runCli } from '../workflow.js';
-import { glidePath } from '../video/overlay.js';
+import { CAPTION_BAR_PX, CAPTION_FONT_PX, CAPTION_POSITIONS, glidePath, type CaptionPosition } from '../video/overlay.js';
 import { MINIMISED_MESSAGE, VideoCapture } from '../video/capture.js';
-import { checkClicks, encodeWebm, findFfmpeg, transcodeMp4, type CapturedFrame, type ClickMark, type OverlayResult } from '../video/encoder.js';
+import { checkClicks, encodeWebm, findFfmpeg, transcodeMp4, type CapturedFrame, type CaptionBar, type ClickMark, type OverlayResult } from '../video/encoder.js';
 import { childArgs, conditionExpression, describeStep, fileInputProblemExpression, locateExpression, parseSteps, scrollExpression, selectExpression, swipePath, type VideoStep } from '../video/steps.js';
 
 export const DEFAULT_RECORD_SECONDS = 60;
@@ -20,7 +20,20 @@ export const MAX_RECORD_SECONDS = 3600;
 const DEFAULT_GLIDE_MS = 450;
 const DEFAULT_STEP_TIMEOUT_S = 5;
 
-export interface VideoOptions { page: string; out?: string; size?: string; keepFrames?: boolean }
+export interface VideoOptions { page: string; out?: string; size?: string; keepFrames?: boolean; bringToFront?: boolean }
+
+/** `--caption-position` as a position; bottom is the default. */
+export function parseCaptionPosition(value: string | undefined): CaptionPosition | undefined {
+  if (value === undefined) return undefined;
+  if (!(CAPTION_POSITIONS as string[]).includes(value)) throw new Error(`VIDEO_INVALID_CAPTION_POSITION: --caption-position is one of ${CAPTION_POSITIONS.join(', ')}`);
+  return value as CaptionPosition;
+}
+
+/** The bar under the page for `outside` captions: `timeline` is [browser time, text] in the order the captions were set; `scale` is video px per CSS px. */
+export function captionBar(timeline: Array<[number, string]>, t0: number, scale: number): CaptionBar {
+  return { height: Math.round(CAPTION_BAR_PX * scale), fontPx: Math.round(CAPTION_FONT_PX * scale),
+    at: (t) => timeline.filter(([at]) => at - t0 <= t + 1e-6).pop()?.[1] ?? '' };
+}
 interface StepMark { n: number; do: string; caption: string; start: number; end: number; status: 'ok' | 'fail'; note?: string }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -103,18 +116,19 @@ async function startCapture(context: CDPContext, options: VideoOptions, follow: 
 /** Stop, encode, write the file, check the pointer at each click and print the result. */
 async function finish(context: CDPContext, run: Awaited<ReturnType<typeof startCapture>>, options: VideoOptions,
   clicksAt: (frames: CapturedFrame[], t0: number) => ClickMark[], extra: Record<string, unknown>,
-  marks?: StepMark[]): Promise<number> {
+  marks?: StepMark[], captions?: Array<[number, string]>): Promise<number> {
   const { capture, output, ffmpeg, framesDir } = run;
   const minimised = !capture.frames.length && await capture.isMinimised();
   const { frames, end, t0 } = await capture.stop();
   if (!frames.length) throw new Error(minimised ? MINIMISED_MESSAGE : 'VIDEO_NO_FRAMES: the page sent no screencast frames (a covered window needs Chrome started by `cdp-cli ready`; a minimised one needs --headless)');
-  const webm = await encodeWebm(context, frames, end, { width: capture.width, height: capture.height });
+  const scale = capture.cssWidth ? capture.width / capture.cssWidth : 1;
+  const webm = await encodeWebm(context, frames, end, { width: capture.width, height: capture.height },
+    { front: options.bringToFront, ...(captions ? { bar: captionBar(captions, t0, scale) } : {}) });
   const webmFile = output.mp4 ? join(framesDir, 'video.webm') : output.file;
   writeFileSync(webmFile, webm);
   if (output.mp4) transcodeMp4(ffmpeg as string, webmFile, output.file);
   const clicks = clicksAt(frames, t0);
-  const scale = capture.cssWidth ? capture.width / capture.cssWidth : 1;
-  const overlay = await checkClicks(context, output.file, output.mp4 ? 'video/mp4' : 'video/webm', clicks, scale);
+  const overlay = await checkClicks(context, output.file, output.mp4 ? 'video/mp4' : 'video/webm', clicks, scale, { front: options.bringToFront });
   let stepsFile: string | undefined;
   if (marks) {
     const clock = (v: number) => Math.round(Math.min(end, Math.max(0, v - t0)) * 1000) / 1000;
@@ -146,7 +160,7 @@ async function poll<T>(timeoutS: number, probe: () => Promise<T | { wait: string
 
 /** Replay a step file on a page while recording it. */
 export async function videoReplay(context: CDPContext, file: string,
-  options: VideoOptions & { hold?: number; glideMs?: number }): Promise<void> {
+  options: VideoOptions & { hold?: number; glideMs?: number; captionPosition?: CaptionPosition }): Promise<void> {
   let run: Awaited<ReturnType<typeof startCapture>> | undefined;
   try {
     if (sameFile(stepsIndexPath(resolveOutput(options.out).file), describeCliPath(file).normalizedPath)) {
@@ -156,6 +170,13 @@ export async function videoReplay(context: CDPContext, file: string,
     run = await startCapture(context, options, false);
     const { capture, page } = run;
     const glideMs = options.glideMs ?? doc.glideMs ?? DEFAULT_GLIDE_MS;
+    const position = options.captionPosition ?? doc.captionPosition ?? 'bottom';
+    const captions: Array<[number, string]> = [];
+    // The position is sent with every caption: sessionStorage, which keeps it across pages, is lost on another origin.
+    const setCaption = async (text: string): Promise<void> => {
+      await capture.evaluate(`__bv.captionPosition(${JSON.stringify(position)});__bv.caption(${JSON.stringify(text)})`);
+      captions.push([await capture.now(), text]);
+    };
     const session = [...['--cdp-url', context.cdpUrl], ...(context.workspaceSessionName ? ['--session', context.workspaceSessionName] : [])];
     let pointer: [number, number] = doc.pointer ?? await capture.evaluate('[innerWidth/2,innerHeight/2]');
     await capture.evaluate(`__bv.move(${pointer[0]},${pointer[1]})`);
@@ -164,7 +185,7 @@ export async function videoReplay(context: CDPContext, file: string,
     let caption = '';
     for (const [index, step] of doc.steps.entries()) {
       const n = index + 1;
-      if (step.caption !== undefined) { caption = step.caption; await capture.evaluate(`__bv.caption(${JSON.stringify(caption)})`); }
+      if (step.caption !== undefined) { caption = step.caption; await setCaption(caption); }
       const mark: StepMark = { n, do: describeStep(step), caption, start: await capture.now(), end: 0, status: 'ok' };
       marks.push(mark);
       try {
@@ -183,7 +204,7 @@ export async function videoReplay(context: CDPContext, file: string,
       const timeoutS = step.timeout ?? DEFAULT_STEP_TIMEOUT_S;
       if (step.do === 'caption') {
         caption = step.text ?? '';
-        await capture.evaluate(`__bv.caption(${JSON.stringify(caption)})`);
+        await setCaption(caption);
         marks[marks.length - 1].caption = caption;
         return;
       }
@@ -279,7 +300,8 @@ export async function videoReplay(context: CDPContext, file: string,
     run = undefined; // finish stops the capture itself
     process.exitCode = await finish(context, r, options,
       (frames, t0) => clicks.map((c) => ({ n: c.n, at: c.at, t: frameTimeAt(frames, t0, c.seen), alt: frameTimeAt(frames, t0, c.seen, true) })),
-      { steps: doc.steps.length, ...(failed ? { failedStep: failed.n, reason: failed.note } : {}) }, marks);
+      { steps: doc.steps.length, ...(failed ? { failedStep: failed.n, reason: failed.note } : {}) }, marks,
+      position === 'outside' ? captions : undefined);
   } catch (error) {
     outputCommandError(error, 'VIDEO_REPLAY_FAILED');
     process.exitCode = 1;

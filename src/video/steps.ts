@@ -21,9 +21,11 @@ export interface VideoStep {
   direction?: SwipeDirection; distance?: number; files?: string[];
 }
 
+import { CAPTION_POSITIONS, type CaptionPosition } from './overlay.js';
+
 export type SwipeDirection = 'up' | 'down' | 'left' | 'right';
 
-export interface StepFile { name?: string; pointer?: [number, number]; glideMs?: number; steps: VideoStep[] }
+export interface StepFile { name?: string; pointer?: [number, number]; glideMs?: number; captionPosition?: CaptionPosition; steps: VideoStep[] }
 
 const MAX_STEPS = 200;
 const KEYS: Record<VideoStep['do'], string[]> = {
@@ -108,9 +110,12 @@ export function parseSteps(text: string): StepFile {
   });
   const pointer = Array.isArray(raw.pointer) && raw.pointer.length === 2 && raw.pointer.every(Number.isFinite)
     ? raw.pointer as [number, number] : undefined;
+  if (raw.caption_position !== undefined && !CAPTION_POSITIONS.includes(raw.caption_position)) {
+    throw new Error(`caption_position must be one of ${CAPTION_POSITIONS.join(', ')}`);
+  }
   const glideMs = typeof raw.glide_ms === 'number' && raw.glide_ms >= 0 ? raw.glide_ms : undefined;
   return { ...(typeof raw.name === 'string' ? { name: raw.name } : {}), ...(pointer ? { pointer } : {}),
-    ...(glideMs !== undefined ? { glideMs } : {}), steps: raw.steps as VideoStep[] };
+    ...(glideMs !== undefined ? { glideMs } : {}), ...(raw.caption_position ? { captionPosition: raw.caption_position as CaptionPosition } : {}), steps: raw.steps as VideoStep[] };
 }
 
 /** `click "Save"`, the label a failure names its step by. */
