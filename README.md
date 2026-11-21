@@ -90,6 +90,10 @@ The step file is the Jarvis browser-video format, JSON `{"steps": [...]}` or a b
 | `wait` | `selector` or `text` (with `"gone": true`, until not visible), `selector` + `value`, or `ms` |
 | `caption` | `text` |
 | `assert-visible` | `selector` or `text` |
+| `scroll` | `selector` (the scrollable container), `x` and/or `y` (CSS px to scroll by, negative for left/up); eased over ~400 ms; fails if the container cannot move that way |
+| `swipe` | touch drag: `from` and `to` as `[x, y]` viewport points, or `direction` (`up`, `down`, `left`, `right`: the way the finger moves) with `distance` (CSS px). The start is `from`, else the centre of `selector`, else the viewport centre. Fails when a point is outside the viewport |
+| `select` | `selector` (a native `<select>`), `value` (an option's value); fires `input` and `change`, fails and lists the options when the value does not exist |
+| `upload` | `selector` (an `<input type=file>`), `files` (a local path or a list; relative paths resolve against the current directory); set with `DOM.setFileInputFiles`, which fires `input` and `change`. More than one file needs `multiple` |
 
 ```json
 {"steps": [
@@ -100,6 +104,7 @@ The step file is the Jarvis browser-video format, JSON `{"steps": [...]}` or a b
 ]}
 ```
 
+- `scroll`, `swipe`, `select` and `upload` are done by the recorder itself (a page script or raw touch / file-input CDP commands), not by a child command. A swipe moves the drawn pointer along the finger's path but is not a click, so the click check does not count it. A bad step is refused before the browser is touched, with its number and what it needs, e.g. `step 3 (swipe): direction is one of up, down, left, right`.
 - Each action runs as the ordinary cdp-cli command (`navigate`, `click --x --y`, `fill`, `press-key`), so its guards and delivery checks apply. Before a click the pointer glides to the target (`--glide-ms`, default 450; `0` jumps), the replay waits until the target is visible, enabled, stable and not covered, and the ring plays on arrival. The recorder's own connection is passive: it takes no exclusive page lease.
 - In `record`, the pointer follows the real mouse and every real press rings. Recording is bounded: `--seconds` defaults to 60, at most 3600.
 - Encoding uses Chrome's own WebCodecs (VP9, else VP8) in a short-lived helper tab: no ffmpeg and no extra package. `--out file.mp4` transcodes with an ffmpeg already on PATH (or `CDP_FFMPEG`); without one it stops before recording and asks for `.webm`.

@@ -13,7 +13,7 @@ import { runCli } from '../workflow.js';
 import { glidePath } from '../video/overlay.js';
 import { MINIMISED_MESSAGE, VideoCapture } from '../video/capture.js';
 import { checkClicks, encodeWebm, findFfmpeg, transcodeMp4, type CapturedFrame, type ClickMark, type OverlayResult } from '../video/encoder.js';
-import { childArgs, conditionExpression, describeStep, locateExpression, parseSteps, type VideoStep } from '../video/steps.js';
+import { childArgs, conditionExpression, describeStep, fileInputProblemExpression, locateExpression, parseSteps, scrollExpression, selectExpression, swipePath, type VideoStep } from '../video/steps.js';
 
 export const DEFAULT_RECORD_SECONDS = 60;
 export const MAX_RECORD_SECONDS = 3600;
@@ -193,6 +193,14 @@ export async function videoReplay(context: CDPContext, file: string,
           step.do === 'wait' ? 'wait not satisfied' : 'not visible');
         return;
       }
+      if (step.do === 'scroll' || step.do === 'select') {
+        const outcome = await poll<any>(timeoutS, () => capture.evaluate(step.do === 'scroll' ? scrollExpression(step) : selectExpression(step)),
+          step.do === 'scroll' ? 'container not found' : 'select not found');
+        if (outcome?.fail) throw new Error(`${step.do} ${JSON.stringify(step.selector)} ${outcome.fail}`);
+        return;
+      }
+      if (step.do === 'upload') { await uploadFiles(step, timeoutS); return; }
+      if (step.do === 'swipe') { await swipe(step, timeoutS); return; }
       let point: [number, number] | undefined;
       if (step.do === 'click' || step.do === 'type') {
         const target = await poll<{ x: number; y: number }>(timeoutS, () => capture.evaluate(locateExpression(step)), 'not clickable');
@@ -218,6 +226,49 @@ export async function videoReplay(context: CDPContext, file: string,
           throw new Error(`${command[0]} failed: ${row?.message ?? row?.code ?? 'unknown error'}`);
         }
       }
+    }
+
+    /** Local files into an <input type=file> with DOM.setFileInputFiles (it fires input and change itself). */
+    async function uploadFiles(step: VideoStep, timeoutS: number): Promise<void> {
+      const files = (step.files as string[]).map((f) => describeCliPath(f).resolvedPath);
+      const missing = files.find((f) => !existsSync(f) || !statSync(f).isFile());
+      if (missing) throw new Error(`upload file not found: ${missing}`);
+      const selector = step.selector as string;
+      await poll(timeoutS, async () => {
+        const problem = await capture.evaluate(fileInputProblemExpression(selector, files.length));
+        if (problem === 'not found') return { wait: problem };
+        if (problem) throw new Error(`upload ${JSON.stringify(selector)} ${problem}`);
+        return true;
+      }, 'file input not found');
+      const objectId = await capture.elementObjectId(selector);
+      if (!objectId) throw new Error(`upload ${JSON.stringify(selector)} not found`);
+      await capture.send('DOM.setFileInputFiles', { files, objectId });
+    }
+
+    /** A touch drag: the pointer glides to the start, then follows the finger so the video shows it. */
+    async function swipe(step: VideoStep, timeoutS: number): Promise<void> {
+      const viewport = await capture.evaluate('({width:innerWidth,height:innerHeight})') as { width: number; height: number };
+      let start: [number, number] = [viewport.width / 2, viewport.height / 2];
+      if (step.selector) {
+        const target = await poll<{ x: number; y: number }>(timeoutS, () => capture.evaluate(locateExpression({ selector: step.selector })), 'swipe target not found');
+        start = [target.x, target.y];
+      }
+      const path = swipePath(step, start, viewport);
+      for (const [x, y] of glidePath(pointer, path[0], glideMs)) {
+        await capture.evaluate(`__bv.move(${x},${y})`);
+        if (glideMs) await sleep(12);
+      }
+      await capture.painted();
+      const touch = (type: string, p?: [number, number]) => capture.send('Input.dispatchTouchEvent',
+        { type, touchPoints: p ? [{ x: p[0], y: p[1], id: 1 }] : [] });
+      await touch('touchStart', path[0]);
+      for (const p of path.slice(1)) {
+        await touch('touchMove', p);
+        await capture.evaluate(`__bv.move(${p[0]},${p[1]})`);
+        await sleep(16);
+      }
+      await touch('touchEnd');
+      pointer = path[path.length - 1];
     }
 
     const failed = marks.find((m) => m.status === 'fail');

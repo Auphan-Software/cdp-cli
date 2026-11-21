@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- `video replay` steps `scroll` (container + delta), `swipe` (touch, from/to or direction +
+  distance), `select` (native `<select>` value, fires input and change) and `upload` (local
+  files into an `<input type=file>`), with a clear error for a malformed step (wi-14879).
+
 ## 2.4.1
 
 - Fix `video replay` / `video record` printing a false `overlay: pointer NOT seen` (exit 4)
